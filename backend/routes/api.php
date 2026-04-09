@@ -797,6 +797,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/comments/{id}', [CommentController::class, 'destroy']);
     Route::patch('/comments/{id}/archive', [CommentController::class, 'archive']);
     Route::patch('/comments/{id}/unarchive', [CommentController::class, 'unarchive']);
+    Route::patch('/comments/{id}/star', [CommentController::class, 'star']);
+    Route::patch('/comments/{id}/unstar', [CommentController::class, 'unstar']);
+    Route::patch('/comments/{id}/pending', [CommentController::class, 'markPending']);
+    Route::patch('/comments/{id}/unpending', [CommentController::class, 'unmarkPending']);
 
     // --- Notifications ---
     Route::get('/notifications', [NotificationController::class, 'index']);

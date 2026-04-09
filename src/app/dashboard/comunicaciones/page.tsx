@@ -64,6 +64,7 @@ interface InternalComment {
   entity_reference?: string; replies?: CommentReply[];
   created_at: string; archived_at?: string | null;
   comment_type?: string; metadata?: Record<string, any> | null;
+  is_starred?: boolean; is_pending?: boolean;
 }
 
 function VerificationCard({
@@ -218,7 +219,10 @@ export default function CommunicationsPage() {
   const { user } = useAuth();
 
   // --- Inbox view toggle ---
-  const [activeInbox, setActiveInbox] = useState<'conversations' | 'comments' | 'assigned'>('conversations');
+  const [activeInbox, setActiveInbox] = useState<'conversations' | 'comments' | 'assigned' | 'important' | 'pending' | 'closed'>('conversations');
+  const [importantComments, setImportantComments] = useState<InternalComment[]>([]);
+  const [pendingComments, setPendingComments] = useState<InternalComment[]>([]);
+  const [closedComments, setClosedComments] = useState<InternalComment[]>([]);
   const [selectedAssigned, setSelectedAssigned] = useState<InternalComment | null>(null);
   const [assignedComments, setAssignedComments] = useState<InternalComment[]>([]);
 
@@ -482,6 +486,21 @@ export default function CommunicationsPage() {
         setAssignedComments(data.filter(c => c.comment_type === 'verification_request' && c.metadata?.status === 'pending'));
       }).catch(() => {});
     }
+    if (activeInbox === 'important') {
+      api.get('/api/comments/recent', { params: { limit: 50, starred: true } }).then(res => {
+        setImportantComments(Array.isArray(res.data) ? res.data : res.data.data ?? []);
+      }).catch(() => {});
+    }
+    if (activeInbox === 'pending') {
+      api.get('/api/comments/recent', { params: { limit: 50, pending: true } }).then(res => {
+        setPendingComments(Array.isArray(res.data) ? res.data : res.data.data ?? []);
+      }).catch(() => {});
+    }
+    if (activeInbox === 'closed') {
+      api.get('/api/comments/recent', { params: { limit: 50, archived: true } }).then(res => {
+        setClosedComments(Array.isArray(res.data) ? res.data : res.data.data ?? []);
+      }).catch(() => {});
+    }
   }, [activeInbox, commentsView, fetchAllComments]);
 
   // Auto-open thread from URL params (notification click)
@@ -671,7 +690,7 @@ export default function CommunicationsPage() {
 
   return (
     <ProtectedPage module="comunicaciones">
-      <div className="grid grid-cols-1 md:grid-cols-[260px_340px_1fr] h-[calc(100vh-8rem)] gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-[240px_400px_1fr] h-[calc(100vh-8rem)] gap-2">
       {/* Columna 1: Barra lateral de Cajas de Entrada (Inboxes) */}
       <Card className="hidden md:flex flex-col">
         <CardContent className="p-4 space-y-6">
@@ -706,9 +725,16 @@ export default function CommunicationsPage() {
                 <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{assignedComments.length}</span>
               )}
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
+            <Button
+              variant={activeInbox === 'important' ? 'secondary' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => { setActiveInbox('important'); setSelectedThread(null); }}
+            >
               <Star className="mr-2 h-4 w-4" />
               Importantes
+              {importantComments.length > 0 && (
+                <span className="ml-auto bg-yellow-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{importantComments.length}</span>
+              )}
             </Button>
           </div>
           <Separator />
@@ -716,11 +742,22 @@ export default function CommunicationsPage() {
             <h3 className="text-xs font-semibold flex items-center gap-2 text-muted-foreground uppercase px-2 mb-2">
               <Archive className="h-3.5 w-3.5" /> Archivo
             </h3>
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
+            <Button
+              variant={activeInbox === 'pending' ? 'secondary' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => { setActiveInbox('pending'); setSelectedThread(null); }}
+            >
               <Clock className="mr-2 h-4 w-4" />
               Pendientes
+              {pendingComments.length > 0 && (
+                <span className="ml-auto bg-blue-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{pendingComments.length}</span>
+              )}
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
+            <Button
+              variant={activeInbox === 'closed' ? 'secondary' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => { setActiveInbox('closed'); setSelectedThread(null); }}
+            >
               <FileText className="mr-2 h-4 w-4" />
               Cerradas
             </Button>
@@ -740,7 +777,7 @@ export default function CommunicationsPage() {
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={activeInbox === 'comments' ? 'Buscar comentario...' : activeInbox === 'assigned' ? 'Buscar verificación...' : 'Buscar conversación...'}
+              placeholder={activeInbox === 'comments' ? 'Buscar comentario...' : activeInbox === 'assigned' ? 'Buscar verificación...' : activeInbox === 'important' ? 'Buscar importantes...' : activeInbox === 'pending' ? 'Buscar pendientes...' : activeInbox === 'closed' ? 'Buscar cerradas...' : 'Buscar conversación...'}
               className="pl-8"
               value={commentSearch}
               onChange={(e) => setCommentSearch(e.target.value)}
@@ -825,8 +862,8 @@ export default function CommunicationsPage() {
                             </span>
                             <span className="text-[11px] text-muted-foreground shrink-0">{relativeTime(comment.created_at)}</span>
                           </div>
-                          <Badge variant="secondary" className={cn('text-[9px] px-1 py-0 h-[14px] rounded border-0 mt-0.5 max-w-[120px] truncate inline-block', info.color)}>
-                            {isDirect ? 'Msg. directo' : `${info.label}: ${ref}`}
+                          <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-[16px] rounded border-0 mt-0.5 max-w-full truncate inline-block', info.color)}>
+                            {isDirect ? 'Mensaje directo' : `${info.label}: ${ref}`}
                           </Badge>
                           <p className="text-xs text-muted-foreground truncate mt-0.5">
                             {isDirect ? `${comment.user.name}: ` : ''}{previewBody(comment.body)}
@@ -878,9 +915,53 @@ export default function CommunicationsPage() {
             </nav>
           )
 
-          ) : (
+          ) : null}
 
-          /* ----- CONVERSATIONS LIST ----- */
+          {/* ----- IMPORTANT / PENDING / CLOSED LISTS ----- */}
+          {(activeInbox === 'important' || activeInbox === 'pending' || activeInbox === 'closed') && (() => {
+            const listMap = { important: importantComments, pending: pendingComments, closed: closedComments };
+            const items = listMap[activeInbox as 'important' | 'pending' | 'closed']
+              .filter(c => !commentSearch || c.entity_reference?.toLowerCase().includes(commentSearch.toLowerCase()) || c.body?.toLowerCase().includes(commentSearch.toLowerCase()));
+            if (items.length === 0) return (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-muted-foreground gap-2">
+                {activeInbox === 'important' ? <Star className="h-8 w-8 opacity-20" /> : activeInbox === 'pending' ? <Clock className="h-8 w-8 opacity-20" /> : <FileText className="h-8 w-8 opacity-20" />}
+                <p className="text-sm">No hay {activeInbox === 'important' ? 'comentarios importantes' : activeInbox === 'pending' ? 'pendientes' : 'conversaciones cerradas'}</p>
+              </div>
+            );
+            return (
+              <nav className="flex-1 overflow-y-auto">
+                {items.map((comment) => {
+                  const info = getEntityInfo(comment.commentable_type);
+                  const isDirect = comment.commentable_type === 'App\\Models\\User';
+                  const ref = comment.entity_reference ?? `#${comment.commentable_id}`;
+                  return (
+                    <button
+                      key={comment.id}
+                      onClick={() => { setSelectedThread(comment); fetchThreadComments(comment); }}
+                      className={cn('w-full text-left p-3 hover:bg-muted/50 transition-colors flex items-start gap-3 border-b last:border-0', selectedThread?.id === comment.id && 'bg-muted')}
+                    >
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback className={cn('text-[11px] text-white', getAvatarColor(comment.user.id))}>{getInitials(comment.user.name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 justify-between">
+                          <span className="text-sm font-semibold truncate">{isDirect ? ref : comment.user.name}</span>
+                          <span className="text-[11px] text-muted-foreground shrink-0">{relativeTime(comment.created_at)}</span>
+                        </div>
+                        <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-[16px] rounded border-0 mt-0.5 max-w-full truncate inline-block', info.color)}>
+                          {isDirect ? 'Mensaje directo' : `${info.label}: ${ref}`}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{previewBody(comment.body)}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
+            );
+          })()}
+
+          {/* ----- CONVERSATIONS LIST ----- */}
+          {activeInbox === 'conversations' && (
           loadingConversations ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Cargando conversaciones...</div>
           ) : conversations.length === 0 ? (
@@ -950,13 +1031,104 @@ export default function CommunicationsPage() {
                 />
               </div>
             </div>
+          ) : null
+        ) : null}
+
+        {/* ----- IMPORTANT / PENDING / CLOSED THREAD PANEL ----- */}
+        {(activeInbox === 'important' || activeInbox === 'pending' || activeInbox === 'closed') && (
+          !selectedThread ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground gap-2">
+              {activeInbox === 'important' ? <Star className="h-8 w-8 opacity-20" /> : activeInbox === 'pending' ? <Clock className="h-8 w-8 opacity-20" /> : <FileText className="h-8 w-8 opacity-20" />}
+              <p className="text-sm">Selecciona un elemento</p>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
-              <Users className="h-10 w-10 opacity-20" />
-              <p className="text-sm">Selecciona una verificación pendiente</p>
+            <div className="flex flex-col h-full">
+              {/* Thread header with star/pending toggles */}
+              <div className="p-4 border-b flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className={cn('text-xs border-0', getEntityInfo(selectedThread.commentable_type).color)}>
+                    {getEntityInfo(selectedThread.commentable_type).label}: {selectedThread.entity_reference ?? `#${selectedThread.commentable_id}`}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1">
+                  {activeInbox !== 'closed' && (
+                    <Button variant="ghost" size="sm" className={cn('gap-1 text-xs', selectedThread.is_starred ? 'text-yellow-500' : 'text-muted-foreground')}
+                      onClick={async () => {
+                        const endpoint = selectedThread.is_starred ? `/api/comments/${selectedThread.id}/unstar` : `/api/comments/${selectedThread.id}/star`;
+                        await api.patch(endpoint);
+                        setSelectedThread(prev => prev ? { ...prev, is_starred: !prev.is_starred } : prev);
+                        if (activeInbox === 'important') setImportantComments(prev => prev.map(c => c.id === selectedThread.id ? { ...c, is_starred: !c.is_starred } : c));
+                      }}>
+                      <Star className="h-3.5 w-3.5" />
+                      {selectedThread.is_starred ? 'Quitar' : 'Importante'}
+                    </Button>
+                  )}
+                  {activeInbox !== 'closed' && (
+                    <Button variant="ghost" size="sm" className={cn('gap-1 text-xs', selectedThread.is_pending ? 'text-blue-500' : 'text-muted-foreground')}
+                      onClick={async () => {
+                        const endpoint = selectedThread.is_pending ? `/api/comments/${selectedThread.id}/unpending` : `/api/comments/${selectedThread.id}/pending`;
+                        await api.patch(endpoint);
+                        setSelectedThread(prev => prev ? { ...prev, is_pending: !prev.is_pending } : prev);
+                        if (activeInbox === 'pending') setPendingComments(prev => prev.map(c => c.id === selectedThread.id ? { ...c, is_pending: !c.is_pending } : c));
+                      }}>
+                      <Clock className="h-3.5 w-3.5" />
+                      {selectedThread.is_pending ? 'Quitar' : 'Pendiente'}
+                    </Button>
+                  )}
+                  {activeInbox === 'closed' && (
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground"
+                      onClick={async () => {
+                        await api.patch(`/api/comments/${selectedThread.id}/unarchive`);
+                        setClosedComments(prev => prev.filter(c => c.id !== selectedThread.id));
+                        setSelectedThread(null);
+                      }}>
+                      <Archive className="h-3.5 w-3.5" />
+                      Restaurar
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {/* Thread messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+                {loadingThread ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                ) : (
+                  threadComments.map((c) => (
+                    <div key={c.id} className="flex items-start gap-3">
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback className={cn('text-[11px] text-white', getAvatarColor(c.user.id))}>{getInitials(c.user.name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 bg-muted/60 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold">{c.user.name}</span>
+                          <span className="text-[11px] text-muted-foreground">{relativeTime(c.created_at)}</span>
+                        </div>
+                        <p className="text-sm mt-0.5" dangerouslySetInnerHTML={{ __html: renderBody(c.body) }} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {/* Input de reply — solo en Importantes */}
+              {activeInbox === 'important' && (
+                <div className="p-3 border-t shrink-0">
+                  <div className="flex gap-2 items-end">
+                    <textarea
+                      className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary min-h-[60px] max-h-[120px]"
+                      placeholder="Escribe una respuesta..."
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
+                    />
+                    <Button size="icon" className="h-9 w-9 shrink-0" disabled={!replyText.trim() || sendingReply} onClick={handleSendReply}>
+                      {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )
-        ) : null}
+        )}
 
         {/* ----- COMMENTS THREAD PANEL ----- */}
         {activeInbox === 'comments' ? (
@@ -1331,6 +1503,40 @@ export default function CommunicationsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" className={cn('gap-1 text-xs', selectedThread.is_starred ? 'text-yellow-500' : 'text-muted-foreground')}
+                    title={selectedThread.is_starred ? 'Quitar de importantes' : 'Marcar como importante'}
+                    onClick={async () => {
+                      const wasStarred = selectedThread.is_starred;
+                      const ep = wasStarred ? `/api/comments/${selectedThread.id}/unstar` : `/api/comments/${selectedThread.id}/star`;
+                      await api.patch(ep);
+                      const updated = { ...selectedThread, is_starred: !wasStarred };
+                      setSelectedThread(updated);
+                      setAllComments(prev => prev.map(c => c.id === selectedThread.id ? { ...c, is_starred: !wasStarred } : c));
+                      if (wasStarred) {
+                        setImportantComments(prev => prev.filter(c => c.id !== selectedThread.id));
+                      } else {
+                        setImportantComments(prev => [updated, ...prev]);
+                      }
+                    }}>
+                    <Star className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className={cn('gap-1 text-xs', selectedThread.is_pending ? 'text-blue-500' : 'text-muted-foreground')}
+                    title={selectedThread.is_pending ? 'Quitar de pendientes' : 'Marcar como pendiente'}
+                    onClick={async () => {
+                      const wasPending = selectedThread.is_pending;
+                      const ep = wasPending ? `/api/comments/${selectedThread.id}/unpending` : `/api/comments/${selectedThread.id}/pending`;
+                      await api.patch(ep);
+                      const updated = { ...selectedThread, is_pending: !wasPending };
+                      setSelectedThread(updated);
+                      setAllComments(prev => prev.map(c => c.id === selectedThread.id ? { ...c, is_pending: !wasPending } : c));
+                      if (wasPending) {
+                        setPendingComments(prev => prev.filter(c => c.id !== selectedThread.id));
+                      } else {
+                        setPendingComments(prev => [updated, ...prev]);
+                      }
+                    }}>
+                    <Clock className="h-3.5 w-3.5" />
+                  </Button>
                   <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-destructive"
                     title={selectedThread.archived_at ? 'Restaurar conversación' : 'Archivar conversación'}
                     onClick={async () => {
@@ -1474,44 +1680,39 @@ export default function CommunicationsPage() {
               </div>
             </>
           )
-        ) : (
+        ) : null} {/* end comments panel */}
 
-        /* ----- CONVERSATIONS PANEL ----- */
-        !selectedConversation ? (
-          <div className="flex-1 flex items-center justify-center p-8 text-center text-muted-foreground">
-            Selecciona una conversación para comenzar
-          </div>
-        ) : (
-          <>
-            <div className="p-4 border-b flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10 border">
-                  <AvatarImage src={selectedConversation.avatarUrl} />
-                  <AvatarFallback>
-                    {selectedConversation.name.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="font-semibold">
-                    <Link href={getLeadPath(selectedConversation.id)} className="hover:underline">
-                        {selectedConversation.name}
-                    </Link>
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Lead ID: {selectedConversation.caseId}
-                  </p>
-                </div>
-              </div>
-              <Badge
-                variant={
-                  selectedConversation.status === "Abierto"
-                    ? "default"
-                    : "secondary"
-                }
-              >
-                {selectedConversation.status}
-              </Badge>
+        {/* ----- CONVERSATIONS PANEL ----- */}
+        {activeInbox === 'conversations' && (
+          !selectedConversation ? (
+            <div className="flex-1 flex items-center justify-center p-8 text-center text-muted-foreground">
+              Selecciona una conversación para comenzar
             </div>
+          ) : (
+            <div className="flex flex-col h-full">
+              <div className="p-4 border-b flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10 border">
+                    <AvatarImage src={selectedConversation.avatarUrl} />
+                    <AvatarFallback>
+                      {selectedConversation.name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h3 className="font-semibold">
+                      <Link href={getLeadPath(selectedConversation.id)} className="hover:underline">
+                        {selectedConversation.name}
+                      </Link>
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Lead ID: {selectedConversation.caseId}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant={selectedConversation.status === "Abierto" ? "default" : "secondary"}>
+                  {selectedConversation.status}
+                </Badge>
+              </div>
         <Tabs defaultValue="all" className="flex-1 flex flex-col">
             <TabsList className="mx-4 mt-4">
                 <TabsTrigger value="all" className="gap-1">
@@ -1585,9 +1786,9 @@ export default function CommunicationsPage() {
               </div>
             </div>
         </Tabs>
-          </>
+          </div>
         )
-        )} {/* end conversations ternary / end activeInbox ternary */}
+        )} {/* end conversations panel */}
       </Card>
     </div>
     </ProtectedPage>

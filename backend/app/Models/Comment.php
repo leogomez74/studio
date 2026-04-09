@@ -19,12 +19,16 @@ class Comment extends Model
         'metadata',
         'mentions',
         'archived_at',
+        'is_starred',
+        'is_pending',
     ];
 
     protected $casts = [
         'mentions'    => 'array',
         'metadata'    => 'array',
         'archived_at' => 'datetime',
+        'is_starred'  => 'boolean',
+        'is_pending'  => 'boolean',
     ];
 
     public function commentable(): MorphTo
