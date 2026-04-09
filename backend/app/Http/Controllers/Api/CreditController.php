@@ -223,11 +223,10 @@ class CreditController extends Controller
             $validated['garantia'] = 'Pagaré';
         }
 
-        // Si no se especificó assigned_to, asignar al responsable default de leads
         if (empty($validated['assigned_to'])) {
-            $defaultAssignee = \App\Models\User::where('is_default_lead_assignee', true)->first();
-            if ($defaultAssignee) {
-                $validated['assigned_to'] = $defaultAssignee->id;
+            $userId = app(\App\Services\AssignmentService::class)->getNextAssignee('credits');
+            if ($userId) {
+                $validated['assigned_to'] = $userId;
             }
         }
 

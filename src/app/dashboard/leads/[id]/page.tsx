@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, Pencil, Sparkles, Archive, Plus, Paperclip, RefreshCw, ChevronsUpDown, Check, Eye, X, AlertCircle, Handshake, DollarSign, Building2, Car, Home, Shield, Users, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ReassignButton } from "@/components/ReassignButton";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -663,6 +664,14 @@ export default function LeadDetailPage() {
                                 <Badge variant="outline" className="rounded-full px-3 font-normal text-slate-600">
                                     Solo lectura
                                 </Badge>
+
+                                <ReassignButton
+                                  currentAssigneeId={lead.assigned_to_id ?? null}
+                                  currentAssigneeName={agents.find(a => a.id === lead.assigned_to_id)?.name ?? null}
+                                  agents={agents}
+                                  endpoint={`/api/leads/${lead.id}`}
+                                  onReassigned={(id) => setLead(prev => prev ? { ...prev, assigned_to_id: id } : prev)}
+                                />
 
                                 {!isEditMode && (
                                     <div className="flex items-center gap-2 ml-1">

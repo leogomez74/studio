@@ -207,6 +207,10 @@ class OpportunityController extends Controller
             $validated['amount'] = $this->extractAmountFromRange($lead->monto);
         }
 
+        if (empty($validated['assigned_to_id'])) {
+            $validated['assigned_to_id'] = app(\App\Services\AssignmentService::class)->getNextAssignee('analysis');
+        }
+
         // Crear la oportunidad
         $opportunity = Opportunity::create($validated);
 

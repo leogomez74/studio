@@ -214,6 +214,10 @@ class LeadController extends Controller
         $validated['status'] = $leadStatus?->name ?? $validated['status'] ?? 'Activo';
         $validated['is_active'] = $validated['is_active'] ?? true;
 
+        if (empty($validated['assigned_to_id'])) {
+            $validated['assigned_to_id'] = app(\App\Services\AssignmentService::class)->getNextAssignee('leads');
+        }
+
         // Usar transacción para asegurar consistencia
         $result = DB::transaction(function () use ($validated, $monto, $vertical, $opportunityType, $createOpportunity) {
             $lead = Lead::create($validated);
