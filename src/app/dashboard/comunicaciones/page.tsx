@@ -825,8 +825,8 @@ export default function CommunicationsPage() {
                             </span>
                             <span className="text-[11px] text-muted-foreground shrink-0">{relativeTime(comment.created_at)}</span>
                           </div>
-                          <Badge variant="secondary" className={cn('text-[10px] px-1.5 py-0 h-[16px] rounded border-0 mt-0.5', info.color)}>
-                            {isDirect ? 'Mensaje directo' : `${info.label}: ${ref}`}
+                          <Badge variant="secondary" className={cn('text-[9px] px-1 py-0 h-[14px] rounded border-0 mt-0.5 max-w-[120px] truncate inline-block', info.color)}>
+                            {isDirect ? 'Msg. directo' : `${info.label}: ${ref}`}
                           </Badge>
                           <p className="text-xs text-muted-foreground truncate mt-0.5">
                             {isDirect ? `${comment.user.name}: ` : ''}{previewBody(comment.body)}

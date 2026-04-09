@@ -29,6 +29,7 @@ class User extends Authenticatable
         'status',
         'monto_max_aprobacion',
         'is_default_lead_assignee',
+        'evolution_instance_id',
     ];
 
     /**
@@ -88,5 +89,13 @@ class User extends Authenticatable
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
+    }
+
+    /**
+     * Get the Evolution API instance assigned to the user
+     */
+    public function evolutionInstance(): BelongsTo
+    {
+        return $this->belongsTo(EvolutionInstance::class);
     }
 }

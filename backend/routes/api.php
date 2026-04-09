@@ -896,6 +896,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         });
     }); // fin middleware admin
 
+    // ── WhatsApp (mensajería vía Evolution API) ───────────────────────────────
+    Route::prefix('whatsapp')->group(function () {
+        Route::get('/conversations', [\App\Http\Controllers\Api\WhatsappController::class, 'conversations']);
+        Route::get('/messages',      [\App\Http\Controllers\Api\WhatsappController::class, 'messages']);
+        Route::post('/send',         [\App\Http\Controllers\Api\WhatsappController::class, 'send']);
+    });
+
     // ── Evolution API (WhatsApp) ──────────────────────────────────────────────
     Route::middleware('admin')->group(function () {
         Route::get('/evolution-server-config',    [\App\Http\Controllers\Api\EvolutionServerConfigController::class, 'show']);

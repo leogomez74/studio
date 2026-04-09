@@ -222,7 +222,7 @@ const MODULE_GROUPS: ModuleGroup[] = [
       },
       {
         // Patronos, deductoras, empresas, instituciones
-        key: 'config_personas', label: 'Config: Patronos, Deductoras, Empresas e Instituciones',
+        key: 'config_personas', label: 'Config: Patronos, Deductoras e Instituciones',
         permissions: ['view', 'create', 'edit', 'delete'],
       },
       {
