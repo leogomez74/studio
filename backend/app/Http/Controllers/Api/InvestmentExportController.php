@@ -406,7 +406,11 @@ class InvestmentExportController extends Controller
         $estadoCivilEN   = $translateToEN($investor->estado_civil);
         $profesionEN     = $translateToEN($investor->profesion);
         $nacionalidadEN  = $translateToEN($investor->nacionalidad);
-        $direccionEN     = $investor->direccion_contrato ?? ''; // dirección no se traduce
+        $direccionEN     = $investor->direccion_contrato ?? '';
+
+        // Descripción fija de CREDIPEP traducida
+        $credipepES = 'CREDIPEP SOCIEDAD ANÓNIMA, cédula jurídica: Tres- ciento uno- quinientos quince mil quinientos once, inscrita al Tomo: quinientos setenta y cuatro, Asiento: veintitrés mil trescientos setenta y dos, domiciliada en: San José- San José, cantón cero uno San José, Sabana Norte, del ICE cien metros oeste, cuatrocientos norte y cincuenta oeste, a mano izquierda, casa blanca de dos pisos número: cinco mil seiscientos treinta y cinco, con dos columnas grises frontales y verjas blancas';
+        $credipepEN = $translateToEN($credipepES);
 
         if ($lang === 'en') {
             $currency         = $investment->moneda === 'USD' ? 'dollars' : 'colones';
@@ -426,6 +430,7 @@ class InvestmentExportController extends Controller
             $profesion                  = $profesionEN;
             $nacionalidad               = $nacionalidadEN;
             $direccion                  = $direccionEN;
+            $credipepDesc               = $credipepEN;
             $view     = 'pdf.contrato_inversion_en';
             $filename = "loan_agreement_{$investment->numero_desembolso}.pdf";
         } else {
@@ -446,6 +451,7 @@ class InvestmentExportController extends Controller
             $profesion                  = $investor->profesion ?? '';
             $nacionalidad               = $investor->nacionalidad ?? '';
             $direccion                  = $investor->direccion_contrato ?? '';
+            $credipepDesc               = $credipepES;
             $view     = 'pdf.contrato_inversion_es';
             $filename = "contrato_{$investment->numero_desembolso}.pdf";
         }
@@ -454,7 +460,7 @@ class InvestmentExportController extends Controller
             'investment', 'investor',
             'montoFormateado', 'montoEnPalabras',
             'tasaFormateada', 'tasaEnPalabras',
-            'estadoCivil', 'profesion', 'nacionalidad', 'direccion',
+            'estadoCivil', 'profesion', 'nacionalidad', 'direccion', 'credipepDesc',
             'formaPago', 'plazoEnPalabras',
             'fechaInicioEnPalabras', 'fechaVencimientoEnPalabras', 'fechaFirmaEnPalabras',
             'idEnPalabras'
