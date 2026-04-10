@@ -133,6 +133,10 @@ class ClientController extends Controller
 
         $validated['is_active'] = $validated['is_active'] ?? true;
 
+        if (empty($validated['assigned_to_id'])) {
+            $validated['assigned_to_id'] = app(\App\Services\AssignmentService::class)->getNextAssignee('crm');
+        }
+
         $client = Client::create($validated);
 
         $this->logActivity('create', 'Clientes', $client, $client->cedula ?? $client->name, [], $request);

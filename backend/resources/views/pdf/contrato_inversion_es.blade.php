@@ -25,18 +25,18 @@
 
 <p>
 A) <strong>{{ strtoupper($investor->name) }}</strong>,
-@if($investor->nacionalidad) {{ $investor->nacionalidad }}, @endif
-@if($investor->estado_civil) {{ $investor->estado_civil }}, @endif
-@if($investor->profesion) {{ $investor->profesion }}, @endif
-@if($investor->direccion_contrato) vecino de: {{ $investor->direccion_contrato }}, @endif
+@if($nacionalidad) {{ $nacionalidad }}, @endif
+@if($estadoCivil) {{ $estadoCivil }}, @endif
+@if($profesion) {{ $profesion }}, @endif
+@if($direccion) vecino de: {{ $direccion }}, @endif
 @if($investor->cedula)
-@if($investor->tipo_persona === 'Persona Jurídica') cédula jurídica número: @else portador de la cédula número: @endif <strong>{{ $investor->cedula }}</strong>,
+@if($investor->tipo_persona === 'Persona Jurídica') cédula jurídica número: @else portador de la cédula número: @endif <strong>{{ $idEnPalabras }}</strong>,
 @endif
 en adelante conocido como: <strong>"El Prestamista"</strong>
 </p>
 
 <p>
-B) <strong>LEONARDO GÓMEZ SALAZAR</strong>, mayor, casado en primeras nupcias, Abogado y Notario, vecino de: San José, cantón Central, distrito Mata Redonda, avenida once, casa número cinco mil seiscientos treinta y cinco, portador de la cédula de identidad número: <strong>UNO-OCHOCIENTOS SETENTA Y SEIS-SEISCIENTOS SESENTA Y CUATRO</strong>, actuando en su condición de <strong>TESORERO</strong> con facultades de <strong>APODERADO GENERALÍSIMO SIN LÍMITE DE SUMA</strong>, de la sociedad <strong>CREDIPEP SOCIEDAD ANÓNIMA</strong>, cédula jurídica: Tres-ciento uno-quinientos quince mil quinientos once, domiciliada en San José, Sabana Norte, quien en adelante será referido como <strong>"El Deudor"</strong>.
+B) <strong>LEONARDO GÓMEZ SALAZAR</strong>, mayor, casado en primeras nupcias, Abogado y Notario, vecino de: San José, cantón: Central, distrito: Mata Redonda, avenida once, casa número: cinco mil seiscientos treinta y cinco, portador de la cédula de identidad número: <strong>UNO- OCHOCIENTOS SETENTA Y SEIS- SEISCIENTOS SESENTA Y CUATRO</strong>, actuando en su condición de <strong>TESORERO</strong> con facultades <strong>APODERADO GENERALÍSIMO SIN LIMITE DE SUMA</strong>, de la sociedad <strong>{{ $credipepDesc }}</strong>, quien en adelante y para los efectos del presente Contrato será referido como <strong>"El Deudor"</strong>.
 </p>
 
 <p>Las partes convenimos en celebrar el presente Contrato de Préstamo de Dinero, el cual se regirá por lo establecido en el Código de Comercio, Código Civil, el ordenamiento jurídico de la República de Costa Rica, y por lo indicado en las siguientes cláusulas:</p>

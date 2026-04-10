@@ -35,7 +35,7 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="roles-permisos">Roles y Permisos</TabsTrigger>
           <TabsTrigger value="patronos">Patronos</TabsTrigger>
           <TabsTrigger value="deductoras">Deductoras</TabsTrigger>
-          <TabsTrigger value="empresas">Empresas</TabsTrigger>
+          <TabsTrigger value="empresas">Docs. por Institución</TabsTrigger>
           <TabsTrigger value="instituciones">Instituciones</TabsTrigger>
           <TabsTrigger value="productos">Créditos</TabsTrigger>
           <TabsTrigger value="api">Contabilidad ERP</TabsTrigger>

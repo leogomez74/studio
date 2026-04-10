@@ -40,7 +40,7 @@ class CreditController extends Controller
         $query = Credit::with([
             'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id,deductora_id',
             'opportunity:id,status,opportunity_type,vertical,amount',
-            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,int_corriente_vencido,amortizacion,saldo_nuevo,fecha_pago,fecha_corte,estado,dias_mora',
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,int_corriente_vencido,amortizacion,saldo_nuevo,fecha_pago,fecha_corte,estado,dias_mora,fecha_movimiento,movimiento_total,movimiento_poliza,movimiento_interes_corriente,movimiento_int_corriente_vencido,movimiento_interes_moratorio,movimiento_principal,movimiento_amortizacion,movimiento_caja_usuario',
             'assignedTo:id,name',
             'expedienteJudicial:id,credit_id,estado,sub_estado',
         ]);
@@ -223,11 +223,10 @@ class CreditController extends Controller
             $validated['garantia'] = 'Pagaré';
         }
 
-        // Si no se especificó assigned_to, asignar al responsable default de leads
         if (empty($validated['assigned_to'])) {
-            $defaultAssignee = \App\Models\User::where('is_default_lead_assignee', true)->first();
-            if ($defaultAssignee) {
-                $validated['assigned_to'] = $defaultAssignee->id;
+            $userId = app(\App\Services\AssignmentService::class)->getNextAssignee('credits');
+            if ($userId) {
+                $validated['assigned_to'] = $userId;
             }
         }
 

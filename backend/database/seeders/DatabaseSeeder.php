@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             DeductoraSeeder::class,
             ProductSeeder::class,
             KpiSeeder::class,
+            ModuleAssignmentSeeder::class,
         ]);
     }
 }

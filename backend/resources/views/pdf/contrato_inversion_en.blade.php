@@ -24,18 +24,18 @@
 
 <p>
 A) <strong>{{ strtoupper($investor->name) }}</strong>,
-@if($investor->nacionalidad) {{ $investor->nacionalidad }} national, @endif
-@if($investor->estado_civil) {{ $investor->estado_civil }}, @endif
-@if($investor->profesion) {{ $investor->profesion }}, @endif
-@if($investor->direccion_contrato) residing at: {{ $investor->direccion_contrato }}, @endif
+@if($nacionalidad) {{ $nacionalidad }} national, @endif
+@if($estadoCivil) {{ $estadoCivil }}, @endif
+@if($profesion) {{ $profesion }}, @endif
+@if($direccion) residing at: {{ $direccion }}, @endif
 @if($investor->cedula)
-@if($investor->tipo_persona === 'Persona Jurídica') legal entity ID number: @else ID/Passport number: @endif <strong>{{ $investor->cedula }}</strong>,
+@if($investor->tipo_persona === 'Persona Jurídica') legal entity ID number: @else ID/Passport number: @endif <strong>{{ $idEnPalabras }}</strong>,
 @endif
 hereinafter referred to as: <strong>"The Lender"</strong>
 </p>
 
 <p>
-B) <strong>LEONARDO GÓMEZ SALAZAR</strong>, of legal age, married, Attorney and Notary, residing in San José, canton Central, district Mata Redonda, avenue eleven, house number five thousand six hundred thirty-five, national ID number: <strong>ONE-EIGHT HUNDRED SEVENTY-SIX-SIX HUNDRED SIXTY-FOUR</strong>, acting in his capacity as <strong>TREASURER</strong> with powers of <strong>GENERAL ATTORNEY-IN-FACT WITHOUT MONETARY LIMIT</strong>, of the company <strong>CREDIPEP SOCIEDAD ANÓNIMA</strong>, legal entity ID: Three-one hundred one-five hundred fifteen thousand five hundred eleven, domiciled in San José, Sabana Norte, hereinafter referred to as <strong>"The Borrower"</strong>.
+B) <strong>LEONARDO GÓMEZ SALAZAR</strong>, of legal age, married in first nuptials, Attorney and Notary, residing in: San José, canton: Central, district: Mata Redonda, avenue eleven, house number: five thousand six hundred thirty-five, bearer of national identity card number: <strong>ONE- EIGHT HUNDRED SEVENTY-SIX- SIX HUNDRED SIXTY-FOUR</strong>, acting in his capacity as <strong>TREASURER</strong> with powers of <strong>GENERAL ATTORNEY-IN-FACT WITHOUT MONETARY LIMIT</strong>, of the company <strong>{{ $credipepDesc }}</strong>, hereinafter referred to for the purposes of this Agreement as <strong>"The Borrower"</strong>.
 </p>
 
 <p>The parties agree to enter into this Money Loan Agreement, which shall be governed by the Commercial Code, the Civil Code, the legal framework of the Republic of Costa Rica, and the following clauses:</p>

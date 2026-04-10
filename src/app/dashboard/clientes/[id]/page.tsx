@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, ChevronsUpDown, Check, FileSpreadsheet, DollarSign, TrendingUp, Activity, PieChart, Target, Eye, Building2, Car, Home, Shield, Users, Search, RefreshCw } from "lucide-react";
 import { generateEstadoCuenta } from "@/lib/pdf/estadoCuenta";
+import { ReassignButton } from "@/components/ReassignButton";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -721,6 +722,17 @@ export default function ClientDetailPage() {
                     <Badge variant="outline" className="rounded-full px-3 font-normal text-slate-600">
                         {leadName || client.relacionado_a || "Cliente"}
                     </Badge>
+
+                    <ReassignButton
+                      currentAssigneeId={formData.assigned_to_id ?? null}
+                      currentAssigneeName={agents.find(a => a.id === formData.assigned_to_id)?.name ?? null}
+                      agents={agents}
+                      endpoint={`/api/clients/${client.id}`}
+                      onReassigned={(id) => {
+                        setClient(prev => prev ? { ...prev, assigned_to_id: id } : prev);
+                        handleInputChange('assigned_to_id', id);
+                      }}
+                    />
 
                     {!isEditMode && (
                         <div className="flex items-center gap-2 ml-1">
