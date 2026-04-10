@@ -228,7 +228,10 @@ class PlanillaService
                             $asignado = $fila['asignado'];
                             $diferencia = $asignado - $exigible;
 
-                            if (abs($diferencia) < 1) {
+                            // Diferencia decimal ajustable: entre -1.00 y -0.005
+                            $esAjusteDecimal = ($diferencia < -0.005 && $diferencia >= -1.00);
+
+                            if ($esAjusteDecimal || abs($diferencia) < 0.005) {
                                 $estado = 'Completo';
                             } elseif ($diferencia < 0) {
                                 $estado = 'Parcial';
@@ -244,7 +247,8 @@ class PlanillaService
                             if ($estado === 'Completo') $totales['completos']++;
                             if ($estado === 'Parcial') $totales['parciales']++;
 
-                            $totales['monto_total_esperado'] += $exigible;
+                            // Si es ajuste decimal, usar el monto planilla en el esperado (no afecta diferencia total)
+                            $totales['monto_total_esperado'] += $esAjusteDecimal ? $asignado : $exigible;
 
                             $preview[] = [
                                 'cedula' => $rawCedula,
@@ -566,6 +570,9 @@ class PlanillaService
     {
         $deductoraId = $validated['deductora_id'];
 
+        // Cédulas a las que se les debe ajustar el decimal al valor exacto de la cuota
+        $ajustesDecimales = $validated['ajustes_decimales'] ?? [];
+
         // Usar fecha de prueba si se proporciona (solo para desarrollo/testing)
         $fechaTest = $validated['fecha_test'] ?? null;
         $fechaPago = $fechaTest ? Carbon::parse($fechaTest) : now();
@@ -679,6 +686,38 @@ class PlanillaService
                 if ($montoPagado <= 0) {
                     $results[] = ['cedula' => $rawCedula, 'status' => 'zero_amount'];
                     continue;
+                }
+
+                // Si la cédula está en ajustes_decimales, usar el monto exacto de la cuota
+                if (!empty($ajustesDecimales) && in_array($cleanCedula, $ajustesDecimales)) {
+                    $creditoAjuste = Credit::where('deductora_id', $deductoraId)
+                        ->whereIn('status', ['Formalizado', 'En Mora'])
+                        ->whereHas('lead', function($q) use ($cleanCedula) {
+                            $q->where('cedula', $cleanCedula);
+                        })
+                        ->orderBy('formalized_at', 'asc')
+                        ->first();
+
+                    if ($creditoAjuste) {
+                        $cuotaAjuste = \App\Models\PlanDePago::where('credit_id', $creditoAjuste->id)
+                            ->whereIn('estado', ['Pendiente', 'Parcial'])
+                            ->where('numero_cuota', '>', 0)
+                            ->orderBy('numero_cuota')
+                            ->first();
+
+                        if ($cuotaAjuste) {
+                            $exigibleAjuste = (float)$cuotaAjuste->interes_corriente
+                                           + (float)($cuotaAjuste->int_corriente_vencido ?? 0)
+                                           + (float)$cuotaAjuste->interes_moratorio
+                                           + (float)$cuotaAjuste->poliza
+                                           + (float)$cuotaAjuste->amortizacion;
+
+                            // Solo ajustar si la diferencia es <= 1.00
+                            if (abs($exigibleAjuste - $montoPagado) <= 1.00) {
+                                $montoPagado = $exigibleAjuste;
+                            }
+                        }
+                    }
                 }
 
                 // Buscar TODOS los créditos por cédula + deductora, ordenados por antigüedad

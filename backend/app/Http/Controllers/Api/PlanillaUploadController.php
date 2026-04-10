@@ -597,4 +597,196 @@ class PlanillaUploadController extends Controller
         $filename = 'resumen_planilla_' . $planilla->id . '_' . ($planilla->fecha_planilla ?? 'sin-fecha') . '.pdf';
         return $pdf->stream($filename);
     }
+
+    /**
+     * Preview de candidatos para ajuste de decimales (diferencia <= ₡1.00)
+     */
+    public function previewAjusteDecimales($id)
+    {
+        $planilla = PlanillaUpload::findOrFail($id);
+
+        if ($planilla->estado === 'anulada') {
+            return response()->json(['candidatos' => [], 'total' => 0]);
+        }
+
+        $pagos = CreditPayment::where('planilla_upload_id', $planilla->id)
+            ->where('estado', 'Aplicado')
+            ->whereNull('estado_reverso')
+            ->where('numero_cuota', '>', 0)
+            ->with(['credit.lead'])
+            ->get();
+
+        $candidatos = [];
+
+        foreach ($pagos as $pago) {
+            $cuota = PlanDePago::where('credit_id', $pago->credit_id)
+                ->where('numero_cuota', $pago->numero_cuota)
+                ->where('estado', 'Parcial')
+                ->first();
+
+            if (!$cuota) continue;
+
+            $totalExigible = (float) $cuota->interes_corriente
+                           + (float) ($cuota->int_corriente_vencido ?? 0)
+                           + (float) $cuota->interes_moratorio
+                           + (float) $cuota->poliza
+                           + (float) $cuota->amortizacion;
+
+            $diferencia = round($totalExigible - (float) $cuota->movimiento_total, 2);
+
+            if ($diferencia > 0 && $diferencia <= 1.00) {
+                $candidatos[] = [
+                    'credito_referencia' => $pago->credit->reference ?? null,
+                    'nombre'             => $pago->credit->lead->name ?? null,
+                    'cedula'             => $pago->cedula,
+                    'monto_planilla'     => (float) $pago->monto,
+                    'cuota_esperada'     => round($totalExigible, 2),
+                    'diferencia'         => $diferencia,
+                ];
+            }
+        }
+
+        return response()->json([
+            'candidatos' => $candidatos,
+            'total'      => count($candidatos),
+        ]);
+    }
+
+    /**
+     * Aplicar ajuste de decimales en cuotas Parciales con diferencia <= ₡1.00
+     */
+    public function ajustarDecimales(Request $request, $id)
+    {
+        $planilla = PlanillaUpload::findOrFail($id);
+
+        if ($planilla->estado === 'anulada') {
+            return response()->json(['message' => 'No se puede ajustar una planilla anulada'], 400);
+        }
+
+        $pagos = CreditPayment::where('planilla_upload_id', $planilla->id)
+            ->where('estado', 'Aplicado')
+            ->whereNull('estado_reverso')
+            ->where('numero_cuota', '>', 0)
+            ->with(['credit.lead'])
+            ->get();
+
+        $ajustados = [];
+        $omitidos  = [];
+
+        DB::beginTransaction();
+        try {
+            foreach ($pagos as $pago) {
+                $cuota = PlanDePago::where('credit_id', $pago->credit_id)
+                    ->where('numero_cuota', $pago->numero_cuota)
+                    ->where('estado', 'Parcial')
+                    ->first();
+
+                if (!$cuota) continue;
+
+                $totalExigible = (float) $cuota->interes_corriente
+                               + (float) ($cuota->int_corriente_vencido ?? 0)
+                               + (float) $cuota->interes_moratorio
+                               + (float) $cuota->poliza
+                               + (float) $cuota->amortizacion;
+
+                $diferencia = round($totalExigible - (float) $cuota->movimiento_total, 2);
+
+                if ($diferencia <= 0 || $diferencia > 1.00) {
+                    if ($diferencia > 1.00) {
+                        $omitidos[] = [
+                            'credito_referencia' => $pago->credit->reference ?? null,
+                            'diferencia'         => $diferencia,
+                            'motivo'             => 'Diferencia mayor a ₡1.00',
+                        ];
+                    }
+                    continue;
+                }
+
+                $credit = Credit::lockForUpdate()->find($pago->credit_id);
+                if (!$credit) continue;
+
+                // Distribuir la diferencia en los componentes residuales
+                $restoMora      = max(0, (float)$cuota->interes_moratorio    - (float)$cuota->movimiento_interes_moratorio);
+                $restoVencido   = max(0, (float)($cuota->int_corriente_vencido ?? 0) - (float)($cuota->movimiento_int_corriente_vencido ?? 0));
+                $restoInteres   = max(0, (float)$cuota->interes_corriente    - (float)$cuota->movimiento_interes_corriente);
+                $restoPoliza    = max(0, (float)$cuota->poliza               - (float)$cuota->movimiento_poliza);
+                $restoPrincipal = max(0, (float)$cuota->amortizacion         - (float)$cuota->movimiento_amortizacion);
+
+                $rem = $diferencia;
+                $ajMora      = min($rem, $restoMora);      $rem = round($rem - $ajMora, 2);
+                $ajVencido   = min($rem, $restoVencido);   $rem = round($rem - $ajVencido, 2);
+                $ajInteres   = min($rem, $restoInteres);   $rem = round($rem - $ajInteres, 2);
+                $ajPoliza    = min($rem, $restoPoliza);    $rem = round($rem - $ajPoliza, 2);
+                $ajPrincipal = min($rem, $restoPrincipal); $rem = round($rem - $ajPrincipal, 2);
+
+                $montoAjuste = round($ajMora + $ajVencido + $ajInteres + $ajPoliza + $ajPrincipal, 2);
+                if ($montoAjuste <= 0) continue;
+
+                // Actualizar PlanDePago
+                $cuota->movimiento_interes_moratorio     = round((float)$cuota->movimiento_interes_moratorio + $ajMora, 2);
+                $cuota->movimiento_int_corriente_vencido = round((float)($cuota->movimiento_int_corriente_vencido ?? 0) + $ajVencido, 2);
+                $cuota->movimiento_interes_corriente     = round((float)$cuota->movimiento_interes_corriente + $ajInteres, 2);
+                $cuota->movimiento_poliza                = round((float)$cuota->movimiento_poliza + $ajPoliza, 2);
+                $cuota->movimiento_amortizacion          = round((float)$cuota->movimiento_amortizacion + $ajPrincipal, 2);
+                $cuota->movimiento_principal             = round((float)$cuota->movimiento_principal + $ajPrincipal, 2);
+                $cuota->movimiento_total                 = round((float)$cuota->movimiento_total + $montoAjuste, 2);
+                $cuota->estado                           = 'Pagado';
+                $cuota->concepto                         = 'Ajuste de decimales planilla #' . $planilla->id;
+                $cuota->save();
+
+                // Actualizar saldo del crédito
+                if ($ajPrincipal > 0) {
+                    $credit->saldo = max(0.0, (float)$credit->saldo - $ajPrincipal);
+                    $credit->save();
+                }
+
+                // Crear CreditPayment complementario
+                CreditPayment::create([
+                    'credit_id'          => $pago->credit_id,
+                    'planilla_upload_id' => $planilla->id,
+                    'numero_cuota'       => $pago->numero_cuota,
+                    'fecha_cuota'        => $cuota->fecha_corte,
+                    'fecha_pago'         => $pago->fecha_pago,
+                    'monto'              => $montoAjuste,
+                    'cuota'              => $pago->cuota,
+                    'saldo_anterior'     => $credit->saldo + $ajPrincipal,
+                    'nuevo_saldo'        => $credit->saldo,
+                    'estado'             => 'Aplicado',
+                    'interes_corriente'  => $ajInteres,
+                    'amortizacion'       => $ajPrincipal,
+                    'interes_moratorio'  => $ajMora,
+                    'poliza'             => $ajPoliza,
+                    'source'             => 'Ajuste Planilla',
+                    'referencia'         => 'Ajuste decimales planilla #' . $planilla->id,
+                    'cedula'             => $pago->cedula,
+                    'movimiento_total'   => 0,
+                ]);
+
+                $ajustados[] = [
+                    'credito_referencia'  => $credit->reference,
+                    'nombre'              => $credit->lead->name ?? null,
+                    'monto_original'      => (float) $pago->monto,
+                    'diferencia_ajustada' => $montoAjuste,
+                    'nuevo_estado'        => 'Pagado',
+                ];
+            }
+
+            DB::commit();
+
+            $this->logActivity('update', 'Planilla', $planilla,
+                'Ajuste de decimales planilla #' . $planilla->id . ' — ' . count($ajustados) . ' cuota(s)', [], $request);
+
+            return response()->json([
+                'message'         => count($ajustados) . ' cuota(s) ajustadas exitosamente.',
+                'ajustados'       => $ajustados,
+                'omitidos'        => $omitidos,
+                'total_ajustados' => count($ajustados),
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error en ajuste de decimales', ['planilla_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Error al procesar ajuste', 'error' => $e->getMessage()], 500);
+        }
+    }
 }

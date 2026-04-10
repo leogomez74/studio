@@ -780,6 +780,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('planilla-uploads/{id}/export-resumen', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumen'])->middleware('throttle:20,1');
     Route::get('planilla-uploads/{id}/export-resumen-pdf', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumenPdf'])->middleware('throttle:20,1');
     Route::post('planilla-uploads/{id}/anular', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'anular'])->middleware('throttle:10,1');
+    Route::get('planilla-uploads/{id}/preview-ajuste-decimales', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'previewAjusteDecimales']);
+    Route::post('planilla-uploads/{id}/ajustar-decimales', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'ajustarDecimales'])->middleware('throttle:10,1');
 
     // --- Tasas ---
     Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);
