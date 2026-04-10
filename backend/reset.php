@@ -79,49 +79,24 @@ echo "\n[RESET] Iniciando...\n\n";
 DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
 try {
-    // 1. Pagos de créditos
-    $deleted = DB::table('credit_payments')->delete();
-    echo "[OK] credit_payments eliminados: {$deleted}\n";
+    $tablas = [
+        'credit_payments',
+        'plan_de_pagos',
+        'credits',
+        'opportunities',
+        'propuestas',
+        'analisis',
+        'saldos_pendientes',
+        'planilla_uploads',
+        'persons',
+        'accounting_entry_logs',
+        'tasks',
+    ];
 
-    // 2. Planes de pago
-    $deleted = DB::table('plan_de_pagos')->delete();
-    echo "[OK] plan_de_pagos eliminados: {$deleted}\n";
-
-    // 3. Créditos
-    $deleted = DB::table('credits')->delete();
-    echo "[OK] credits eliminados: {$deleted}\n";
-
-    // 4. Oportunidades
-    $deleted = DB::table('opportunities')->delete();
-    echo "[OK] opportunities eliminadas: {$deleted}\n";
-
-    // 5. Propuestas de crédito
-    $deleted = DB::table('propuestas')->delete();
-    echo "[OK] propuestas eliminadas: {$deleted}\n";
-
-    // 6. Analizados
-    $deleted = DB::table('analisis')->delete();
-    echo "[OK] analisis eliminados: {$deleted}\n";
-
-    // 7. Saldos pendientes (sobrantes de planilla)
-    $deleted = DB::table('saldos_pendientes')->delete();
-    echo "[OK] saldos_pendientes eliminados: {$deleted}\n";
-
-    // 8. Historial de planillas
-    $deleted = DB::table('planilla_uploads')->delete();
-    echo "[OK] planilla_uploads eliminados: {$deleted}\n";
-
-    // 9. Personas (leads y clientes)
-    $deleted = DB::table('persons')->delete();
-    echo "[OK] persons eliminados: {$deleted}\n";
-
-    // 10. Registros contables
-    $deleted = DB::table('accounting_entry_logs')->delete();
-    echo "[OK] accounting_entry_logs eliminados: {$deleted}\n";
-
-    // 11. Tareas
-    $deleted = DB::table('tasks')->delete();
-    echo "[OK] tasks eliminadas: {$deleted}\n";
+    foreach ($tablas as $tabla) {
+        DB::statement("TRUNCATE TABLE `{$tabla}`");
+        echo "[OK] {$tabla} truncada\n";
+    }
 
 } catch (\Exception $e) {
     echo "\n[ERROR] " . $e->getMessage() . "\n";

@@ -286,6 +286,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Automatización de Tareas ---
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
     Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert'])->middleware('admin');
+    Route::delete('/task-automations/{taskAutomation}', [\App\Http\Controllers\Api\TaskAutomationController::class, 'destroy'])->middleware('admin');
 
     // --- Integraciones Externas ---
     Route::apiResource('external-integrations', \App\Http\Controllers\Api\ExternalIntegrationController::class)->middleware('admin');
@@ -351,8 +352,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/bugs/{bug}/status', [\App\Http\Controllers\Api\BugController::class, 'updateStatus'])->middleware('throttle:60,1');
     Route::post('/bugs/{bug}/images', [\App\Http\Controllers\Api\BugController::class, 'uploadImages'])->middleware('throttle:30,1');
     Route::delete('/bugs/{bug}/images/{image}', [\App\Http\Controllers\Api\BugController::class, 'deleteImage'])->middleware('throttle:30,1');
-    Route::get('/jira/users', function() {
-        return response()->json((new AppServicesJiraService())->getUsers());
+    Route::get('/jira/users', fn() => response()->json((new \App\Services\JiraService())->getUsers()));
+    Route::get('/bugs/{bug}/subtasks', fn(\App\Models\Bug $bug) => response()->json(
+        $bug->jira_key ? (new \App\Services\JiraService())->getSubtasks($bug->jira_key) : []
+    ));
+    Route::post('/bugs/{bug}/subtasks', function(\Illuminate\Http\Request $req, \App\Models\Bug $bug) {
+        $req->validate(['title' => 'required|string|max:255', 'assignee_id' => 'nullable|string']);
+        if (!$bug->jira_key) return response()->json(['error' => 'Bug no tiene jira_key'], 422);
+        $key = (new \App\Services\JiraService())->createSubtask($bug->jira_key, $req->title, $req->assignee_id);
+        return response()->json(['key' => $key], $key ? 201 : 500);
     });
 
     // --- Documentos de Personas (Leads/Clientes) ---

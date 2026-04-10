@@ -82,7 +82,6 @@ return [
         explode(',', env('ALLOWED_INTEGRATION_DOMAINS', ''))
     ),
 
-
     'jira' => [
         'url'         => env('JIRA_URL'),
         'email'       => env('JIRA_EMAIL'),

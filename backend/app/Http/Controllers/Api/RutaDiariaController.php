@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\RutaDiaria;
 use App\Models\TareaRuta;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class RutaDiariaController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
 
     public function index(Request $request)
@@ -175,6 +177,10 @@ class RutaDiariaController extends Controller
 
             $this->logActivity('update', 'Rutas', $ruta, "Ruta confirmada: {$ruta->fecha->format('Y-m-d')}");
 
+            // Auto-tarea: ruta_confirmada
+            $this->dispararAutoTarea('ruta_confirmada', 'RUTA-' . $ruta->id,
+                "Ruta del {$ruta->fecha->format('d/m/Y')} confirmada con {$ruta->total_tareas} tarea(s).");
+
             // Notificar al mensajero
             Notification::create([
                 'user_id' => $ruta->mensajero_id,
@@ -214,6 +220,10 @@ class RutaDiariaController extends Controller
             $ruta->tareas()->where('status', 'asignada')->update(['status' => 'en_transito']);
 
             $this->logActivity('update', 'Rutas', $ruta, "Ruta iniciada: {$ruta->fecha->format('Y-m-d')}");
+
+            // Auto-tarea: ruta_iniciada
+            $this->dispararAutoTarea('ruta_iniciada', 'RUTA-' . $ruta->id,
+                "Ruta del {$ruta->fecha->format('d/m/Y')} iniciada por el mensajero.");
 
             return response()->json($ruta);
         });

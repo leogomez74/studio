@@ -30,6 +30,7 @@ interface BugImage {
 interface BugItem {
   id: number;
   reference: string;
+  jira_key: string | null;
   title: string;
   description: string | null;
   status: 'abierto' | 'en_progreso' | 'en_revision' | 'cerrado';
@@ -47,6 +48,21 @@ interface BugItem {
 interface UserOption {
   id: number;
   name: string;
+}
+
+interface Subtask {
+  key: string;
+  summary: string;
+  status: string;
+  assignee: string | null;
+  url: string;
+}
+
+interface JiraUser {
+  accountId: string;
+  displayName: string;
+  email: string | null;
+  avatar: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,6 +87,7 @@ export default function IncidenciasPage() {
   const { toast } = useToast();
   const [bugs, setBugs] = useState<BugItem[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [jiraUsers, setJiraUsers] = useState<JiraUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
@@ -82,6 +99,7 @@ export default function IncidenciasPage() {
   const [selectedBug, setSelectedBug] = useState<BugItem | null>(null);
 
   // Create form
+  const [formJiraAssignee, setFormJiraAssignee] = useState<string>('');
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formPriority, setFormPriority] = useState<string>('media');
@@ -90,6 +108,13 @@ export default function IncidenciasPage() {
   const [creating, setCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreviews, setImagePreviews] = useState<{ file: File; url: string }[]>([]);
+
+  // Subtareas Jira
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [loadingSubtasks, setLoadingSubtasks] = useState(false);
+  const [newSubtask, setNewSubtask] = useState('');
+  const [newSubtaskAssignee, setNewSubtaskAssignee] = useState('');
+  const [creatingSubtask, setCreatingSubtask] = useState(false);
 
   // Drag & drop
   const [draggedBug, setDraggedBug] = useState<BugItem | null>(null);
@@ -162,13 +187,28 @@ export default function IncidenciasPage() {
     }).catch(() => {
       toast({ title: 'Error', description: 'Error al cargar datos', variant: 'destructive' });
     }).finally(() => setLoading(false));
+
+    // Jira users por separado — si falla no bloquea el resto
+    api.get('/api/jira/users')
+      .then(res => setJiraUsers(res.data || []))
+      .catch(() => setJiraUsers([]));
   }, []);
 
   // ── Filtrado ──────────────────────────────────────────────────────────────────
   const filteredBugs = bugs.filter(b => {
     if (search && !b.title.toLowerCase().includes(search.toLowerCase()) && !b.reference.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterPriority !== 'all' && b.priority !== filterPriority) return false;
-    if (filterUser !== 'all' && String(b.assigned_to) !== filterUser) return false;
+    if (filterUser !== 'all') {
+      if (jiraUsers.length > 0) {
+        // Filtrar por nombre del assignee comparando con displayName de Jira
+        const jiraUser = jiraUsers.find(u => u.accountId === filterUser);
+        if (!jiraUser) return false;
+        const assigneeName = b.assignee?.name?.toLowerCase() || '';
+        if (!assigneeName.includes(jiraUser.displayName.split(' ')[0].toLowerCase())) return false;
+      } else {
+        if (String(b.assigned_to) !== filterUser) return false;
+      }
+    }
     return true;
   });
 
@@ -180,11 +220,17 @@ export default function IncidenciasPage() {
     if (!formTitle.trim()) return;
     setCreating(true);
     try {
+      const jiraAccountId = formJiraAssignee && formJiraAssignee !== 'none' ? formJiraAssignee : null;
+      // Intentar mapear usuario Jira a usuario Studio por nombre
+      const jiraUser = jiraAccountId ? jiraUsers.find(u => u.accountId === jiraAccountId) : null;
+      const studioUser = jiraUser ? users.find(u => u.name.toLowerCase().includes(jiraUser.displayName.split(' ')[0].toLowerCase())) : null;
+
       const res = await api.post('/api/bugs', {
         title: formTitle.trim(),
         description: formDesc.trim() || null,
         priority: formPriority,
-        assigned_to: formAssignee || null,
+        assigned_to: studioUser?.id || null,
+        jira_assignee_id: jiraAccountId,
       });
       const newBug = res.data;
 
@@ -216,6 +262,7 @@ export default function IncidenciasPage() {
     setFormDesc('');
     setFormPriority('media');
     setFormAssignee('');
+    setFormJiraAssignee('');
     setFormImages([]);
     setImagePreviews([]);
   };
@@ -311,6 +358,25 @@ export default function IncidenciasPage() {
   };
 
   // ── Delete imagen ─────────────────────────────────────────────────────────────
+  const handleCreateSubtask = async () => {
+    if (!newSubtask.trim() || !selectedBug) return;
+    setCreatingSubtask(true);
+    try {
+      const res = await api.post(`/api/bugs/${selectedBug.id}/subtasks`, {
+        title: newSubtask.trim(),
+        assignee_id: newSubtaskAssignee && newSubtaskAssignee !== 'none' ? newSubtaskAssignee : null,
+      });
+      setSubtasks(prev => [...prev, { key: res.data.key, summary: newSubtask.trim(), status: 'Tareas por hacer', assignee: null, url: `https://ssccr.atlassian.net/browse/${res.data.key}` }]);
+      setNewSubtask('');
+      setNewSubtaskAssignee('');
+      toast({ title: 'Subtarea creada', description: `${res.data.key} creada en Jira` });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo crear la subtarea', variant: 'destructive' });
+    } finally {
+      setCreatingSubtask(false);
+    }
+  };
+
   const handleDeleteImage = async (bugId: number, imageId: number) => {
     try {
       await api.delete(`/api/bugs/${bugId}/images/${imageId}`);
@@ -388,9 +454,14 @@ export default function IncidenciasPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
-              {users.map(u => (
-                <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-              ))}
+              {jiraUsers.length > 0
+                ? jiraUsers.map(u => (
+                    <SelectItem key={u.accountId} value={u.accountId}>{u.displayName}</SelectItem>
+                  ))
+                : users.map(u => (
+                    <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                  ))
+              }
             </SelectContent>
           </Select>
           <Button onClick={() => setShowCreateModal(true)} size="sm" className="h-8 gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs">
@@ -439,7 +510,20 @@ export default function IncidenciasPage() {
                       key={bug.id}
                       draggable
                       onDragStart={() => handleDragStart(bug)}
-                      onClick={() => { setSelectedBug(bug); setShowDetailModal(true); }}
+                      onClick={() => {
+                        setSelectedBug(bug);
+                        setShowDetailModal(true);
+                        setSubtasks([]);
+                        setNewSubtask('');
+                        setNewSubtaskAssignee('');
+                        if (bug.jira_key) {
+                          setLoadingSubtasks(true);
+                          api.get(`/api/bugs/${bug.id}/subtasks`)
+                            .then(r => setSubtasks(r.data || []))
+                            .catch(() => {})
+                            .finally(() => setLoadingSubtasks(false));
+                        }
+                      }}
                       className={`group bg-white rounded-lg border border-slate-200 p-2.5 cursor-pointer
                         hover:border-slate-300 hover:shadow-md transition-all duration-150
                         ${draggedBug?.id === bug.id ? 'opacity-40 scale-95' : ''}`}
@@ -536,12 +620,18 @@ export default function IncidenciasPage() {
               </div>
               <div>
                 <Label className="text-xs">Asignar a</Label>
-                <Select value={formAssignee} onValueChange={setFormAssignee}>
+                <Select value={formJiraAssignee} onValueChange={setFormJiraAssignee}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
                   <SelectContent>
-                    {users.map(u => (
-                      <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-                    ))}
+                    <SelectItem value="none">Sin asignar</SelectItem>
+                    {jiraUsers.length > 0
+                      ? jiraUsers.map(u => (
+                          <SelectItem key={u.accountId} value={u.accountId}>{u.displayName}</SelectItem>
+                        ))
+                      : users.map(u => (
+                          <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                        ))
+                    }
                   </SelectContent>
                 </Select>
               </div>
@@ -611,9 +701,19 @@ export default function IncidenciasPage() {
             return (
               <>
                 <DialogHeader>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-mono text-muted-foreground bg-slate-100 px-2 py-0.5 rounded">{b.reference}</span>
                     <Badge variant="outline" className={`text-[10px] ${prio.badgeCls}`}>{prio.label}</Badge>
+                    {b.jira_key && (
+                      <a
+                        href={`https://ssccr.atlassian.net/browse/${b.jira_key}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-mono bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 transition"
+                      >
+                        <span className="font-bold">J</span> {b.jira_key}
+                      </a>
+                    )}
                     <div className="ml-auto flex items-center gap-1">
                       <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(b.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
@@ -716,6 +816,70 @@ export default function IncidenciasPage() {
                       </div>
                     )}
                   </div>
+
+                  <Separator />
+
+                  {/* Subtareas Jira */}
+                  {b.jira_key && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-blue-600 text-white text-[8px] font-bold">J</span>
+                          Subtareas Jira
+                        </Label>
+                      </div>
+
+                      {/* Lista de subtareas existentes */}
+                      {loadingSubtasks ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Cargando...
+                        </div>
+                      ) : subtasks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic mb-2">Sin subtareas</p>
+                      ) : (
+                        <div className="space-y-1 mb-3">
+                          {subtasks.map(s => (
+                            <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center justify-between p-2 rounded border border-slate-100 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition group">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-[10px] font-mono text-blue-600 shrink-0">{s.key}</span>
+                                <span className="text-xs text-slate-700 truncate">{s.summary}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 ml-2">
+                                {s.assignee && <span className="text-[10px] text-muted-foreground">{s.assignee.split(' ')[0]}</span>}
+                                <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">{s.status}</span>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Crear nueva subtarea */}
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          value={newSubtask}
+                          onChange={e => setNewSubtask(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleCreateSubtask()}
+                          placeholder="Nueva subtarea..."
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Select value={newSubtaskAssignee} onValueChange={setNewSubtaskAssignee}>
+                          <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Asignar" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin asignar</SelectItem>
+                            {jiraUsers.map(u => (
+                              <SelectItem key={u.accountId} value={u.accountId}>{u.displayName.split(' ')[0]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white px-2"
+                          disabled={!newSubtask.trim() || creatingSubtask}
+                          onClick={handleCreateSubtask}>
+                          {creatingSubtask ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <Separator />
 

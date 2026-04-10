@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Opportunity;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -17,6 +18,7 @@ use App\Events\BusinessActionPerformed;
 
 class OpportunityController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
 
     /**
@@ -223,21 +225,7 @@ class OpportunityController extends Controller
             $opportunity->id
         );
 
-        // Crear tarea automática si está configurada
-        try {
-            $automation = TaskAutomation::where('event_type', 'opportunity_created')
-                ->where('is_active', true)
-                ->first();
-
-            if ($automation) {
-                $tasks = Task::createFromAutomation($automation, 'OPP-' . $opportunity->id);
-                if (!empty($tasks)) {
-                    Log::info('Tareas automáticas creadas para oportunidad', ['opportunity_id' => $opportunity->id, 'count' => count($tasks)]);
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('Error creando tarea automática para oportunidad', ['opportunity_id' => $opportunity->id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-        }
+        $this->dispararAutoTarea('opportunity_created', 'OPP-' . $opportunity->id);
 
         $this->logActivity('create', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''), [], $request);
 
@@ -350,6 +338,23 @@ class OpportunityController extends Controller
                     'old_status' => $oldStatus,
                     'new_status' => $newStatus,
                 ]);
+            }
+
+            // Auto-tarea: específica por estado, con fallback a genérica
+            if (strtolower($newStatus) === 'ganada') {
+                $eventType = 'opportunity_won';
+                $details   = "Oportunidad marcada como Ganada.";
+            } else {
+                $eventType = 'opportunity_status_advanced';
+                $details   = "Estado de oportunidad avanzó a: {$newStatus}";
+            }
+
+            $fired = $this->dispararAutoTarea($eventType, 'OPP-' . $opportunity->id, $details);
+
+            if (empty($fired)) {
+                // Fallback: genérica solo si no hay específica activa
+                $this->dispararAutoTarea('opportunity_status_changed', 'OPP-' . $opportunity->id,
+                    "Estado de oportunidad cambió a: {$newStatus}");
             }
 
             return response()->json([

@@ -62,12 +62,16 @@ class BugController extends Controller
         // Sincronizar con Jira
         try {
             $jira = new JiraService();
-            $jiraKey = $jira->createIssue($bug->reference, $bug->title, $bug->priority, $bug->description);
-            if ($jiraKey) {
-                $bug->update(['jira_key' => $jiraKey]);
-            }
+            $jiraKey = $jira->createIssue(
+                $bug->reference,
+                $bug->title,
+                $bug->priority,
+                $bug->description,
+                $request->input('jira_assignee_id')
+            );
+            if ($jiraKey) $bug->update(['jira_key' => $jiraKey]);
         } catch (\Exception $e) {
-            Log::warning('Jira sync failed on bug create: ' . $e->getMessage());
+            Log::warning('Jira sync on create: ' . $e->getMessage());
         }
 
         $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
@@ -97,13 +101,9 @@ class BugController extends Controller
         $bug->update($validated);
         $changes = $this->getChanges($oldData, $bug->fresh()->toArray());
 
-        // Sincronizar status con Jira si cambió
         if (isset($validated['status']) && $bug->jira_key) {
-            try {
-                (new JiraService())->updateStatus($bug->jira_key, $validated['status']);
-            } catch (\Exception $e) {
-                Log::warning('Jira sync failed on bug update: ' . $e->getMessage());
-            }
+            try { (new JiraService())->updateStatus($bug->jira_key, $validated['status']); }
+            catch (\Exception $e) { Log::warning('Jira sync on update: ' . $e->getMessage()); }
         }
 
         $this->logActivity('update', 'Incidencias', $bug, $bug->reference, $changes, $request);
@@ -115,6 +115,12 @@ class BugController extends Controller
     public function destroy(Request $request, Bug $bug)
     {
         $this->logActivity('delete', 'Incidencias', $bug, $bug->reference . ' - ' . $bug->title, [], $request);
+
+        // Eliminar en Jira
+        if ($bug->jira_key) {
+            try { (new JiraService())->deleteIssue($bug->jira_key); }
+            catch (\Exception $e) { Log::warning('Jira deleteIssue failed: ' . $e->getMessage()); }
+        }
 
         // Eliminar imágenes del disco
         foreach ($bug->images as $img) {
@@ -137,13 +143,9 @@ class BugController extends Controller
         $oldStatus = $bug->status;
         $bug->update($validated);
 
-        // Sincronizar status con Jira
         if ($bug->jira_key) {
-            try {
-                (new JiraService())->updateStatus($bug->jira_key, $validated['status']);
-            } catch (\Exception $e) {
-                Log::warning('Jira sync status failed: ' . $e->getMessage());
-            }
+            try { (new JiraService())->updateStatus($bug->jira_key, $validated['status']); }
+            catch (\Exception $e) { Log::warning('Jira sync on status: ' . $e->getMessage()); }
         }
 
         $this->logActivity('update', 'Incidencias', $bug, $bug->reference, [
@@ -165,6 +167,8 @@ class BugController extends Controller
         ]);
 
         $uploaded = [];
+        $jira = new JiraService();
+
         foreach ($request->file('images') as $file) {
             $path = $file->store('bugs/' . $bug->id, 'public');
             $uploaded[] = BugImage::create([
@@ -173,6 +177,16 @@ class BugController extends Controller
                 'original_name' => $file->getClientOriginalName(),
                 'size'          => $file->getSize(),
             ]);
+
+            // Adjuntar imagen a Jira si el bug tiene jira_key
+            if ($bug->jira_key) {
+                try {
+                    $fullPath = Storage::disk('public')->path($path);
+                    $jira->attachFile($bug->jira_key, $fullPath, $file->getClientOriginalName());
+                } catch (\Exception $e) {
+                    Log::warning('Jira attachFile failed: ' . $e->getMessage());
+                }
+            }
         }
 
         return response()->json($uploaded, 201);
