@@ -540,6 +540,11 @@ export function ChatBubble() {
   const [waOffset, setWaOffset]               = useState(0);
   const [waHasMore, setWaHasMore]             = useState(false);
   const [waLoadingMore, setWaLoadingMore]     = useState(false);
+  const [waSyncing, setWaSyncing]             = useState(false);
+  const [waLoadingMessages, setWaLoadingMessages] = useState(false);
+  const [waUnreadCount, setWaUnreadCount]     = useState(0);
+  const [waSearch, setWaSearch]               = useState('');
+  const lastWaOpenedAtRef                     = useRef<number>(Date.now());
   const WA_LIMIT = 20;
 
   // Entity selector state
@@ -563,6 +568,7 @@ export function ChatBubble() {
 
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const hasSyncedChatsRef = useRef(false);
 
   // ---- WhatsApp functions ----
   const fetchWaConversations = useCallback(async () => {
@@ -574,6 +580,7 @@ export function ChatBubble() {
   }, [hasWhatsapp]);
 
   const fetchWaMessages = useCallback(async (phone: string) => {
+    setWaLoadingMessages(true);
     try {
       const res = await api.get('/api/whatsapp/messages', {
         params: { phone, limit: WA_LIMIT, offset: 0 },
@@ -581,7 +588,9 @@ export function ChatBubble() {
       setWaMessages(res.data.messages ?? []);
       setWaHasMore(res.data.has_more ?? false);
       setWaOffset(WA_LIMIT);
-    } catch { /* silencioso */ }
+    } catch { /* silencioso */ } finally {
+      setWaLoadingMessages(false);
+    }
   }, [WA_LIMIT]);
 
   const loadMoreWaMessages = async () => {
@@ -625,6 +634,7 @@ export function ChatBubble() {
     setWaShowNewChat(false);
     setWaMessages([]);
     setWaOffset(0);
+    setWaSearch('');
     fetchWaMessages(phone);
   };
 
@@ -643,7 +653,23 @@ export function ChatBubble() {
   useEffect(() => { if (isOpen && !hasFetched) fetchComments(showArchived); }, [isOpen, hasFetched, fetchComments, showArchived]);
   // Refresh when panel opens or tab changes
   useEffect(() => { if (isOpen) fetchComments(showArchived); }, [isOpen, showArchived]); // eslint-disable-line
-  useEffect(() => { if (isOpen && hasWhatsapp) fetchWaConversations(); }, [isOpen, hasWhatsapp, fetchWaConversations]); // eslint-disable-line
+  useEffect(() => {
+    if (!isOpen || !hasWhatsapp) return;
+    // Resetear unread y marcar momento de apertura del tab WhatsApp
+    lastWaOpenedAtRef.current = Date.now();
+    setWaUnreadCount(0);
+    if (!hasSyncedChatsRef.current) {
+      // Primera apertura en la sesión: sync desde Evolution API, luego carga
+      setWaSyncing(true);
+      api.post('/api/whatsapp/sync-chats').finally(() => {
+        hasSyncedChatsRef.current = true;
+        setWaSyncing(false);
+        fetchWaConversations();
+      });
+    } else {
+      fetchWaConversations();
+    }
+  }, [isOpen, hasWhatsapp, fetchWaConversations]); // eslint-disable-line
 
   // Polling WhatsApp: refresca mensajes cada 5s si hay conversación abierta, conversaciones cada 15s
   useEffect(() => {
@@ -665,7 +691,7 @@ export function ChatBubble() {
     return () => clearInterval(iv);
   }, [isOpen, showArchived, fetchComments]);
 
-  // Background badge
+  // Background badge (comentarios + WhatsApp)
   useEffect(() => {
     if (isOpen) return;
     const check = async () => {
@@ -675,11 +701,23 @@ export function ChatBubble() {
         const ago5 = Date.now() - 5 * 60 * 1000;
         setUnreadCount(data.filter((c) => c.user_id !== user?.id && new Date(c.created_at).getTime() > ago5).length);
       } catch { /* silent */ }
+      // Badge WhatsApp: contar conversaciones con mensajes nuevos desde última apertura
+      if (hasWhatsapp) {
+        try {
+          const waRes = await api.get('/api/whatsapp/conversations');
+          const convs: WaConversation[] = Array.isArray(waRes.data) ? waRes.data : [];
+          const newCount = convs.filter(c =>
+            c.last_message && c.last_at &&
+            new Date(c.last_at).getTime() > lastWaOpenedAtRef.current
+          ).length;
+          setWaUnreadCount(newCount);
+        } catch { /* silent */ }
+      }
     };
     check();
     const iv = setInterval(check, 60_000);
     return () => clearInterval(iv);
-  }, [isOpen, user?.id]);
+  }, [isOpen, user?.id, hasWhatsapp]);
 
   // Escape to close
   useEffect(() => {
@@ -833,9 +871,9 @@ export function ChatBubble() {
         )}
       >
         <MessageCircle className="h-6 w-6" />
-        {unreadCount > 0 && (
+        {(unreadCount + waUnreadCount) > 0 && (
           <span className="absolute -top-1 -right-1 flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold ring-2 ring-background">
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {(unreadCount + waUnreadCount) > 9 ? '9+' : (unreadCount + waUnreadCount)}
           </span>
         )}
       </button>
@@ -1097,31 +1135,44 @@ export function ChatBubble() {
                   </div>
                   {/* Mensajes */}
                   <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {waHasMore && (
-                      <div className="flex justify-center py-1">
-                        <button
-                          onClick={loadMoreWaMessages}
-                          disabled={waLoadingMore}
-                          className="text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          {waLoadingMore
-                            ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
-                            : 'Cargar mensajes anteriores'}
-                        </button>
+                    {waLoadingMessages ? (
+                      <div className="flex flex-col items-center justify-center h-full gap-2 py-12">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Cargando mensajes...</span>
                       </div>
+                    ) : waMessages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full py-12">
+                        <span className="text-xs text-muted-foreground">Sin mensajes</span>
+                      </div>
+                    ) : (
+                      <>
+                        {waHasMore && (
+                          <div className="flex justify-center py-1">
+                            <button
+                              onClick={loadMoreWaMessages}
+                              disabled={waLoadingMore}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              {waLoadingMore
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
+                                : 'Cargar mensajes anteriores'}
+                            </button>
+                          </div>
+                        )}
+                        {waMessages.map((msg, i) => (
+                          <div key={msg.wa_message_id ?? i} className={cn('flex', msg.direction === 'out' ? 'justify-end' : 'justify-start')}>
+                            <div className={cn(
+                              'max-w-[75%] rounded-lg px-3 py-1.5 text-xs',
+                              msg.direction === 'out'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-foreground'
+                            )}>
+                              {msg.body}
+                            </div>
+                          </div>
+                        ))}
+                      </>
                     )}
-                    {waMessages.map((msg, i) => (
-                      <div key={msg.wa_message_id ?? i} className={cn('flex', msg.direction === 'out' ? 'justify-end' : 'justify-start')}>
-                        <div className={cn(
-                          'max-w-[75%] rounded-lg px-3 py-1.5 text-xs',
-                          msg.direction === 'out'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-foreground'
-                        )}>
-                          {msg.body}
-                        </div>
-                      </div>
-                    ))}
                   </div>
                   {/* Input de envío */}
                   <div className="flex items-center gap-2 p-2 border-t shrink-0">
@@ -1150,6 +1201,22 @@ export function ChatBubble() {
                       + Nuevo
                     </button>
                   </div>
+                  {/* Buscador */}
+                  <div className="px-3 py-1.5 border-b shrink-0">
+                    <input
+                      className="w-full h-7 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      placeholder="Buscar nombre o número..."
+                      value={waSearch}
+                      onChange={e => setWaSearch(e.target.value)}
+                    />
+                  </div>
+                  {/* Banner de carga inicial */}
+                  {waSyncing && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground bg-muted/40 border-b shrink-0">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Cargando historial...
+                    </div>
+                  )}
                   {waShowNewChat && (
                     <div className="px-3 py-2 border-b space-y-1 shrink-0">
                       <input
@@ -1168,16 +1235,23 @@ export function ChatBubble() {
                     </div>
                   )}
                   <div className="flex-1 overflow-y-auto">
-                    {waConversations.length === 0 ? (
+                    {(() => {
+                      const filtered = waSearch.trim()
+                        ? waConversations.filter(c =>
+                            c.phone_number.includes(waSearch) ||
+                            c.contact_name.toLowerCase().includes(waSearch.toLowerCase())
+                          )
+                        : waConversations;
+                      return filtered.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-12 gap-3">
                         <div className="rounded-full bg-muted p-4">
                           <MessageCircle className="h-7 w-7 text-muted-foreground/50" />
                         </div>
-                        <p className="text-sm font-medium">Sin conversaciones</p>
-                        <p className="text-xs text-muted-foreground text-center">Presiona "+ Nuevo" para iniciar un chat</p>
+                        <p className="text-sm font-medium">{waSearch ? 'Sin resultados' : 'Sin conversaciones'}</p>
+                        <p className="text-xs text-muted-foreground text-center">{waSearch ? 'Intenta con otro nombre o número' : 'Presiona "+ Nuevo" para iniciar un chat'}</p>
                       </div>
                     ) : (
-                      waConversations.map(conv => (
+                      filtered.map(conv => (
                         <button
                           key={conv.phone_number}
                           className="w-full px-3 py-2.5 hover:bg-muted/50 text-left border-b last:border-b-0"
@@ -1197,7 +1271,8 @@ export function ChatBubble() {
                           </div>
                         </button>
                       ))
-                    )}
+                    );
+                    })()}
                   </div>
                 </>
               )}

@@ -40,14 +40,27 @@ class WhatsappController extends Controller
             ->groupBy('phone_number')
             ->map(function ($messages, $phone) {
                 $last = $messages->first();
+                $name = $last->contact_name ?: '';
+
+                // Fallback: buscar en personas si no hay nombre guardado
+                if (!$name) {
+                    $person = \App\Models\Person::where('phone', 'like', "%{$phone}%")
+                        ->orWhere('whatsapp', 'like', "%{$phone}%")
+                        ->first();
+                    if ($person) {
+                        $name = trim(($person->name ?? '') . ' ' . ($person->apellido1 ?? '') . ' ' . ($person->apellido2 ?? ''));
+                    }
+                }
+
                 return [
                     'phone_number' => $phone,
-                    'contact_name' => $last->contact_name ?: $phone,
+                    'contact_name' => $name ?: $phone,
                     'last_message' => $last->body,
                     'last_at'      => $last->wa_timestamp,
                     'unread'       => 0,
                 ];
             })
+            ->sortByDesc('last_at')
             ->values();
 
         return response()->json($conversations);
@@ -94,23 +107,26 @@ class WhatsappController extends Controller
                     ?? '[media]';
                 $direction = ($msg['key']['fromMe'] ?? false) ? 'out' : 'in';
                 $waId      = $msg['key']['id'] ?? null;
+                $pushName  = $msg['pushName'] ?? '';
                 $ts        = isset($msg['messageTimestamp'])
                     ? \Carbon\Carbon::createFromTimestamp($msg['messageTimestamp'])
                     : now();
 
                 // Upsert silencioso en BD local (respaldo)
                 if ($waId) {
-                    WhatsappMessage::updateOrCreate(
-                        ['wa_message_id' => $waId],
-                        [
-                            'evolution_instance_id' => $instance->id,
-                            'user_id'               => $direction === 'out' ? auth()->id() : null,
-                            'phone_number'          => $phone,
-                            'body'                  => $body,
-                            'direction'             => $direction,
-                            'wa_timestamp'          => $ts,
-                        ]
-                    );
+                    $upsertData = [
+                        'evolution_instance_id' => $instance->id,
+                        'user_id'               => $direction === 'out' ? auth()->id() : null,
+                        'phone_number'          => $phone,
+                        'body'                  => $body,
+                        'direction'             => $direction,
+                        'wa_timestamp'          => $ts,
+                    ];
+                    // Guardar nombre solo si Evolution lo provee
+                    if ($pushName) {
+                        $upsertData['contact_name'] = $pushName;
+                    }
+                    WhatsappMessage::updateOrCreate(['wa_message_id' => $waId], $upsertData);
                 }
 
                 return [
@@ -126,6 +142,80 @@ class WhatsappController extends Controller
                 'total'    => $total,
                 'has_more' => ($offset + $limit) < $total,
             ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * POST /api/whatsapp/sync-chats
+     * Consulta Evolution API para obtener todos los chats existentes y hace
+     * un upsert de un registro seed por cada conversación nueva en la BD local.
+     * Esto permite que la lista de conversaciones muestre todos los chats
+     * aunque el usuario nunca haya interactuado desde esta plataforma.
+     */
+    public function syncChats(Request $request): JsonResponse
+    {
+        $instance = $this->getInstance($request);
+        if (!$instance) {
+            return response()->json(['message' => 'Sin instancia asignada'], 403);
+        }
+
+        try {
+            $response = Http::withHeaders(['apikey' => $instance->api_key])
+                ->timeout(20)
+                ->post($this->getBaseUrl() . '/chat/findChats/' . $instance->instance_name, []);
+
+            if (!$response->successful()) {
+                return response()->json(['message' => "Evolution API: HTTP {$response->status()}"], 422);
+            }
+
+            $chats = $response->json();
+            // La respuesta puede ser un array directo o venir bajo una clave
+            if (!is_array($chats)) {
+                $chats = [];
+            }
+
+            $synced = 0;
+            foreach ($chats as $chat) {
+                $remoteJid = $chat['id'] ?? null;
+                if (!$remoteJid) continue;
+
+                // Ignorar grupos (@g.us) y chats de broadcast
+                if (str_contains($remoteJid, '@g.us') || str_contains($remoteJid, '@broadcast')) {
+                    continue;
+                }
+
+                $phone = preg_replace('/[^0-9]/', '', explode('@', $remoteJid)[0]);
+                if (!$phone) continue;
+
+                // Solo crear si no existe ningún mensaje de este número para esta instancia
+                $exists = WhatsappMessage::where('evolution_instance_id', $instance->id)
+                    ->where('phone_number', $phone)
+                    ->exists();
+
+                if (!$exists) {
+                    $contactName = $chat['name'] ?? '';
+                    $lastTs      = isset($chat['lastMsgTimestamp'])
+                        ? \Carbon\Carbon::createFromTimestamp($chat['lastMsgTimestamp'])
+                        : now();
+
+                    WhatsappMessage::create([
+                        'evolution_instance_id' => $instance->id,
+                        'user_id'               => null,
+                        'phone_number'          => $phone,
+                        'contact_name'          => $contactName,
+                        'body'                  => '',
+                        'direction'             => 'in',
+                        'wa_message_id'         => null,
+                        'wa_timestamp'          => $lastTs,
+                    ]);
+                    $synced++;
+                }
+            }
+
+            return response()->json(['synced' => $synced]);
 
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 422);
