@@ -118,6 +118,7 @@ import { RefundicionModal } from '@/components/RefundicionModal';
 import { SaldosPorAsignar } from '@/components/saldos-por-asignar';
 import { TareasTab } from '@/components/TareasTab';
 import { getAuthUser } from '@/lib/auth';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 // --- Interfaces ---
 
@@ -529,6 +530,9 @@ function CreditDetailClient({ id }: { id: string }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { hasPermission } = usePermissions();
+  const canFormalizar = hasPermission('creditos', 'formalizar');
+  const canFormalizarAdmin = hasPermission('creditos', 'formalizar_admin');
 
   const [credit, setCredit] = useState<CreditItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1487,10 +1491,18 @@ function CreditDetailClient({ id }: { id: string }) {
                 <>
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-                      const cleanBase = baseUrl.replace(/\/api\/?$/, '');
-                      window.open(`${cleanBase}/api/credits/${id}/plan-pdf`, '_blank');
+                    onClick={async () => {
+                      try {
+                        const res = await api.get(`/api/credits/${id}/plan-pdf`, { responseType: 'blob' });
+                        const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `plan_pagos_${credit?.reference || id}.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      } catch { toast({ title: 'Error', description: 'No se pudo generar el PDF', variant: 'destructive' }); }
                     }}
                     className="bg-red-600 border-red-700 text-white hover:bg-red-700"
                   >
@@ -1528,7 +1540,7 @@ function CreditDetailClient({ id }: { id: string }) {
                 Hoja de Cierre
               </Button>
 
-              {!['Formalizado', 'En Mora'].includes(credit.status || '') && (
+              {!['Formalizado', 'En Mora'].includes(credit.status || '') && (canFormalizar || canFormalizarAdmin) && (
                 <Button
                   variant="outline"
                   className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
@@ -2349,7 +2361,7 @@ function CreditDetailClient({ id }: { id: string }) {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {getAuthUser()?.role?.id === 1 ? (
+            {canFormalizarAdmin ? (
               <div className="space-y-2">
                 <Label htmlFor="formalizacion-date">Fecha de Formalización</Label>
                 <DatePicker

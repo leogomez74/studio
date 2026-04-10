@@ -17,7 +17,7 @@ class UserController extends Controller
      */
     public function index()
     {
-        return User::with('role')->get();
+        return User::with(['role', 'evolutionInstance'])->get();
     }
 
     /**
@@ -32,6 +32,7 @@ class UserController extends Controller
             'role_id' => ['nullable', 'exists:roles,id'],
             'status' => ['required', 'string', 'in:Activo,Suspendido'],
             'monto_max_aprobacion' => ['nullable', 'numeric'],
+            'evolution_instance_id' => ['nullable', 'exists:evolution_instances,id'],
         ]);
 
         $user = User::create([
@@ -41,11 +42,12 @@ class UserController extends Controller
             'role_id' => $request->role_id,
             'status' => $request->status,
             'monto_max_aprobacion' => $request->monto_max_aprobacion ?? -1,
+            'evolution_instance_id' => $request->evolution_instance_id,
         ]);
 
         $this->logActivity('create', 'Usuarios', $user, $user->email ?? $user->name, [], $request);
 
-        return response()->json($user->load('role'), 201);
+        return response()->json($user->load(['role', 'evolutionInstance']), 201);
     }
 
     /**
@@ -53,7 +55,7 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        return User::with('role')->findOrFail($id);
+        return User::with(['role', 'evolutionInstance'])->findOrFail($id);
     }
 
     /**
@@ -72,6 +74,7 @@ class UserController extends Controller
             'role_id' => ['sometimes', 'nullable', 'exists:roles,id'],
             'status' => ['sometimes', 'string', 'in:Activo,Suspendido'],
             'monto_max_aprobacion' => ['sometimes', 'nullable', 'numeric'],
+            'evolution_instance_id' => ['sometimes', 'nullable', 'exists:evolution_instances,id'],
         ]);
 
         if ($request->has('name')) {
@@ -92,13 +95,16 @@ class UserController extends Controller
         if ($request->has('monto_max_aprobacion')) {
             $user->monto_max_aprobacion = $request->monto_max_aprobacion;
         }
+        if ($request->has('evolution_instance_id')) {
+            $user->evolution_instance_id = $request->evolution_instance_id;
+        }
 
         $user->save();
 
         $changes = $this->getChanges($before, $user->fresh()->toArray(), ['password']);
         $this->logActivity('update', 'Usuarios', $user, $user->email ?? $user->name, $changes, $request);
 
-        return $user->load('role');
+        return $user->load(['role', 'evolutionInstance']);
     }
 
     /**

@@ -32,6 +32,8 @@ interface Permission {
   delete: boolean;
   archive?: boolean;
   assign?: boolean;
+  formalizar?: boolean;
+  formalizar_admin?: boolean;
 }
 
 interface RolePermissions {
@@ -46,10 +48,12 @@ interface Role {
   permissions: RolePermissions;
 }
 
+type PermType = 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign' | 'formalizar' | 'formalizar_admin';
+
 interface Module {
   key: string;
   label: string;
-  permissions?: ('view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign')[];
+  permissions?: PermType[];
   customPermissionLabels?: {
     view?: string;
     create?: string;
@@ -57,6 +61,8 @@ interface Module {
     delete?: string;
     archive?: string;
     assign?: string;
+    formalizar?: string;
+    formalizar_admin?: string;
   };
 }
 
@@ -90,7 +96,11 @@ const MODULE_GROUPS: ModuleGroup[] = [
       {
         // Ver, crear, editar créditos — eliminar no aplica (registro financiero permanente)
         key: 'creditos', label: 'Créditos',
-        permissions: ['view', 'create', 'edit'],
+        permissions: ['view', 'create', 'edit', 'formalizar', 'formalizar_admin'],
+        customPermissionLabels: {
+          formalizar: 'Formalizar',
+          formalizar_admin: 'Formalizar (fecha libre)',
+        },
       },
       {
         // Solo visualizar la calculadora
@@ -212,7 +222,7 @@ const MODULE_GROUPS: ModuleGroup[] = [
       },
       {
         // Patronos, deductoras, empresas, instituciones
-        key: 'config_personas', label: 'Config: Patronos, Deductoras, Empresas e Instituciones',
+        key: 'config_personas', label: 'Config: Patronos, Deductoras e Instituciones',
         permissions: ['view', 'create', 'edit', 'delete'],
       },
       {
@@ -252,7 +262,7 @@ const RolesPermisosManager: React.FC = () => {
   const initializePermissions = (): RolePermissions => {
     const perms: RolePermissions = {};
     MODULES.forEach(module => {
-      perms[module.key] = { view: false, create: false, edit: false, delete: false, archive: false, assign: false };
+      perms[module.key] = { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false };
     });
     return perms;
   };
@@ -302,13 +312,13 @@ const RolesPermisosManager: React.FC = () => {
     setRoleForm({ name: '', description: '', full_access: false, permissions: {} });
   };
 
-  const handlePermissionChange = (moduleKey: string, permType: 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign', value: boolean) => {
+  const handlePermissionChange = (moduleKey: string, permType: PermType, value: boolean) => {
     setRoleForm(prev => ({
       ...prev,
       permissions: {
         ...prev.permissions,
         [moduleKey]: {
-          ...(prev.permissions[moduleKey] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false }),
+          ...(prev.permissions[moduleKey] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false }),
           [permType]: value,
         },
       },
@@ -329,6 +339,8 @@ const RolesPermisosManager: React.FC = () => {
           delete: enabled && modulePermissions.includes('delete'),
           archive: enabled && modulePermissions.includes('archive'),
           assign: enabled && modulePermissions.includes('assign'),
+          formalizar: enabled && modulePermissions.includes('formalizar'),
+          formalizar_admin: enabled && modulePermissions.includes('formalizar_admin'),
         },
       },
     }));
@@ -346,6 +358,8 @@ const RolesPermisosManager: React.FC = () => {
           delete: modulePermissions.includes('delete'),
           archive: modulePermissions.includes('archive'),
           assign: modulePermissions.includes('assign'),
+          formalizar: modulePermissions.includes('formalizar'),
+          formalizar_admin: modulePermissions.includes('formalizar_admin'),
         };
       });
       setRoleForm(prev => ({ ...prev, full_access: true, permissions: allPerms }));
@@ -457,13 +471,14 @@ const RolesPermisosManager: React.FC = () => {
                         </div>
                         {/* Filas de módulos */}
                         {group.modules.map((module) => {
-                          const perms = roleForm.permissions[module.key] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false };
+                          const perms = roleForm.permissions[module.key] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false };
                           const modulePermissions = module.permissions || ['view', 'create', 'edit', 'delete'];
-                          const isModuleEnabled = perms.view || perms.create || perms.edit || perms.delete || perms.archive || perms.assign;
+                          const isModuleEnabled = perms.view || perms.create || perms.edit || perms.delete || perms.archive || perms.assign || perms.formalizar || perms.formalizar_admin;
 
                           const defaultLabels: Record<string, string> = {
                             view: 'Ver', create: 'Crear', edit: 'Editar',
                             delete: 'Eliminar', archive: 'Archivar', assign: 'Asignar',
+                            formalizar: 'Formalizar', formalizar_admin: 'Formalizar (fecha libre)',
                           };
 
                           return (
@@ -481,7 +496,7 @@ const RolesPermisosManager: React.FC = () => {
                               {/* Chips de permisos */}
                               <div className="flex flex-wrap gap-2">
                                 {modulePermissions.map((permType) => {
-                                  const pt = permType as 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign';
+                                  const pt = permType as PermType;
                                   const label = module.customPermissionLabels?.[pt] ?? defaultLabels[pt];
                                   const checked = perms[pt] || false;
                                   return (

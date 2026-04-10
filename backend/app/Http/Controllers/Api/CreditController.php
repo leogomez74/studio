@@ -40,7 +40,7 @@ class CreditController extends Controller
         $query = Credit::with([
             'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id,deductora_id',
             'opportunity:id,status,opportunity_type,vertical,amount',
-            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,int_corriente_vencido,amortizacion,saldo_nuevo,fecha_pago,fecha_corte,estado,dias_mora',
+            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,int_corriente_vencido,amortizacion,saldo_nuevo,fecha_pago,fecha_corte,estado,dias_mora,fecha_movimiento,movimiento_total,movimiento_poliza,movimiento_interes_corriente,movimiento_int_corriente_vencido,movimiento_interes_moratorio,movimiento_principal,movimiento_amortizacion,movimiento_caja_usuario',
             'assignedTo:id,name',
             'expedienteJudicial:id,credit_id,estado,sub_estado',
         ]);
@@ -104,21 +104,21 @@ class CreditController extends Controller
         // 1. Validaciones (Sincronizadas con tu nuevo modelo Credit)
         $validated = $request->validate([
             'reference' => 'nullable|unique:credits,reference',
-            'title' => 'required|string',
-            'status' => 'required|string',
-            'category' => 'nullable|string',
+            'title' => 'required|string|max:255',
+            'status' => 'required|string|max:50',
+            'category' => 'nullable|string|max:100',
             'lead_id' => 'required|exists:persons,id',
             'opportunity_id' => 'nullable|exists:opportunities,id',
-            'assigned_to' => 'nullable|string',
+            'assigned_to' => 'nullable|string|max:100',
             'opened_at' => 'nullable|date',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:2000',
 
             // Campos Nuevos
-            'tipo_credito' => 'nullable|string',
-            'numero_operacion' => 'nullable|string|unique:credits,numero_operacion',
+            'tipo_credito' => 'nullable|string|max:100',
+            'numero_operacion' => 'nullable|string|max:50|unique:credits,numero_operacion',
             'deductora_id' => ['nullable', 'integer', 'in:1,2,3'],
-            'divisa' => 'nullable|string',
-            'garantia' => 'nullable|string',
+            'divisa' => 'nullable|string|max:10',
+            'garantia' => 'nullable|string|max:500',
 
             // Campos Financieros
             'monto_credito' => 'required|numeric|min:2',
@@ -223,11 +223,10 @@ class CreditController extends Controller
             $validated['garantia'] = 'Pagaré';
         }
 
-        // Si no se especificó assigned_to, asignar al responsable default de leads
         if (empty($validated['assigned_to'])) {
-            $defaultAssignee = \App\Models\User::where('is_default_lead_assignee', true)->first();
-            if ($defaultAssignee) {
-                $validated['assigned_to'] = $defaultAssignee->id;
+            $userId = app(\App\Services\AssignmentService::class)->getNextAssignee('credits');
+            if ($userId) {
+                $validated['assigned_to'] = $userId;
             }
         }
 
@@ -556,7 +555,7 @@ class CreditController extends Controller
             'plazo' => 'nullable|integer',
             'poliza' => 'nullable|boolean',
             'poliza_actual' => 'nullable|numeric',
-            'opportunity_id' => 'nullable|string',
+            'opportunity_id' => 'nullable|string|max:20',
             'cargos_adicionales' => 'nullable|array',
             'cargos_adicionales.comision' => 'nullable|numeric|min:0',
             'cargos_adicionales.transporte' => 'nullable|numeric|min:0',
@@ -1000,15 +999,15 @@ class CreditController extends Controller
     public function refundicion(Request $request, $id)
     {
         $validated = $request->validate([
-            'title' => 'required|string',
+            'title' => 'required|string|max:255',
             'monto_credito' => 'required|numeric|min:1',
             'plazo' => 'required|integer|min:1',
             'tasa_id' => 'nullable|exists:tasas,id',
-            'tipo_credito' => 'nullable|string',
-            'category' => 'nullable|string',
-            'assigned_to' => 'nullable|string',
+            'tipo_credito' => 'nullable|string|max:100',
+            'category' => 'nullable|string|max:100',
+            'assigned_to' => 'nullable|string|max:100',
             'opened_at' => 'nullable|date',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:2000',
             'deductora_id' => ['nullable', 'integer', 'in:1,2,3'],
             'poliza' => 'nullable|boolean',
             'fecha_primera_cuota' => 'nullable|date',

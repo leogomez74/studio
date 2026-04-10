@@ -3,6 +3,9 @@
 # Local settings (never commit)
 settings.local.json
 
+# Playwright MCP logs (generados automáticamente por el MCP de Playwright)
+.playwright-mcp/
+
 # dependencies
 /node_modules
 /.pnp
@@ -53,6 +56,7 @@ firestore-debug.log
 # local images
 *.jpg
 !public/certificado/*.jpg
+!backend/public/pdf_background*.jpg
 GEMINI.md
 
 CLAUDE.md

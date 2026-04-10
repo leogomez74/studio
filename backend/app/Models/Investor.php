@@ -18,6 +18,11 @@ class Investor extends Model
         'phone',
         'status',
         'tipo_persona',
+        'nacionalidad',
+        'estado_civil',
+        'profesion',
+        'direccion_contrato',
+        'numero_pasaporte',
         'notas',
         'cuenta_bancaria',
         'banco',
@@ -26,6 +31,13 @@ class Investor extends Model
         'erp_account_key_prestamos',
         'erp_account_key_intereses',
         'joined_at',
+    ];
+
+    // Claves ERP nunca deben exponerse al frontend
+    protected $hidden = [
+        'erp_account_key',
+        'erp_account_key_prestamos',
+        'erp_account_key_intereses',
     ];
 
     protected $casts = [

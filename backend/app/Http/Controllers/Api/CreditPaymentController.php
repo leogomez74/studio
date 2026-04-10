@@ -229,9 +229,11 @@ class CreditPaymentController extends Controller
     public function upload(Request $request)
     {
         $validated = $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'deductora_id' => 'required|exists:deductoras,id',
-            'fecha_test' => 'nullable|date',
+            'file'             => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'deductora_id'     => 'required|exists:deductoras,id',
+            'fecha_test'       => 'nullable|date',
+            'ajustes_decimales' => 'nullable|array',
+            'ajustes_decimales.*' => 'string',
         ]);
 
         $result = $this->planilla->upload($validated, $request->file('file'), $request);

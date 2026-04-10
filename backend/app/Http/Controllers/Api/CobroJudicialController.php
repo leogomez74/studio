@@ -189,7 +189,7 @@ class CobroJudicialController extends Controller
             ->whereIn('status', [Credit::STATUS_EN_MORA, Credit::STATUS_LEGAL])
             ->whereHas('planDePagos', function ($q) {
                 $q->where('estado', 'pendiente')
-                  ->where('fecha_vencimiento', '<=', now()->subMonths(4));
+                  ->where('fecha_corte', '<=', now()->subMonths(4));
             })
             ->select('id', 'numero_operacion', 'lead_id', 'deductora_id', 'status', 'monto_credito')
             ->get();

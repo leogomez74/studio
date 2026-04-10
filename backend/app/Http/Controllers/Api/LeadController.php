@@ -152,6 +152,9 @@ class LeadController extends Controller
             'estado_civil' => 'nullable|string|max:255',
             'relacionado_a' => 'nullable|string|max:255',
             'tipo_relacion' => 'nullable|string|max:255',
+            'tel_amigo_2' => 'nullable|string|max:50',
+            'relacionado_a_2' => 'nullable|string|max:255',
+            'tipo_relacion_2' => 'nullable|string|max:255',
             'fecha_nacimiento' => 'nullable|date',
             'is_active' => 'sometimes|boolean',
             'cedula_vencimiento' => 'nullable|date',
@@ -210,6 +213,10 @@ class LeadController extends Controller
         $validated['lead_status_id'] = $leadStatus?->id;
         $validated['status'] = $leadStatus?->name ?? $validated['status'] ?? 'Activo';
         $validated['is_active'] = $validated['is_active'] ?? true;
+
+        if (empty($validated['assigned_to_id'])) {
+            $validated['assigned_to_id'] = app(\App\Services\AssignmentService::class)->getNextAssignee('leads');
+        }
 
         // Usar transacción para asegurar consistencia
         $result = DB::transaction(function () use ($validated, $monto, $vertical, $opportunityType, $createOpportunity) {
@@ -369,6 +376,9 @@ class LeadController extends Controller
             'estado_civil' => 'sometimes|nullable|string|max:255',
             'relacionado_a' => 'sometimes|nullable|string|max:255',
             'tipo_relacion' => 'sometimes|nullable|string|max:255',
+            'tel_amigo_2' => 'sometimes|nullable|string|max:50',
+            'relacionado_a_2' => 'sometimes|nullable|string|max:255',
+            'tipo_relacion_2' => 'sometimes|nullable|string|max:255',
             'fecha_nacimiento' => 'sometimes|nullable|date',
             'is_active' => 'sometimes|boolean',
             'cedula_vencimiento' => 'sometimes|nullable|date',

@@ -1315,7 +1315,7 @@ export default function InversionesPage() {
 
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); if (v === 'pagadas') fetchPagadas(); }}>
         <div className="flex items-center justify-between mb-4">
-          <TabsList>
+          <TabsList className="h-auto flex-wrap gap-y-1">
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
             <TabsTrigger value="inversiones">Inversiones</TabsTrigger>
             <TabsTrigger value="tabla-general">Tabla General</TabsTrigger>

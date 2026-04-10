@@ -13,6 +13,14 @@ export interface ModuleConfig {
 // Mapa completo de event_types por módulo, con sus labels legibles para UI.
 // Los keys deben coincidir exactamente con los event_type en la tabla task_automations.
 const MODULE_MAP: Record<string, ModuleConfig> = {
+  '/dashboard/clientes': {
+    name: 'CRM',
+    eventTypes: [
+      { key: 'lead_created', label: 'Nuevo Lead Creado', description: 'Al registrar un nuevo lead.', defaultTitle: 'Nuevo lead creado' },
+      { key: 'lead_converted', label: 'Lead Convertido a Cliente', description: 'Al convertir exitosamente un lead en cliente.', defaultTitle: 'Onboarding de nuevo cliente' },
+      { key: 'lead_inactivity_alert', label: 'Alerta de Inactividad', description: 'Leads/oportunidades inactivos detectados por el cron diario.', defaultTitle: 'Seguimiento de leads/oportunidades inactivos' },
+    ],
+  },
   '/dashboard/leads': {
     name: 'Leads',
     eventTypes: [

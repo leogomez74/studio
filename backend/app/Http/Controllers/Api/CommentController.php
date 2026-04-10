@@ -89,7 +89,7 @@ class CommentController extends Controller
             'user_id'          => $request->user()->id,
             'body'             => $request->body,
             'mentions'         => $request->mentions,
-            'comment_type'     => $request->comment_type,
+            'comment_type'     => $request->comment_type ?? 'comment',
             'metadata'         => $request->metadata,
         ]);
 
@@ -191,15 +191,53 @@ class CommentController extends Controller
         return response()->json(['message' => 'Desarchivado']);
     }
 
+    // PATCH /api/comments/{id}/star
+    public function star(int $id)
+    {
+        $comment = Comment::findOrFail($id);
+        $comment->update(['is_starred' => true]);
+        return response()->json(['message' => 'Marcado como importante']);
+    }
+
+    // PATCH /api/comments/{id}/unstar
+    public function unstar(int $id)
+    {
+        $comment = Comment::findOrFail($id);
+        $comment->update(['is_starred' => false]);
+        return response()->json(['message' => 'Quitado de importantes']);
+    }
+
+    // PATCH /api/comments/{id}/pending
+    public function markPending(int $id)
+    {
+        $comment = Comment::findOrFail($id);
+        $comment->update(['is_pending' => true]);
+        return response()->json(['message' => 'Marcado como pendiente']);
+    }
+
+    // PATCH /api/comments/{id}/unpending
+    public function unmarkPending(int $id)
+    {
+        $comment = Comment::findOrFail($id);
+        $comment->update(['is_pending' => false]);
+        return response()->json(['message' => 'Quitado de pendientes']);
+    }
+
     // GET /api/comments/recent
     public function recent(Request $request)
     {
-        $userId     = $request->user()?->id;
+        $userId       = $request->user()?->id;
         $showArchived = filter_var($request->query('archived', false), FILTER_VALIDATE_BOOLEAN);
+        $showStarred  = filter_var($request->query('starred', false), FILTER_VALIDATE_BOOLEAN);
+        $showPending  = filter_var($request->query('pending', false), FILTER_VALIDATE_BOOLEAN);
 
         $query = Comment::roots();
 
-        if ($showArchived) {
+        if ($showStarred) {
+            $query->where('is_starred', true)->whereNull('archived_at');
+        } elseif ($showPending) {
+            $query->where('is_pending', true)->whereNull('archived_at');
+        } elseif ($showArchived) {
             $query->whereNotNull('archived_at');
         } else {
             $query->whereNull('archived_at');

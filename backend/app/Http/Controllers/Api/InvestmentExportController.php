@@ -374,4 +374,98 @@ class InvestmentExportController extends Controller
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
     }
+
+    /**
+     * Generar contrato de préstamo de dinero (ES o EN)
+     */
+    public function contratoInversionPdf(int $id, string $lang = 'es')
+    {
+        $investment = Investment::with('investor')->findOrFail($id);
+        $investor   = $investment->investor;
+
+        $ntw     = \App\Helpers\NumberToWords::class;
+        $monto   = (float) $investment->monto_capital;
+        $tasa    = (float) $investment->tasa_anual;  // ya en decimal: 0.06 = 6%
+        $tasaPct = $tasa * 100;
+
+        // ID en palabras (dígito por dígito)
+        $idInversor = $investor->cedula ?? '';
+        $idEnPalabrasES = $idInversor ? $ntw::idToWordsES($idInversor) : '';
+        $idEnPalabrasEN = $idInversor ? $ntw::idToWordsEN($idInversor) : '';
+
+        // Traducción automática al inglés via Google Translate (sin API key)
+        $translateToEN = function(?string $text): string {
+            if (!$text) return '';
+            try {
+                return \Stichoza\GoogleTranslate\GoogleTranslate::trans($text, 'en', 'es');
+            } catch (\Exception $e) {
+                return $text; // fallback al original si falla
+            }
+        };
+
+        $estadoCivilEN   = $translateToEN($investor->estado_civil);
+        $profesionEN     = $translateToEN($investor->profesion);
+        $nacionalidadEN  = $translateToEN($investor->nacionalidad);
+        $direccionEN     = $investor->direccion_contrato ?? '';
+
+        // Descripción fija de CREDIPEP traducida
+        $credipepES = 'CREDIPEP SOCIEDAD ANÓNIMA, cédula jurídica: Tres- ciento uno- quinientos quince mil quinientos once, inscrita al Tomo: quinientos setenta y cuatro, Asiento: veintitrés mil trescientos setenta y dos, domiciliada en: San José- San José, cantón cero uno San José, Sabana Norte, del ICE cien metros oeste, cuatrocientos norte y cincuenta oeste, a mano izquierda, casa blanca de dos pisos número: cinco mil seiscientos treinta y cinco, con dos columnas grises frontales y verjas blancas';
+        $credipepEN = $translateToEN($credipepES);
+
+        if ($lang === 'en') {
+            $currency         = $investment->moneda === 'USD' ? 'dollars' : 'colones';
+            $montoFormateado  = $investment->moneda === 'USD'
+                ? '$' . number_format($monto, 2)
+                : '₡' . number_format($monto, 2);
+            $montoEnPalabras            = $ntw::convertEN($monto, $currency);
+            $tasaFormateada             = number_format($tasaPct, 2);
+            $tasaEnPalabras             = rtrim(rtrim($ntw::convertEN($tasaPct, ''), 'exactly'), ' ') . 'percent';
+            $formaPago                  = $ntw::formaPagoEN($investment->forma_pago);
+            $plazoEnPalabras            = $ntw::plazoToWordsEN($investment->plazo_meses);
+            $fechaInicioEnPalabras      = $ntw::dateToWordsEN(substr($investment->fecha_inicio, 0, 10));
+            $fechaVencimientoEnPalabras = $ntw::dateToWordsEN(substr($investment->fecha_vencimiento, 0, 10));
+            $fechaFirmaEnPalabras       = $ntw::dateToWordsEN(substr($investment->fecha_inicio, 0, 10));
+            $idEnPalabras               = $idEnPalabrasEN;
+            $estadoCivil                = $estadoCivilEN;
+            $profesion                  = $profesionEN;
+            $nacionalidad               = $nacionalidadEN;
+            $direccion                  = $direccionEN;
+            $credipepDesc               = $credipepEN;
+            $view     = 'pdf.contrato_inversion_en';
+            $filename = "loan_agreement_{$investment->numero_desembolso}.pdf";
+        } else {
+            $moneda           = $investment->moneda === 'USD' ? 'dólares' : 'colones';
+            $montoFormateado  = $investment->moneda === 'USD'
+                ? 'US$' . number_format($monto, 2)
+                : '₡' . number_format($monto, 2);
+            $montoEnPalabras            = $ntw::convert($monto, strtoupper($moneda));
+            $tasaFormateada             = number_format($tasaPct, 2);
+            $tasaEnPalabras             = $ntw::convert($tasaPct, 'POR CIENTO');
+            $formaPago                  = $ntw::formaPagoES($investment->forma_pago);
+            $plazoEnPalabras            = $ntw::plazoToWordsES($investment->plazo_meses);
+            $fechaInicioEnPalabras      = $ntw::dateToWordsES(substr($investment->fecha_inicio, 0, 10));
+            $fechaVencimientoEnPalabras = $ntw::dateToWordsES(substr($investment->fecha_vencimiento, 0, 10));
+            $fechaFirmaEnPalabras       = $ntw::dateToWordsES(substr($investment->fecha_inicio, 0, 10));
+            $idEnPalabras               = $idEnPalabrasES;
+            $estadoCivil                = $investor->estado_civil ?? '';
+            $profesion                  = $investor->profesion ?? '';
+            $nacionalidad               = $investor->nacionalidad ?? '';
+            $direccion                  = $investor->direccion_contrato ?? '';
+            $credipepDesc               = $credipepES;
+            $view     = 'pdf.contrato_inversion_es';
+            $filename = "contrato_{$investment->numero_desembolso}.pdf";
+        }
+
+        $pdf = Pdf::loadView($view, compact(
+            'investment', 'investor',
+            'montoFormateado', 'montoEnPalabras',
+            'tasaFormateada', 'tasaEnPalabras',
+            'estadoCivil', 'profesion', 'nacionalidad', 'direccion', 'credipepDesc',
+            'formaPago', 'plazoEnPalabras',
+            'fechaInicioEnPalabras', 'fechaVencimientoEnPalabras', 'fechaFirmaEnPalabras',
+            'idEnPalabras'
+        ))->setPaper('letter', 'portrait');
+
+        return $pdf->stream($filename);
+    }
 }

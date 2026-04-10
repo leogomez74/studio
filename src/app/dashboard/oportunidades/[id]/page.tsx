@@ -60,6 +60,7 @@ import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/contexts/PermissionsContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AnalisisWizardModal } from "@/components/analisis-wizard-modal";
+import { ReassignButton } from "@/components/ReassignButton";
 import { TareasTab } from '@/components/TareasTab';
 import { HojaDeTrabajo } from '@/components/hoja-de-trabajo';
 import type { DatosPreAnalisis } from '@/components/hoja-de-trabajo';
@@ -837,7 +838,16 @@ export default function OpportunityDetailPage() {
             <TabsContent value="resumen">
               <Card className="border shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 border-b">
-                  <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
+                    <ReassignButton
+                      currentAssigneeId={opportunity.assigned_to_id ?? null}
+                      currentAssigneeName={users.find(u => u.id === opportunity.assigned_to_id)?.name ?? null}
+                      agents={users}
+                      endpoint={`/api/opportunities/${opportunity.id}`}
+                      onReassigned={(id) => setOpportunity(prev => prev ? { ...prev, assigned_to_id: id } : prev)}
+                    />
+                  </div>
                   <div className="flex items-center gap-2">
                     {OPPORTUNITY_STATUSES.map((status) => {
                       const currentStatusIndex = OPPORTUNITY_STATUSES.indexOf(opportunity.status as typeof OPPORTUNITY_STATUSES[number]);

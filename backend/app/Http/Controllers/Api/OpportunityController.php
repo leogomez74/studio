@@ -114,50 +114,41 @@ class OpportunityController extends Controller
         $perPage = min((int) $request->input('per_page', 10), 100);
         $opportunities = $query->latest()->paginate($perPage);
 
-        // Agregar información de documentos faltantes
-        $opportunities->getCollection()->transform(function ($opportunity) {
-            $missingDocs = [];
-            $strippedCedula = $this->getCleanCedulaFromOpportunity($opportunity);
+        // Agregar información de documentos faltantes (solo si se solicita explícitamente)
+        if ($request->boolean('with_documents')) {
+            $opportunities->getCollection()->transform(function ($opportunity) {
+                $missingDocs = [];
+                $strippedCedula = $this->getCleanCedulaFromOpportunity($opportunity);
 
-            if ($strippedCedula) {
-                $heredadosPath = "documentos/{$strippedCedula}/{$opportunity->id}/heredados";
-                $especificosPath = "documentos/{$strippedCedula}/{$opportunity->id}/especificos";
+                if ($strippedCedula) {
+                    $heredadosPath = "documentos/{$strippedCedula}/{$opportunity->id}/heredados";
+                    $especificosPath = "documentos/{$strippedCedula}/{$opportunity->id}/especificos";
 
-                // Verificar documentos heredados (cédula y recibo)
-                if (Storage::disk('public')->exists($heredadosPath)) {
-                    $files = Storage::disk('public')->files($heredadosPath);
-                    $fileNames = array_map('basename', $files);
+                    if (Storage::disk('public')->exists($heredadosPath)) {
+                        $files = Storage::disk('public')->files($heredadosPath);
+                        $fileNames = array_map('basename', $files);
 
-                    $hasCedula = collect($fileNames)->contains(function ($name) {
-                        return stripos(strtolower($name), 'cedula') === 0;
-                    });
+                        $hasCedula = collect($fileNames)->contains(fn($name) => stripos(strtolower($name), 'cedula') === 0);
+                        $hasRecibo = collect($fileNames)->contains(fn($name) => stripos(strtolower($name), 'recibo') === 0);
 
-                    $hasRecibo = collect($fileNames)->contains(function ($name) {
-                        return stripos(strtolower($name), 'recibo') === 0;
-                    });
-
-                    if (!$hasCedula) {
-                        $missingDocs[] = 'Cédula';
+                        if (!$hasCedula) $missingDocs[] = 'Cédula';
+                        if (!$hasRecibo) $missingDocs[] = 'Recibo';
+                    } else {
+                        $missingDocs = ['Cédula', 'Recibo'];
                     }
-                    if (!$hasRecibo) {
-                        $missingDocs[] = 'Recibo';
+
+                    $hasEspecificos = Storage::disk('public')->exists($especificosPath)
+                        && count(Storage::disk('public')->files($especificosPath)) > 0;
+
+                    if (!$hasEspecificos) {
+                        $missingDocs[] = 'Documentos de oportunidad';
                     }
-                } else {
-                    $missingDocs = ['Cédula', 'Recibo'];
                 }
 
-                // Verificar documentos específicos de la oportunidad
-                $hasEspecificos = Storage::disk('public')->exists($especificosPath)
-                    && count(Storage::disk('public')->files($especificosPath)) > 0;
-
-                if (!$hasEspecificos) {
-                    $missingDocs[] = 'Documentos de oportunidad';
-                }
-            }
-
-            $opportunity->missing_documents = $missingDocs;
-            return $opportunity;
-        });
+                $opportunity->missing_documents = $missingDocs;
+                return $opportunity;
+            });
+        }
 
         return response()->json($opportunities, 200);
     }
@@ -214,6 +205,10 @@ class OpportunityController extends Controller
         // Auto-mapear amount desde el monto del cuestionario si no viene en el request
         if ((empty($validated['amount']) || $validated['amount'] == 0) && $lead && !empty($lead->monto)) {
             $validated['amount'] = $this->extractAmountFromRange($lead->monto);
+        }
+
+        if (empty($validated['assigned_to_id'])) {
+            $validated['assigned_to_id'] = app(\App\Services\AssignmentService::class)->getNextAssignee('analysis');
         }
 
         // Crear la oportunidad

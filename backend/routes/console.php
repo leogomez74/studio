@@ -117,3 +117,25 @@ Schedule::command('cobro-judicial:verificar-inactividad')
     ->timezone('America/Costa_Rica')
     ->withoutOverlapping()
     ->onOneServer();
+
+/*
+|--------------------------------------------------------------------------
+| Scheduled Tasks - Automatizaciones personalizadas (AutomationTemplates)
+|--------------------------------------------------------------------------
+|
+| Evalúa cada minuto las plantillas activas de tipo "scheduled".
+| Cada plantilla tiene su propia cron_expression; el servicio filtra
+| cuáles corresponde ejecutar en el ciclo actual via CronExpression::isDue().
+|
+*/
+
+Schedule::command('automations:run-scheduled')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->when(function () {
+        return \App\Models\AutomationTemplate::where('trigger_type', 'scheduled')
+            ->where('is_active', true)
+            ->whereNotNull('cron_expression')
+            ->exists();
+    });

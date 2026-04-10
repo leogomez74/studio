@@ -20,6 +20,7 @@ import { WorkflowsTab } from '@/components/configuracion/WorkflowsTab';
 import { LabelManager } from '@/components/configuracion/LabelManager';
 import IntegracionesTab from '@/components/configuracion/IntegracionesTab';
 import ApiTokensTab from '@/components/configuracion/ApiTokensTab';
+import { EvolutionApiTab } from '@/components/configuracion/EvolutionApiTab';
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<string>('prestamos');
@@ -27,14 +28,14 @@ export default function ConfiguracionPage() {
   return (
     <ProtectedPage module={['config_general', 'config_personas', 'config_usuarios', 'config_contabilidad', 'config_sistema']}>
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(String(v))}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 h-auto flex-wrap gap-y-1">
           <TabsTrigger value="prestamos">Préstamos</TabsTrigger>
           <TabsTrigger value="tasas">Tasas</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           <TabsTrigger value="roles-permisos">Roles y Permisos</TabsTrigger>
           <TabsTrigger value="patronos">Patronos</TabsTrigger>
           <TabsTrigger value="deductoras">Deductoras</TabsTrigger>
-          <TabsTrigger value="empresas">Empresas</TabsTrigger>
+          <TabsTrigger value="empresas">Docs. por Institución</TabsTrigger>
           <TabsTrigger value="instituciones">Instituciones</TabsTrigger>
           <TabsTrigger value="productos">Créditos</TabsTrigger>
           <TabsTrigger value="api">Contabilidad ERP</TabsTrigger>
@@ -45,6 +46,7 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="labels">Etiquetas</TabsTrigger>
           <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
           <TabsTrigger value="api-tokens">API Tokens</TabsTrigger>
+          <TabsTrigger value="evolution-api">WhatsApp</TabsTrigger>
         </TabsList>
 
         <TabsContent value="prestamos">
@@ -113,6 +115,10 @@ export default function ConfiguracionPage() {
 
         <TabsContent value="api-tokens">
           <ApiTokensTab />
+        </TabsContent>
+
+        <TabsContent value="evolution-api">
+          <EvolutionApiTab />
         </TabsContent>
       </Tabs>
     </ProtectedPage>

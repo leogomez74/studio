@@ -62,12 +62,7 @@ export function AutoTasksSheet({ open, onOpenChange, module }: AutoTasksSheetPro
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="w-full sm:max-w-[480px] flex flex-col gap-0 p-0">
           <SheetHeader className="px-6 py-4 border-b">
-            <SheetTitle className="flex items-center justify-between">
-              <span>Auto-tareas — {module.name}</span>
-              <Button size="sm" onClick={() => openCreate()} className="h-8 text-xs">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Nueva regla
-              </Button>
-            </SheetTitle>
+            <SheetTitle>Auto-tareas — {module.name}</SheetTitle>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">

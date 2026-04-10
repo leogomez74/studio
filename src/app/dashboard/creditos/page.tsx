@@ -1380,8 +1380,8 @@ export default function CreditsPage() {
               <TabsContent key={tab.value} value={tab.value}>
                 <Card>
                   <CardContent className="p-0">
-                    <DraggableScrollContainer className="overflow-x-auto select-none p-6">
-                      <Table className="min-w-[1800px]">
+                    <DraggableScrollContainer className="overflow-x-auto select-none">
+                      <Table className="min-w-[1800px] border-separate border-spacing-0">
                         <TableHeader>
                           <TableRow>
                             {/* Checkbox de selección (solo "Sin deductora") */}
@@ -1404,12 +1404,8 @@ export default function CreditsPage() {
                                 />
                               </TableHead>
                             )}
-                            {/* NUEVA COLUMNA: Botón de expansión */}
-                            <TableHead className="w-[40px] sticky left-0 bg-background z-10 border-r">
-                              {/* Vacío, solo para alinear */}
-                            </TableHead>
-                            {/* Acciones - ACTUALIZAR sticky position */}
-                            <TableHead className="text-right sticky left-[40px] bg-background z-10 w-[180px]">Acciones</TableHead>
+                            {/* Acciones (incluye expand) */}
+                            <TableHead className="sticky left-0 z-20 w-[220px]" style={{ backgroundColor: 'hsl(var(--background))', borderRight: '1px solid rgba(0,0,0,0.1)' }}>Acciones</TableHead>
                             <TableHead className="w-[130px]">Estado</TableHead>
                             <TableHead className="min-w-[200px]">Nombre</TableHead>
                             <TableHead className="w-[120px]">Cédula</TableHead>
@@ -1494,40 +1490,38 @@ export default function CreditsPage() {
                                       />
                                     </TableCell>
                                   )}
-                                  {/* COLUMNA 1: Botón de Expansión */}
-                                  <TableCell className="w-[40px] sticky left-0 bg-background z-10 border-r">
-                                    {hasMultipleCredits && (
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              onClick={() => toggleClientExpansion(leadId)}
-                                              className="h-8 w-8"
-                                              aria-label={isExpanded ? "Colapsar créditos" : "Expandir créditos"}
-                                            >
-                                              {isExpanded ? (
-                                                <ChevronDown className="h-4 w-4" />
-                                              ) : (
-                                                <ChevronRight className="h-4 w-4" />
-                                              )}
-                                            </Button>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top" sideOffset={30} className="z-[9999] relative">
-                                            {isExpanded
-                                              ? "Ocultar créditos adicionales"
-                                              : `Mostrar ${additionalCredits.length} crédito${additionalCredits.length > 1 ? 's' : ''} adicional${additionalCredits.length > 1 ? 'es' : ''}`
-                                            }
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    )}
-                                  </TableCell>
-
-                                  {/* COLUMNA 2: Acciones - ACTUALIZAR sticky position */}
-                                  <TableCell className="text-right sticky left-[40px] bg-background z-10 w-[180px]">
+                                  {/* COLUMNA: Expand + Acciones */}
+                                  <TableCell className="sticky left-0 z-10 w-[220px]" style={{ backgroundColor: 'hsl(var(--background))', borderRight: '1px solid rgba(0,0,0,0.1)' }}>
                                     <div className="flex items-center gap-1">
+                                      {hasMultipleCredits ? (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => toggleClientExpansion(leadId)}
+                                                className="h-8 w-8 shrink-0"
+                                                aria-label={isExpanded ? "Colapsar créditos" : "Expandir créditos"}
+                                              >
+                                                {isExpanded ? (
+                                                  <ChevronDown className="h-4 w-4" />
+                                                ) : (
+                                                  <ChevronRight className="h-4 w-4" />
+                                                )}
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" sideOffset={30} className="z-[9999] relative">
+                                              {isExpanded
+                                                ? "Ocultar créditos adicionales"
+                                                : `Mostrar ${additionalCredits.length} crédito${additionalCredits.length > 1 ? 's' : ''} adicional${additionalCredits.length > 1 ? 'es' : ''}`
+                                              }
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      ) : (
+                                        <div className="w-8 shrink-0" />
+                                      )}
                                       <Button
                                         variant="outline"
                                         size="icon"
@@ -1703,13 +1697,11 @@ export default function CreditsPage() {
                                           />
                                         </TableCell>
                                       )}
-                                      {/* COLUMNA 1: Vacía (alineación) */}
-                                      <TableCell className="w-[40px] sticky left-0 bg-muted/30 z-10 border-r" />
-
-                                      {/* COLUMNA 2: Acciones con indentación visual */}
-                                      <TableCell className="text-right sticky left-[40px] bg-muted/30 z-10 w-[180px]">
+                                      {/* COLUMNA: Acciones sub-crédito */}
+                                      <TableCell className="sticky left-0 z-10 w-[220px]" style={{ backgroundColor: 'hsl(var(--muted))', borderRight: '1px solid rgba(0,0,0,0.1)' }}>
                                         <div className="flex items-center justify-end gap-1">
-                                          {/* Línea de indentación visual */}
+                                          {/* Indentación visual */}
+                                          <div className="w-8 shrink-0" />
                                           <div className="w-4 h-px bg-border mr-1" />
 
                                           {/* Botones de acción (igual que fila madre) */}

@@ -46,6 +46,49 @@ use App\Http\Controllers\Api\RutaDiariaController;
 |
 */
 
+// --- Health check (detalle para admins autenticados) ---
+Route::get('/health/env/detail', function (Request $request) {
+    $groups = [
+        'app'      => ['APP_NAME', 'APP_ENV', 'APP_KEY', 'APP_URL'],
+        'database' => ['DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME'],
+        'auth'     => ['SANCTUM_STATEFUL_DOMAINS', 'FRONTEND_URL'],
+        'erp'      => ['ERP_SERVICE_URL', 'ERP_SERVICE_TOKEN', 'ERP_SERVICE_SECRET'],
+        'credid'   => ['CREDID_API_URL', 'CREDID_API_TOKEN'],
+        'dsf'      => ['DSF_API_URL', 'DSF_API_TOKEN'],
+        'evolution'=> ['EVOLUTION_API_URL', 'EVOLUTION_API_KEY', 'EVOLUTION_INSTANCE'],
+        'tenor'    => ['TENOR_API_KEY'],
+        'mail'     => ['MAIL_MAILER', 'MAIL_HOST', 'MAIL_PORT'],
+        'cache'    => ['CACHE_STORE', 'QUEUE_CONNECTION', 'SESSION_DRIVER'],
+        'jira'     => ['JIRA_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN', 'JIRA_PROJECT_KEY'],
+    ];
+
+    $results = [];
+    $missing = [];
+    foreach ($groups as $group => $vars) {
+        $groupOk = true;
+        $details = [];
+        foreach ($vars as $var) {
+            $val = env($var, '');
+            $set = !empty($val);
+            $details[$var] = $set ? ('✅ ' . substr($val, 0, 12) . (strlen($val) > 12 ? '...' : '')) : '❌ vacío';
+            if (!$set) { $groupOk = false; $missing[] = $var; }
+        }
+        $results[$group] = ['ok' => $groupOk, 'vars' => $details];
+    }
+
+    // Estado del servicio ERP
+    $erpService = app(\App\Services\ErpAccountingService::class);
+    $results['erp']['service_configured'] = $erpService->isConfigured() ? '✅ isConfigured=true' : '❌ isConfigured=false';
+
+    return response()->json([
+        'status'         => empty($missing) ? 'ok' : 'degraded',
+        'timestamp'      => now()->toIso8601String(),
+        'groups'         => $results,
+        'missing'        => $missing,
+        'total_missing'  => count($missing),
+    ]);
+})->middleware(['auth:sanctum', 'admin', 'throttle:10,1']);
+
 // --- Health check ---
 Route::get('/health/env', function (Request $request) {
     $groups = [
@@ -129,9 +172,11 @@ Route::get('/health/env', function (Request $request) {
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
-// --- PDFs/Excel públicos del Plan de Pagos (se abren en nueva pestaña) ---
-Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
-Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
+// --- PDFs/Excel del Plan de Pagos (requieren auth via cookie de sesión Sanctum) ---
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/credits/{id}/plan-pdf', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanPDF']);
+    Route::get('/credits/{id}/plan-excel', [\App\Http\Controllers\Api\CreditController::class, 'downloadPlanExcel']);
+});
 
 // (exports de inversiones movidos a grupo auth:sanctum — ver abajo)
 
@@ -146,6 +191,12 @@ Route::get('/instituciones', [InstitucionController::class, 'index']);
 // --- Webhook n8n: notificaciones judiciales entrantes ---
 // Protegido por token estático en header X-N8N-Token (validado en middleware/controller)
 Route::post('/cobro-judicial/notificacion-entrante', [\App\Http\Controllers\Api\CobroJudicialController::class, 'notificacionEntrante']);
+
+// =============================================================================
+// WEBHOOK JIRA — Público (Jira llama sin auth)
+// =============================================================================
+Route::post('/webhooks/jira', [\App\Http\Controllers\Api\JiraWebhookController::class, 'handle']);
+Route::post('/jira/register-webhook', fn() => response()->json((new \App\Services\JiraService())->registerWebhook()))->middleware('auth:sanctum');
 
 // =============================================================================
 // RUTAS PROTEGIDAS — Requieren autenticación Sanctum
@@ -192,7 +243,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
     Route::post('/leads/{id}/consultar-credid', [LeadController::class, 'consultarCredid'])->middleware('throttle:10,1');
     Route::post('/leads/{id}/convert', [LeadController::class, 'convertToClient']);
-    Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula'])->middleware('permission:crm,delete');
+    Route::post('/leads/delete-by-cedula', [LeadController::class, 'deleteByCedula'])->middleware(['permission:crm,delete', 'throttle:5,1']);
     // Bulk actions ANTES del apiResource para evitar conflictos de rutas
     Route::patch('/leads/bulk-archive', [LeadController::class, 'bulkArchive']);
     Route::post('/leads/bulk-convert', [LeadController::class, 'bulkConvert']);
@@ -283,10 +334,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/rutas-diarias/{id}/replanificar', [RutaDiariaController::class, 'replanificar'])->middleware(['admin', 'throttle:60,1']);
     Route::delete('/rutas-diarias/{id}/cancelar', [RutaDiariaController::class, 'cancelar'])->middleware(['admin', 'throttle:30,1']);
 
-    // --- Automatización de Tareas ---
+    // --- Automatización de Tareas (sistema) ---
     Route::get('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'index'])->middleware('admin');
     Route::post('/task-automations', [\App\Http\Controllers\Api\TaskAutomationController::class, 'upsert'])->middleware('admin');
     Route::delete('/task-automations/{taskAutomation}', [\App\Http\Controllers\Api\TaskAutomationController::class, 'destroy'])->middleware('admin');
+
+    // --- Plantillas de Automatización personalizadas ---
+    Route::middleware('admin')->prefix('automation-templates')->group(function () {
+        Route::get('/',                                    [\App\Http\Controllers\Api\AutomationTemplateController::class, 'index']);
+        Route::post('/',                                   [\App\Http\Controllers\Api\AutomationTemplateController::class, 'store']);
+        Route::get('/variables',                           [\App\Http\Controllers\Api\AutomationTemplateController::class, 'variables']);
+        Route::get('/event-hooks',                         [\App\Http\Controllers\Api\AutomationTemplateController::class, 'eventHooks']);
+        Route::get('/{automationTemplate}',                [\App\Http\Controllers\Api\AutomationTemplateController::class, 'show']);
+        Route::put('/{automationTemplate}',                [\App\Http\Controllers\Api\AutomationTemplateController::class, 'update']);
+        Route::delete('/{automationTemplate}',             [\App\Http\Controllers\Api\AutomationTemplateController::class, 'destroy']);
+        Route::post('/{automationTemplate}/evaluate',      [\App\Http\Controllers\Api\AutomationTemplateController::class, 'evaluateCondition']);
+        Route::post('/{automationTemplate}/execute',       [\App\Http\Controllers\Api\AutomationTemplateController::class, 'execute']);
+    });
 
     // --- Integraciones Externas ---
     Route::apiResource('external-integrations', \App\Http\Controllers\Api\ExternalIntegrationController::class)->middleware('admin');
@@ -332,17 +396,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'index']);
         Route::get('/stats', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'stats']);
         Route::get('/alerts', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'alerts']);
-        Route::get('/export', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'export']);
+        Route::get('/export', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'export'])->middleware('throttle:10,1');
         Route::get('/{id}', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'show']);
         Route::post('/{id}/retry', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'retry'])->middleware(['admin', 'throttle:10,1']);
     });
 
     // --- Bitácora de Auditoría General del Sistema ---
-    Route::prefix('activity-logs')->group(function () {
+    Route::prefix('activity-logs')->middleware('admin')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\ActivityLogController::class, 'index']);
         Route::get('/stats', [\App\Http\Controllers\Api\ActivityLogController::class, 'stats']);
         Route::get('/alerts', [\App\Http\Controllers\Api\ActivityLogController::class, 'alerts']);
-        Route::get('/export', [\App\Http\Controllers\Api\ActivityLogController::class, 'export']);
+        Route::get('/export', [\App\Http\Controllers\Api\ActivityLogController::class, 'export'])->middleware('throttle:10,1');
         Route::get('/{id}', [\App\Http\Controllers\Api\ActivityLogController::class, 'show']);
     });
 
@@ -352,7 +416,113 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/bugs/{bug}/status', [\App\Http\Controllers\Api\BugController::class, 'updateStatus'])->middleware('throttle:60,1');
     Route::post('/bugs/{bug}/images', [\App\Http\Controllers\Api\BugController::class, 'uploadImages'])->middleware('throttle:30,1');
     Route::delete('/bugs/{bug}/images/{image}', [\App\Http\Controllers\Api\BugController::class, 'deleteImage'])->middleware('throttle:30,1');
+    Route::patch('/bugs/{bug}/archive', [\App\Http\Controllers\Api\BugController::class, 'archive']);
+    Route::get('/bugs/archived', [\App\Http\Controllers\Api\BugController::class, 'archived']);
+    Route::patch('/bugs/{bug}/assignees', [\App\Http\Controllers\Api\BugController::class, 'syncAssignees']);
     Route::get('/jira/users', fn() => response()->json((new \App\Services\JiraService())->getUsers()));
+    Route::get('/jira/status', fn() => response()->json(['connected' => (new \App\Services\JiraService())->isConfigured()]));
+    Route::post('/jira/sync', function() {
+        $jira    = new \App\Services\JiraService();
+        $issues  = $jira->fetchProjectIssues();
+        $created = 0; $updated = 0;
+
+        foreach ($issues as $issue) {
+            $jiraKey = $issue['key'];
+            $fields  = $issue['fields'] ?? [];
+
+            // Título limpio (sin prefijo [BUG-XXXX] si fue creado desde Studio)
+            $title = preg_replace('/^\[BUG-\d+\]\s*/', '', $fields['summary'] ?? 'Sin título');
+
+            // Prioridad
+            $priority = match(strtolower($fields['priority']['name'] ?? 'medium')) {
+                'highest','critical' => 'critica', 'high' => 'alta', 'low','lowest' => 'baja', default => 'media'
+            };
+
+            // Estado — mapeo exacto de columnas Jira → Studio
+            $jiraStatus = strtolower($fields['status']['name'] ?? '');
+            $status = str_contains($jiraStatus,'progress') || str_contains($jiraStatus,'curso')   ? 'en_progreso'
+                   : (str_contains($jiraStatus,'review')   || str_contains($jiraStatus,'revision') ? 'en_revision'
+                   : (str_contains($jiraStatus,'done')     || str_contains($jiraStatus,'finaliz')  ? 'cerrado'
+                   : 'abierto'));
+
+            // Asignado — busca por primer nombre
+            $assigneeName = $fields['assignee']['displayName'] ?? null;
+            $userId = $assigneeName
+                ? \App\Models\User::whereRaw('LOWER(name) LIKE ?', ['%'.strtolower(explode(' ',$assigneeName)[0]).'%'])->value('id')
+                : null;
+            $adminId = $userId ?? \App\Models\User::first()?->id ?? 1;
+
+            // Descripción (formato ADF de Jira)
+            $desc = $fields['description']['content'][0]['content'][0]['text'] ?? null;
+
+            // Crear o actualizar
+            $bug = \App\Models\Bug::where('jira_key', $jiraKey)->first();
+            if ($bug) {
+                if (!$bug->archived_at) {
+                    $bug->update([
+                        'title'       => $title,
+                        'description' => $desc,
+                        'priority'    => $priority,
+                        'status'      => $status,
+                        'assigned_to' => $userId,
+                    ]);
+                }
+                $updated++;
+            } else {
+                $bug = \App\Models\Bug::create([
+                    'jira_key'    => $jiraKey,
+                    'title'       => $title,
+                    'description' => $desc,
+                    'priority'    => $priority,
+                    'status'      => $status,
+                    'assigned_to' => $userId,
+                    'created_by'  => $adminId,
+                ]);
+                $created++;
+            }
+
+            // Sincronizar archivos adjuntos de Jira → Studio
+            $attachments = $fields['attachment'] ?? [];
+            foreach ($attachments as $att) {
+                $filename    = $att['filename'] ?? 'archivo';
+                $contentUrl  = $att['content'] ?? null;
+                if (!$contentUrl) continue;
+
+                // Solo descargar si no existe ya con ese nombre
+                $exists = $bug->images()->where('original_name', $filename)->exists();
+                if ($exists) continue;
+
+                $content = $jira->downloadAttachment($contentUrl);
+                if (!$content) continue;
+
+                $ext  = pathinfo($filename, PATHINFO_EXTENSION) ?: 'jpg';
+                $path = 'bugs/' . $bug->id . '/' . uniqid() . '.' . $ext;
+                \Illuminate\Support\Facades\Storage::disk('public')->put($path, $content);
+
+                $bug->images()->create([
+                    'path'          => $path,
+                    'original_name' => $filename,
+                    'size'          => strlen($content),
+                ]);
+            }
+        }
+
+        // Eliminar de Studio los bugs cuya tarea ya no existe en Jira
+        $jiraKeys = collect($issues)->pluck('key')->toArray();
+        $deleted  = 0;
+        \App\Models\Bug::whereNotNull('jira_key')
+            ->whereNotIn('jira_key', $jiraKeys)
+            ->get()
+            ->each(function ($bug) use (&$deleted) {
+                foreach ($bug->images as $img) {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($img->path);
+                }
+                $bug->delete();
+                $deleted++;
+            });
+
+        return response()->json(['created' => $created, 'updated' => $updated, 'deleted' => $deleted, 'total' => count($issues)]);
+    });
     Route::get('/bugs/{bug}/subtasks', fn(\App\Models\Bug $bug) => response()->json(
         $bug->jira_key ? (new \App\Services\JiraService())->getSubtasks($bug->jira_key) : []
     ));
@@ -443,6 +613,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/ventas/equipo', [\App\Http\Controllers\Api\KpiController::class, 'ventasEquipo'])->middleware('admin');
     });
 
+    Route::get('/dashboard/summary', [\App\Http\Controllers\Api\KpiController::class, 'dashboardSummary']);
+
     // --- Enterprises ---
     Route::apiResource('enterprises', \App\Http\Controllers\Api\EnterpriseEmployeeDocumentController::class);
 
@@ -515,15 +687,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('investments/{id}/coupons', [InvestmentCouponController::class, 'index']);
 
     // --- Exports de Inversiones (protegidos con auth) ---
-    Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
-    Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
-    Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
-    Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
-    Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
-    Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
-    Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
-    Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
-    Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
+    Route::middleware('throttle:10,1')->group(function () {
+        Route::get('investments/export/tabla-general-pdf', [InvestmentExportController::class, 'tablaGeneralPdf']);
+        Route::get('investments/export/tabla-general-excel', [InvestmentExportController::class, 'tablaGeneralExcel']);
+        Route::get('investments/export/retenciones-pdf', [InvestmentExportController::class, 'retencionesPdf']);
+        Route::get('investments/export/retenciones-excel', [InvestmentExportController::class, 'retencionesExcel']);
+        Route::get('investors/{id}/export/pdf', [InvestmentExportController::class, 'inversionistaPdf']);
+        Route::get('investors/{id}/export/excel', [InvestmentExportController::class, 'inversionistaExcel']);
+        Route::get('investments/{id}/export/pdf', [InvestmentExportController::class, 'detalleInversionPdf']);
+        Route::get('investments/{id}/export/excel', [InvestmentExportController::class, 'detalleInversionExcel']);
+        Route::get('investments/{id}/export/estado-cuenta', [InvestmentExportController::class, 'estadoCuentaPdf']);
+        Route::get('investments/{id}/export/contrato/{lang}', [InvestmentExportController::class, 'contratoInversionPdf']);
+    });
 
     // --- Embargo ---
     Route::get('/embargo/personas', [\App\Http\Controllers\Api\EmbargoCalculatorController::class, 'buscarPersonas']);
@@ -582,8 +757,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('credit-payments/cancelacion-anticipada/calcular', [CreditPaymentController::class, 'calcularCancelacionAnticipada'])->middleware('throttle:30,1');
     Route::post('credit-payments/cancelacion-anticipada', [CreditPaymentController::class, 'cancelacionAnticipada'])->middleware('throttle:10,1');
     Route::post('credit-payments/preview-planilla', [CreditPaymentController::class, 'previewPlanilla'])->middleware('throttle:30,1');
-    Route::get('credit-payments/export-preview-excel/{hash}', [CreditPaymentController::class, 'exportPreviewExcel']);
-    Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf']);
+    Route::get('credit-payments/export-preview-excel/{hash}', [CreditPaymentController::class, 'exportPreviewExcel'])->middleware('throttle:20,1');
+    Route::get('credit-payments/export-preview-pdf/{hash}', [CreditPaymentController::class, 'exportPreviewPdf'])->middleware('throttle:20,1');
     Route::post('credit-payments/upload', [CreditPaymentController::class, 'upload'])->middleware('throttle:10,1');
     Route::post('credit-payments/adelanto', [CreditPaymentController::class, 'adelanto'])->middleware('throttle:30,1');
     Route::post('credit-payments/abono-extraordinario/preview', [CreditPaymentController::class, 'previewAbonoExtraordinario'])->middleware('throttle:30,1');
@@ -602,9 +777,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('planilla-uploads', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'index']);
     Route::get('planilla-uploads/{id}', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'show']);
     Route::get('planilla-uploads/{id}/download', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'download']);
-    Route::get('planilla-uploads/{id}/export-resumen', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumen']);
-    Route::get('planilla-uploads/{id}/export-resumen-pdf', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumenPdf']);
+    Route::get('planilla-uploads/{id}/export-resumen', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumen'])->middleware('throttle:20,1');
+    Route::get('planilla-uploads/{id}/export-resumen-pdf', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'exportResumenPdf'])->middleware('throttle:20,1');
     Route::post('planilla-uploads/{id}/anular', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'anular'])->middleware('throttle:10,1');
+    Route::get('planilla-uploads/{id}/preview-ajuste-decimales', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'previewAjusteDecimales']);
+    Route::post('planilla-uploads/{id}/ajustar-decimales', [\App\Http\Controllers\Api\PlanillaUploadController::class, 'ajustarDecimales'])->middleware('throttle:10,1');
 
     // --- Tasas ---
     Route::apiResource('tasas', \App\Http\Controllers\Api\TasaController::class);
@@ -622,6 +799,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/comments/{id}', [CommentController::class, 'destroy']);
     Route::patch('/comments/{id}/archive', [CommentController::class, 'archive']);
     Route::patch('/comments/{id}/unarchive', [CommentController::class, 'unarchive']);
+    Route::patch('/comments/{id}/star', [CommentController::class, 'star']);
+    Route::patch('/comments/{id}/unstar', [CommentController::class, 'unstar']);
+    Route::patch('/comments/{id}/pending', [CommentController::class, 'markPending']);
+    Route::patch('/comments/{id}/unpending', [CommentController::class, 'unmarkPending']);
 
     // --- Notifications ---
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -633,6 +814,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('ventas/dashboard', [VentasDashboardController::class, 'dashboard']);
     Route::get('ventas/dashboard/{userId}', [VentasDashboardController::class, 'dashboardVendor'])->middleware('admin');
     Route::get('ventas/leaderboard', [VentasDashboardController::class, 'leaderboard']);
+    Route::get('ventas/vendedores', function () {
+        return \App\Models\User::select('id', 'name', 'role_id')
+            ->with('role:id,name')
+            ->whereHas('role', fn ($q) => $q->whereIn('name', ['Vendedor', 'Vendedor Interno', 'Vendedor Externo']))
+            ->where('status', 'Activo')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'role_name' => $u->role?->name ?? 'Vendedor']);
+    });
 
     // --- Ventas: Metas ---
     Route::apiResource('metas-venta', MetaVentaController::class);
@@ -711,4 +901,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::delete('/challenges/{id}', [GamificationConfigController::class, 'challengeDestroy']);
         });
     }); // fin middleware admin
+
+    // ── WhatsApp (mensajería vía Evolution API) ───────────────────────────────
+    Route::prefix('whatsapp')->group(function () {
+        Route::get('/conversations',  [\App\Http\Controllers\Api\WhatsappController::class, 'conversations']);
+        Route::get('/messages',       [\App\Http\Controllers\Api\WhatsappController::class, 'messages']);
+        Route::post('/send',          [\App\Http\Controllers\Api\WhatsappController::class, 'send']);
+        Route::post('/sync-chats',    [\App\Http\Controllers\Api\WhatsappController::class, 'syncChats']);
+    });
+
+    // ── Evolution API (WhatsApp) ──────────────────────────────────────────────
+    Route::middleware('admin')->group(function () {
+        Route::get('/evolution-server-config',    [\App\Http\Controllers\Api\EvolutionServerConfigController::class, 'show']);
+        Route::put('/evolution-server-config',    [\App\Http\Controllers\Api\EvolutionServerConfigController::class, 'update']);
+
+        Route::get('/evolution-instances',                                        [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'index']);
+        Route::post('/evolution-instances',                                       [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'store']);
+        Route::delete('/evolution-instances/{evolutionInstance}',                 [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'destroy']);
+        Route::patch('/evolution-instances/{evolutionInstance}/alias',            [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'updateAlias']);
+        Route::post('/evolution-instances/{evolutionInstance}/reconnect',         [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'reconnect']);
+    });
 }); // fin middleware auth:sanctum
