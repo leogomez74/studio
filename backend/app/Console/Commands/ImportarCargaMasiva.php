@@ -253,9 +253,13 @@ class ImportarCargaMasiva extends Command
 
     private function mapearAnalisis(array $f, int $leadId, string $oppId): array
     {
+        $cedula = trim($f['cedula'] ?? '');
+        $nombre = trim(($f['nombre'] ?? '') . ' ' . ($f['apellido1'] ?? ''));
         return array_filter([
             'lead_id'          => $leadId,
             'opportunity_id'   => $oppId,
+            'reference'        => 'ANA-' . strtoupper(substr(md5($cedula . now()->timestamp . rand()), 0, 8)),
+            'title'            => "Análisis - {$nombre}",
             'monto_solicitado' => $this->numero($f['monto_analisis'] ?? $f['ana_monto_solicitado'] ?? 0),
             'plazo'            => (int) ($f['plazo_(meses)'] ?? $f['ana_plazo'] ?? 0),
             'cuota'            => $this->numero($f['cuota_estimada'] ?? $f['ana_cuota'] ?? 0),
@@ -299,10 +303,14 @@ class ImportarCargaMasiva extends Command
         }
 
         $tasaAnual = $this->numero($f['tasa_anual_%'] ?? $f['cred_tasa_anual'] ?? 0);
+        $cedula = trim($f['cedula'] ?? '');
+        $nombre = trim(($f['nombre'] ?? '') . ' ' . ($f['apellido1'] ?? ''));
 
         return array_filter([
             'lead_id'                 => $leadId,
             'opportunity_id'          => $oppId,
+            'reference'               => 'CRED-' . strtoupper(substr(md5($cedula . now()->timestamp . rand()), 0, 8)),
+            'title'                   => "Crédito - {$nombre}",
             'monto_credito'           => $this->numero($f['monto_credito'] ?? $f['cred_monto'] ?? 0),
             'cuota'                   => $this->numero($f['cuota'] ?? $f['cred_cuota'] ?? 0),
             'plazo'                   => (int) ($f['plazo_(meses)_2'] ?? $f['plazo_(meses)'] ?? $f['cred_plazo'] ?? 0),
