@@ -261,6 +261,7 @@ class ImportarCargaMasiva extends Command
             'reference'        => 'ANA-' . strtoupper(substr(md5($cedula . now()->timestamp . rand()), 0, 8)),
             'title'            => "Análisis - {$nombre}",
             'monto_solicitado' => $this->numero($f['monto_analisis'] ?? $f['ana_monto_solicitado'] ?? 0),
+            'monto_sugerido'   => $this->numero($f['monto_sugerido'] ?? $f['ana_monto_sugerido'] ?? $f['monto_analisis'] ?? $f['ana_monto_solicitado'] ?? 0),
             'plazo'            => (int) ($f['plazo_(meses)'] ?? $f['ana_plazo'] ?? 0),
             'cuota'            => $this->numero($f['cuota_estimada'] ?? $f['ana_cuota'] ?? 0),
             'divisa'           => trim($f['divisa'] ?? $f['ana_divisa'] ?? 'CRC'),
