@@ -155,7 +155,8 @@ class ImportarCargaMasiva extends Command
         }
 
         // ── 1. LEAD ─────────────────────────────────────────────────────────────
-        $lead = Lead::where('cedula', $cedula)->first();
+        // Buscar sin Global Scope para encontrar también clientes (person_type_id=2)
+        $lead = Lead::withoutGlobalScope('is_lead')->where('cedula', $cedula)->first();
 
         if (!$lead) {
             $leadData = $this->mapearLead($fila);
