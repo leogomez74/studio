@@ -88,7 +88,6 @@ try {
         'analisis',
         'saldos_pendientes',
         'planilla_uploads',
-        'persons',
         'accounting_entry_logs',
         'tasks',
     ];
