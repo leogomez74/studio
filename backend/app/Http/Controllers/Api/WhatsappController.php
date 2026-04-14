@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\EvolutionServerConfig;
+use App\Models\WhatsappContact;
 use App\Models\WhatsappMessage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,27 +35,42 @@ class WhatsappController extends Controller
             return response()->json(['message' => 'Sin instancia asignada'], 403);
         }
 
+        // Cargar aliases del usuario para esta instancia
+        $aliases = WhatsappContact::where('evolution_instance_id', $instance->id)
+            ->pluck('alias', 'phone_number');
+
         $conversations = WhatsappMessage::where('evolution_instance_id', $instance->id)
+            ->whereRaw('CHAR_LENGTH(phone_number) BETWEEN 8 AND 15') // E.164: mín 8 dígitos, máx 15
+            ->where('phone_number', 'not like', '0%')              // excluir JIDs con prefijo 0 (no son E.164 válido)
             ->orderByDesc('wa_timestamp')
             ->get()
             ->groupBy('phone_number')
-            ->map(function ($messages, $phone) {
+            ->map(function ($messages, $phone) use ($aliases) {
                 $last = $messages->first();
-                $name = $last->contact_name ?: '';
 
-                // Fallback: buscar en personas si no hay nombre guardado
-                if (!$name) {
-                    $person = \App\Models\Person::where('phone', 'like', "%{$phone}%")
-                        ->orWhere('whatsapp', 'like', "%{$phone}%")
-                        ->first();
-                    if ($person) {
-                        $name = trim(($person->name ?? '') . ' ' . ($person->apellido1 ?? '') . ' ' . ($person->apellido2 ?? ''));
+                // Prioridad: alias guardado > contact_name > búsqueda en personas
+                if ($aliases->has($phone)) {
+                    $name = $aliases[$phone];
+                } else {
+                    $name = $last->contact_name ?: '';
+                    if (!$name) {
+                        $person = \App\Models\Person::where('phone', 'like', "%{$phone}%")
+                            ->orWhere('whatsapp', 'like', "%{$phone}%")
+                            ->first();
+                        if ($person) {
+                            $name = trim(($person->name ?? '') . ' ' . ($person->apellido1 ?? '') . ' ' . ($person->apellido2 ?? ''));
+                        }
                     }
                 }
 
+                // (string) forzado: PHP castea claves numéricas de groupBy a int,
+                // lo que haría que el JSON no envíe comillas y Laravel rechazaría el campo.
+                $phoneStr = (string) $phone;
+
                 return [
-                    'phone_number' => $phone,
-                    'contact_name' => $name ?: $phone,
+                    'phone_number' => $phoneStr,
+                    'contact_name' => $name ?: $phoneStr,
+                    'alias'        => $aliases[$phone] ?? null,
                     'last_message' => $last->body,
                     'last_at'      => $last->wa_timestamp,
                     'unread'       => 0,
@@ -182,13 +198,19 @@ class WhatsappController extends Controller
                 $remoteJid = $chat['id'] ?? null;
                 if (!$remoteJid) continue;
 
-                // Ignorar grupos (@g.us) y chats de broadcast
-                if (str_contains($remoteJid, '@g.us') || str_contains($remoteJid, '@broadcast')) {
+                // Ignorar grupos, broadcasts, newsletters y cualquier JID no personal
+                if (str_contains($remoteJid, '@g.us')
+                    || str_contains($remoteJid, '@broadcast')
+                    || str_contains($remoteJid, '@newsletter')
+                    || str_contains($remoteJid, '@lid')
+                ) {
                     continue;
                 }
 
                 $phone = preg_replace('/[^0-9]/', '', explode('@', $remoteJid)[0]);
-                if (!$phone) continue;
+
+                // Solo teléfonos E.164 válidos: 8-15 dígitos, sin prefijo 0
+                if (!$phone || strlen($phone) < 8 || strlen($phone) > 15 || $phone[0] === '0') continue;
 
                 // Solo crear si no existe ningún mensaje de este número para esta instancia
                 $exists = WhatsappMessage::where('evolution_instance_id', $instance->id)
@@ -291,5 +313,58 @@ class WhatsappController extends Controller
             'direction'     => 'out',
             'wa_timestamp'  => $message->wa_timestamp,
         ], 201);
+    }
+
+    /**
+     * POST /api/whatsapp/contacts
+     * Crea o actualiza el alias de un número de teléfono.
+     */
+    public function upsertAlias(Request $request): JsonResponse
+    {
+        $instance = $this->getInstance($request);
+        if (!$instance) {
+            return response()->json(['message' => 'Sin instancia asignada'], 403);
+        }
+
+        // Convertir phone a string explícitamente antes de validar
+        // (puede llegar como número entero desde el JSON frontend)
+        $request->merge(['phone' => (string) $request->input('phone', '')]);
+
+        $validated = $request->validate([
+            'phone' => 'required|string|max:20',
+            'alias' => 'required|string|max:120',
+        ]);
+
+        $phone = preg_replace('/\D/', '', $validated['phone']);
+
+        $contact = WhatsappContact::updateOrCreate(
+            ['evolution_instance_id' => $instance->id, 'phone_number' => $phone],
+            ['alias' => trim($validated['alias'])],
+        );
+
+        return response()->json([
+            'phone_number' => $contact->phone_number,
+            'alias'        => $contact->alias,
+        ], 200);
+    }
+
+    /**
+     * DELETE /api/whatsapp/contacts/{phone}
+     * Elimina el alias de un número de teléfono.
+     */
+    public function deleteAlias(Request $request, string $phone): JsonResponse
+    {
+        $instance = $this->getInstance($request);
+        if (!$instance) {
+            return response()->json(['message' => 'Sin instancia asignada'], 403);
+        }
+
+        $phone = preg_replace('/\D/', '', (string) $phone);
+
+        WhatsappContact::where('evolution_instance_id', $instance->id)
+            ->where('phone_number', $phone)
+            ->delete();
+
+        return response()->json(['message' => 'Alias eliminado']);
     }
 }

@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   Smile,
   Image as ImageIcon,
+  Pencil,
 } from 'lucide-react';
 import emojiData from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -74,6 +75,7 @@ interface Mention {
 interface WaConversation {
   phone_number: string;
   contact_name: string;
+  alias: string | null;
   last_message: string;
   last_at: string | null;
   unread: number;
@@ -544,6 +546,13 @@ export function ChatBubble() {
   const [waLoadingMessages, setWaLoadingMessages] = useState(false);
   const [waUnreadCount, setWaUnreadCount]     = useState(0);
   const [waSearch, setWaSearch]               = useState('');
+  const [waAlias, setWaAlias]                 = useState<string | null>(null);
+  const [waEditingAlias, setWaEditingAlias]   = useState(false);
+  const [waAliasInput, setWaAliasInput]       = useState('');
+  const [waSavingAlias, setWaSavingAlias]     = useState(false);
+  // Edición de alias desde la lista (sin abrir el chat)
+  const [waListEditPhone, setWaListEditPhone] = useState<string | null>(null);
+  const [waListEditInput, setWaListEditInput] = useState('');
   const lastWaOpenedAtRef                     = useRef<number>(Date.now());
   const WA_LIMIT = 20;
 
@@ -628,14 +637,60 @@ export function ChatBubble() {
     }
   };
 
-  const openWaConversation = (phone: string, name: string) => {
+  const openWaConversation = (phone: string, name: string, alias?: string | null) => {
     setWaPhone(phone);
     setWaContactName(name);
+    setWaAlias(alias ?? null);
+    setWaAliasInput(alias ?? '');
+    setWaEditingAlias(false);
     setWaShowNewChat(false);
     setWaMessages([]);
     setWaOffset(0);
     setWaSearch('');
     fetchWaMessages(phone);
+  };
+
+  // Guarda alias para cualquier número — usado desde el header y desde la lista
+  const saveAlias = async (phone: string, aliasValue: string): Promise<boolean> => {
+    const phoneStr = String(phone); // defensa: evitar que llegue como número al JSON
+    try {
+      if (aliasValue.trim()) {
+        await api.post('/api/whatsapp/contacts', { phone: phoneStr, alias: aliasValue.trim() });
+      } else {
+        await api.delete(`/api/whatsapp/contacts/${phoneStr}`);
+      }
+      return true;
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Error al guardar alias';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      return false;
+    }
+  };
+
+  const handleSaveAlias = async () => {
+    if (!waPhone) return;
+    setWaSavingAlias(true);
+    const ok = await saveAlias(waPhone, waAliasInput);
+    if (ok) {
+      const newAlias = waAliasInput.trim() || null;
+      setWaAlias(newAlias);
+      if (newAlias) setWaContactName(newAlias);
+      setWaEditingAlias(false);
+      fetchWaConversations();
+    }
+    setWaSavingAlias(false);
+  };
+
+  const handleSaveListAlias = async () => {
+    if (!waListEditPhone) return;
+    setWaSavingAlias(true);
+    const ok = await saveAlias(waListEditPhone, waListEditInput);
+    if (ok) {
+      setWaListEditPhone(null);
+      setWaListEditInput('');
+      fetchWaConversations();
+    }
+    setWaSavingAlias(false);
   };
 
   // ---- Fetch ----
@@ -1125,11 +1180,44 @@ export function ChatBubble() {
                 <>
                   {/* Header de la conversación */}
                   <div className="flex items-center gap-2 px-3 py-2 border-b shrink-0">
-                    <button onClick={() => { setWaPhone(null); setWaMessages([]); }} className="text-muted-foreground hover:text-foreground">
+                    <button onClick={() => { setWaPhone(null); setWaMessages([]); setWaEditingAlias(false); }} className="text-muted-foreground hover:text-foreground">
                       <ArrowLeft className="h-4 w-4" />
                     </button>
-                    <div>
-                      <div className="text-xs font-semibold">{waContactName || waPhone}</div>
+                    <div className="flex-1 min-w-0">
+                      {waEditingAlias ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            autoFocus
+                            className="flex-1 h-6 rounded border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            placeholder="Alias (deja vacío para quitar)"
+                            value={waAliasInput}
+                            onChange={e => setWaAliasInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveAlias();
+                              if (e.key === 'Escape') setWaEditingAlias(false);
+                            }}
+                          />
+                          <button
+                            onClick={handleSaveAlias}
+                            disabled={waSavingAlias}
+                            className="text-xs text-primary hover:underline disabled:opacity-50 shrink-0"
+                          >
+                            {waSavingAlias ? <Loader2 className="h-3 w-3 animate-spin inline" /> : 'Guardar'}
+                          </button>
+                          <button onClick={() => setWaEditingAlias(false)} className="text-xs text-muted-foreground hover:text-foreground shrink-0">✕</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 group">
+                          <div className="text-xs font-semibold truncate">{waAlias || waContactName || waPhone}</div>
+                          <button
+                            onClick={() => { setWaAliasInput(waAlias ?? ''); setWaEditingAlias(true); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground shrink-0"
+                            title="Editar alias"
+                          >
+                            <AtSign className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
                       <div className="text-xs text-muted-foreground">{waPhone}</div>
                     </div>
                   </div>
@@ -1239,7 +1327,8 @@ export function ChatBubble() {
                       const filtered = waSearch.trim()
                         ? waConversations.filter(c =>
                             c.phone_number.includes(waSearch) ||
-                            c.contact_name.toLowerCase().includes(waSearch.toLowerCase())
+                            c.contact_name.toLowerCase().includes(waSearch.toLowerCase()) ||
+                            (c.alias && c.alias.toLowerCase().includes(waSearch.toLowerCase()))
                           )
                         : waConversations;
                       return filtered.length === 0 ? (
@@ -1251,26 +1340,89 @@ export function ChatBubble() {
                         <p className="text-xs text-muted-foreground text-center">{waSearch ? 'Intenta con otro nombre o número' : 'Presiona "+ Nuevo" para iniciar un chat'}</p>
                       </div>
                     ) : (
-                      filtered.map(conv => (
-                        <button
-                          key={conv.phone_number}
-                          className="w-full px-3 py-2.5 hover:bg-muted/50 text-left border-b last:border-b-0"
-                          onClick={() => openWaConversation(conv.phone_number, conv.contact_name)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="h-7 w-7 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
-                              <MessageCircle className="h-3.5 w-3.5 text-green-600" />
+                      filtered.map(conv => {
+                        const isEditingThis = waListEditPhone === conv.phone_number;
+                        const displayName = conv.alias || conv.contact_name;
+
+                        return isEditingThis ? (
+                          // ── Fila en modo edición de alias ──
+                          <div
+                            key={conv.phone_number}
+                            className="px-3 py-2 border-b bg-muted/30"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <div className="h-6 w-6 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                                <MessageCircle className="h-3 w-3 text-green-600" />
+                              </div>
+                              <span className="text-[10px] text-muted-foreground truncate">{conv.phone_number}</span>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs font-medium truncate">{conv.contact_name}</div>
-                              <div className="text-xs text-muted-foreground truncate">{conv.last_message}</div>
+                            <div className="flex items-center gap-1">
+                              <input
+                                autoFocus
+                                className="flex-1 h-6 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                placeholder="Alias del contacto..."
+                                value={waListEditInput}
+                                onChange={e => setWaListEditInput(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSaveListAlias();
+                                  if (e.key === 'Escape') { setWaListEditPhone(null); setWaListEditInput(''); }
+                                }}
+                              />
+                              <button
+                                onClick={handleSaveListAlias}
+                                disabled={waSavingAlias}
+                                className="text-xs text-primary font-medium hover:underline disabled:opacity-50 shrink-0"
+                              >
+                                {waSavingAlias ? <Loader2 className="h-3 w-3 animate-spin inline" /> : 'OK'}
+                              </button>
+                              <button
+                                onClick={() => { setWaListEditPhone(null); setWaListEditInput(''); }}
+                                className="text-xs text-muted-foreground hover:text-foreground shrink-0"
+                              >✕</button>
                             </div>
-                            {conv.unread > 0 && (
-                              <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 shrink-0">{conv.unread}</span>
-                            )}
                           </div>
-                        </button>
-                      ))
+                        ) : (
+                          // ── Fila normal con lápiz al hacer hover ──
+                          <div
+                            key={conv.phone_number}
+                            className="group flex items-center gap-2 px-3 py-2.5 hover:bg-muted/50 border-b last:border-b-0"
+                          >
+                            <button
+                              className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                              onClick={() => openWaConversation(conv.phone_number, conv.contact_name, conv.alias)}
+                            >
+                              <div className="h-7 w-7 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                                <MessageCircle className="h-3.5 w-3.5 text-green-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-medium truncate">
+                                  {displayName}
+                                  {conv.alias && (
+                                    <span className="ml-1 text-[10px] text-muted-foreground font-normal">@</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground truncate">{conv.last_message}</div>
+                              </div>
+                              {conv.unread > 0 && (
+                                <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 shrink-0">{conv.unread}</span>
+                              )}
+                            </button>
+                            {/* Lápiz visible en hover */}
+                            <button
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground shrink-0 p-0.5 rounded"
+                              title="Editar alias"
+                              onClick={e => {
+                                e.stopPropagation();
+                                setWaListEditPhone(conv.phone_number);
+                                setWaListEditInput(conv.alias ?? '');
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })
                     );
                     })()}
                   </div>

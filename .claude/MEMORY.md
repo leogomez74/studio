@@ -176,6 +176,9 @@ class MiController extends Controller {
 - **Emojis/GIFs**: Integrados con picker y formato `[GIF](url)`.
 - **Burbuja chat**: Tabs "Directos" y "Comentarios" con ancho ampliado al 85% para tarjetas de verificación.
 - **Archivos clave**: `chat-bubble.tsx`, `comments-panel.tsx`, `comunicaciones/page.tsx`, `CommentController.php`, `Comment.php`.
+- **Filtro teléfonos válidos (Abr 2026)**: `WhatsappController::conversations()` y `syncChats()` filtran `CHAR_LENGTH(phone_number) BETWEEN 7 AND 15` (E.164). Excluye grupos (>15 dígitos) Y JIDs internos de WhatsApp como status/newsletters/lid (<7 dígitos). También se filtra por JID type: `@g.us`, `@broadcast`, `@newsletter`, `@lid`. 54 registros inválidos limpiados de la BD.
+- **Aliases de números (Abr 2026)**: Tabla `whatsapp_contacts` (phone_number + alias por instancia). Endpoints: `POST /api/whatsapp/contacts`, `DELETE /api/whatsapp/contacts/{phone}`. UI: lápiz en hover de cada fila en lista (edición inline sin abrir chat) + ícono `@` en header del chat abierto. El alias tiene prioridad sobre contact_name. También buscable en filtro.
+- **Bug crítico PHP groupBy + JSON**: `groupBy('phone_number')` en PHP castea claves numéricas puras a int → JSON sin comillas → Laravel rechaza con "must be a string". Fix: `(string) $phone` en el `return` del `map()`. También `String(phone)` en el frontend como defensa secundaria.
 
 ---
 
