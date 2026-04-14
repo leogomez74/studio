@@ -47,7 +47,7 @@ class InvestmentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'investor_id' => 'required|exists:investors,id',
+            'investor_id' => 'nullable|exists:investors,id',
             'monto_capital' => 'required|numeric|min:0.01',
             'plazo_meses' => 'required|integer|min:1',
             'fecha_inicio' => 'required|date',
