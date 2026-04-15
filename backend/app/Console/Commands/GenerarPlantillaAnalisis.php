@@ -182,7 +182,7 @@ class GenerarPlantillaAnalisis extends Command
         foreach ($analisis as $a) {
             $valores = [
                 $a->cedula ?? '',
-                $a->reference ?? '',
+                $a->opportunity_id ?? '',
                 trim(($a->name ?? '') . ' ' . ($a->apellido1 ?? '') . ' ' . ($a->apellido2 ?? '')),
                 $a->opportunity_id ?? '',
                 $a->cargo ?? '',
