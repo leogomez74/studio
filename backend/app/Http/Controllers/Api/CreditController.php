@@ -268,6 +268,12 @@ class CreditController extends Controller
             // D. Cargar lead con documentos para mover al expediente del crédito
             $lead = Lead::with('documents')->find($validated['lead_id']);
 
+            // Convertir Lead a Cliente al crear el crédito
+            if ($lead && $lead->person_type_id == 1) {
+                $lead->person_type_id = 2;
+                $lead->save();
+            }
+
             // E. MOVER documentos del Lead (Buzón) al Crédito (Expediente)
             if ($lead && $lead->documents->count() > 0) {
                 foreach ($lead->documents as $personDocument) {
