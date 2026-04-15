@@ -50,6 +50,12 @@ class GenerarPlantillaAnalisis extends Command
                     'a.ingreso_bruto_4', 'a.ingreso_neto_4',
                     'a.ingreso_bruto_5', 'a.ingreso_neto_5',
                     'a.ingreso_bruto_6', 'a.ingreso_neto_6',
+                    'a.ingreso_bruto_7', 'a.ingreso_neto_7',
+                    'a.ingreso_bruto_8', 'a.ingreso_neto_8',
+                    'a.ingreso_bruto_9', 'a.ingreso_neto_9',
+                    'a.ingreso_bruto_10', 'a.ingreso_neto_10',
+                    'a.ingreso_bruto_11', 'a.ingreso_neto_11',
+                    'a.ingreso_bruto_12', 'a.ingreso_neto_12',
                     'a.monto_solicitado', 'a.monto_sugerido', 'a.cuota', 'a.plazo',
                     'a.propuesta', 'a.description',
                     'a.estado_pep', 'a.estado_cliente', 'a.divisa',
@@ -75,6 +81,12 @@ class GenerarPlantillaAnalisis extends Command
                  a.ingreso_bruto_4, a.ingreso_neto_4,
                  a.ingreso_bruto_5, a.ingreso_neto_5,
                  a.ingreso_bruto_6, a.ingreso_neto_6,
+                 a.ingreso_bruto_7, a.ingreso_neto_7,
+                 a.ingreso_bruto_8, a.ingreso_neto_8,
+                 a.ingreso_bruto_9, a.ingreso_neto_9,
+                 a.ingreso_bruto_10, a.ingreso_neto_10,
+                 a.ingreso_bruto_11, a.ingreso_neto_11,
+                 a.ingreso_bruto_12, a.ingreso_neto_12,
                  a.monto_solicitado, a.monto_sugerido, a.cuota, a.plazo,
                  a.propuesta, a.description,
                  a.estado_pep, a.estado_cliente, a.divisa,
@@ -140,7 +152,7 @@ class GenerarPlantillaAnalisis extends Command
         $sheet = $spreadsheet->getActiveSheet()->setTitle('ANALISIS');
 
         $headers = [
-            'cedula', 'referencia_analisis', 'nombre_completo (ref)', 'oportunidad (ref)',
+            'cedula', 'referencia_oportunidad', 'nombre_completo (ref)', 'oportunidad (ref)',
             'cargo', 'nombramiento',
             'ingreso_bruto', 'ingreso_neto',
             'ingreso_bruto_2', 'ingreso_neto_2',
@@ -148,6 +160,12 @@ class GenerarPlantillaAnalisis extends Command
             'ingreso_bruto_4', 'ingreso_neto_4',
             'ingreso_bruto_5', 'ingreso_neto_5',
             'ingreso_bruto_6', 'ingreso_neto_6',
+            'ingreso_bruto_7', 'ingreso_neto_7',
+            'ingreso_bruto_8', 'ingreso_neto_8',
+            'ingreso_bruto_9', 'ingreso_neto_9',
+            'ingreso_bruto_10', 'ingreso_neto_10',
+            'ingreso_bruto_11', 'ingreso_neto_11',
+            'ingreso_bruto_12', 'ingreso_neto_12',
             'monto_solicitado', 'monto_sugerido', 'cuota', 'plazo',
             'propuesta', 'description',
             'estado_pep', 'estado_cliente', 'divisa',
@@ -169,12 +187,18 @@ class GenerarPlantillaAnalisis extends Command
                 $a->opportunity_id ?? '',
                 $a->cargo ?? '',
                 $a->nombramiento ?? '',
-                $a->ingreso_bruto,  $a->ingreso_neto,
-                $a->ingreso_bruto_2, $a->ingreso_neto_2,
-                $a->ingreso_bruto_3, $a->ingreso_neto_3,
-                $a->ingreso_bruto_4, $a->ingreso_neto_4,
-                $a->ingreso_bruto_5, $a->ingreso_neto_5,
-                $a->ingreso_bruto_6, $a->ingreso_neto_6,
+                $a->ingreso_bruto,   $a->ingreso_neto,
+                $a->ingreso_bruto_2,  $a->ingreso_neto_2,
+                $a->ingreso_bruto_3,  $a->ingreso_neto_3,
+                $a->ingreso_bruto_4,  $a->ingreso_neto_4,
+                $a->ingreso_bruto_5,  $a->ingreso_neto_5,
+                $a->ingreso_bruto_6,  $a->ingreso_neto_6,
+                $a->ingreso_bruto_7,  $a->ingreso_neto_7,
+                $a->ingreso_bruto_8,  $a->ingreso_neto_8,
+                $a->ingreso_bruto_9,  $a->ingreso_neto_9,
+                $a->ingreso_bruto_10, $a->ingreso_neto_10,
+                $a->ingreso_bruto_11, $a->ingreso_neto_11,
+                $a->ingreso_bruto_12, $a->ingreso_neto_12,
                 $a->monto_solicitado, $a->monto_sugerido, $a->cuota, $a->plazo,
                 $a->propuesta ?? '', $a->description ?? '',
                 $a->estado_pep ?? 'Pendiente', $a->estado_cliente ?? '',
@@ -332,8 +356,8 @@ class GenerarPlantillaAnalisis extends Command
         $row += 2;
 
         $identificadores = [
-            ['Cédula + Referencia', 'La combinación más precisa. Úsala cuando la persona tiene más de un analisis en el sistema — así sabes exactamente cuál se va a actualizar.'],
-            ['Solo Referencia',     'La referencia (ej: ANA-84ABED55) es única por analisis. Siempre identifica el correcto aunque dejes la cédula vacía.'],
+            ['Cédula + Referencia oportunidad', 'La combinación más precisa. Úsala cuando la persona tiene más de un analisis — así sabes exactamente cuál se actualiza.'],
+            ['Solo Referencia oportunidad',     'El número de oportunidad (ej: 26-00001-OP) es único por analisis. Identifica el correcto aunque dejes la cédula vacía.'],
             ['Solo Cédula',         'Si no tienes la referencia, el sistema busca la persona por cédula y toma su analisis más reciente.'],
         ];
 
@@ -441,8 +465,8 @@ class GenerarPlantillaAnalisis extends Command
         $row++;
 
         $ejAnalisis = [
-            ['cedula', 'referencia_analisis', 'nombre (ref)', 'cargo', 'ingreso_bruto', 'ingreso_neto', 'propuesta'],
-            ['603850364', 'ANA-84ABED55', 'Siney Villalobos', '', '850000', '620000', 'Aprobado con garantía salarial'],
+            ['cedula', 'referencia_oportunidad', 'nombre (ref)', 'cargo', 'ingreso_bruto', 'ingreso_neto', 'propuesta'],
+            ['603850364', '26-00001-OP', 'Siney Villalobos', '', '850000', '620000', 'Aprobado con garantía salarial'],
         ];
         foreach ($ejAnalisis as $i => $cols) {
             foreach ($cols as $j => $v) {

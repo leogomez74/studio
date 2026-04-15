@@ -96,11 +96,12 @@ class ActualizarAnalisis extends Command
         array $embargosPorCedula
     ): void {
         $cedula = trim($fila['cedula'] ?? '');
-        $anaRef = trim($fila['referencia_analisis'] ?? $fila['analisis_reference'] ?? '');
+        // Acepta 'referencia_oportunidad' (nombre canónico) o el alias legacy 'referencia_analisis'
+        $anaRef = trim($fila['referencia_oportunidad'] ?? $fila['referencia_analisis'] ?? $fila['analisis_reference'] ?? '');
 
         // ── Localizar analisis ──────────────────────────────────────────────────
-        // Prioridad 1: cédula + referencia (más preciso — evita ambigüedad si una persona tiene varios analisis)
-        // Prioridad 2: solo referencia
+        // Prioridad 1: cédula + referencia oportunidad (evita ambigüedad si una persona tiene varios analisis)
+        // Prioridad 2: solo referencia oportunidad (opportunity_id es único por analisis)
         // Prioridad 3: solo cédula (toma el analisis más reciente del lead)
         $analisis = null;
 
@@ -108,13 +109,13 @@ class ActualizarAnalisis extends Command
             $lead = Lead::withoutGlobalScope('is_lead')->where('cedula', $cedula)->first();
             if ($lead) {
                 $analisis = Analisis::where('lead_id', $lead->id)
-                    ->where('reference', $anaRef)
+                    ->where('opportunity_id', $anaRef)
                     ->first();
             }
         }
 
         if (!$analisis && $anaRef) {
-            $analisis = Analisis::where('reference', $anaRef)->first();
+            $analisis = Analisis::where('opportunity_id', $anaRef)->first();
         }
 
         if (!$analisis && $cedula) {
@@ -151,6 +152,13 @@ class ActualizarAnalisis extends Command
             if (!empty($updateData)) {
                 $updateData['updated_at'] = now();
                 DB::table('analisis')->where('id', $analisis->id)->update($updateData);
+            }
+
+            // Sincronizar monto_sugerido → opportunity.amount
+            if (!empty($updateData['monto_sugerido']) && $analisis->opportunity_id) {
+                DB::table('opportunities')
+                    ->where('id', $analisis->opportunity_id)
+                    ->update(['amount' => $updateData['monto_sugerido'], 'updated_at' => now()]);
             }
 
             // Manchas: borrar las existentes y reinsertar
