@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, RefreshCw, Trash2, Loader2, Wifi, WifiOff, Phone, Save, Pencil } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Loader2, Wifi, WifiOff, Phone, Save, Pencil, Link, LinkIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
@@ -23,6 +23,7 @@ interface EvolutionInstance {
   status: string;
   has_api_key: boolean;
   is_active: boolean;
+  chatwoot_inbox_id: number | null;
 }
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
@@ -51,6 +52,11 @@ export function EvolutionApiTab() {
   const [editingInstance, setEditingInstance]   = useState<EvolutionInstance | null>(null);
   const [aliasValue, setAliasValue]             = useState('');
   const [savingAlias, setSavingAlias]           = useState(false);
+
+  // ─── Estado: vinculación Chatwoot ─────────────────────────────────────
+  const [chatwootDialogOpen, setChatwootDialogOpen] = useState(false);
+  const [chatwootInboxId, setChatwootInboxId]       = useState('');
+  const [savingChatwoot, setSavingChatwoot]         = useState(false);
 
   // ─── Cargar configuración del servidor ───────────────────────────────
   const fetchServerConfig = useCallback(async () => {
@@ -168,6 +174,40 @@ export function EvolutionApiTab() {
     }
   };
 
+  // ─── Vincular / desvincular Chatwoot ─────────────────────────────────
+  const openChatwootDialog = (inst: EvolutionInstance) => {
+    setEditingInstance(inst);
+    setChatwootInboxId(inst.chatwoot_inbox_id ? String(inst.chatwoot_inbox_id) : '');
+    setChatwootDialogOpen(true);
+  };
+
+  const handleSaveChatwoot = async () => {
+    if (!editingInstance) return;
+    const inboxId = chatwootInboxId.trim() ? parseInt(chatwootInboxId.trim(), 10) : null;
+    if (chatwootInboxId.trim() && (!inboxId || inboxId < 1)) {
+      toast({ title: 'ID de inbox inválido', description: 'Debe ser un número entero positivo', variant: 'destructive' });
+      return;
+    }
+    try {
+      setSavingChatwoot(true);
+      await api.patch(`/api/evolution-instances/${editingInstance.id}/chatwoot`, {
+        chatwoot_inbox_id: inboxId,
+      });
+      toast({
+        title: inboxId ? 'Vinculado con Chatwoot' : 'Desvinculado de Chatwoot',
+        description: inboxId
+          ? `Inbox #${inboxId} → ${editingInstance.instance_name}`
+          : `${editingInstance.instance_name} recibirá webhooks de Evolution directamente`,
+      });
+      setChatwootDialogOpen(false);
+      fetchInstances();
+    } catch {
+      toast({ title: 'Error al guardar la vinculación', variant: 'destructive' });
+    } finally {
+      setSavingChatwoot(false);
+    }
+  };
+
   // ─── Eliminar instancia ───────────────────────────────────────────────
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(`¿Desconectar la instancia "${name}"?`)) return;
@@ -256,6 +296,7 @@ export function EvolutionApiTab() {
                   <TableHead>Alias</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Chatwoot</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -298,6 +339,25 @@ export function EvolutionApiTab() {
                       )}
                     </TableCell>
                     <TableCell>{getStatusBadge(inst.status)}</TableCell>
+                    <TableCell>
+                      {inst.chatwoot_inbox_id ? (
+                        <button
+                          onClick={() => openChatwootDialog(inst)}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                          title="Click para editar"
+                        >
+                          <LinkIcon className="h-3 w-3" />
+                          Inbox #{inst.chatwoot_inbox_id}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => openChatwootDialog(inst)}
+                          className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                        >
+                          + Vincular
+                        </button>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -306,6 +366,9 @@ export function EvolutionApiTab() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openAliasDialog(inst)}>
                             <Pencil className="mr-2 h-4 w-4" /> Editar alias
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openChatwootDialog(inst)}>
+                            <Link className="mr-2 h-4 w-4" /> Vincular Chatwoot
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleReconnect(inst)}
@@ -316,6 +379,7 @@ export function EvolutionApiTab() {
                               : <RefreshCw className="mr-2 h-4 w-4" />}
                             Actualizar estado
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => handleDelete(inst.id, inst.instance_name)}
@@ -359,6 +423,49 @@ export function EvolutionApiTab() {
             <Button variant="outline" onClick={() => setAliasDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSaveAlias} disabled={savingAlias}>
               {savingAlias ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Dialog: Vincular Chatwoot ───────────────────────────────── */}
+      <Dialog open={chatwootDialogOpen} onOpenChange={setChatwootDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Vincular con Chatwoot</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Si este número está sincronizado con Chatwoot, los mensajes entrantes llegan
+              vía Chatwoot en lugar de Evolution directamente. Ingresa el{' '}
+              <strong>ID del inbox</strong> de Chatwoot para que el sistema los procese correctamente.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="chatwoot-inbox-id">ID del Inbox en Chatwoot</Label>
+              <Input
+                id="chatwoot-inbox-id"
+                type="number"
+                min={1}
+                placeholder="Ej: 5"
+                value={chatwootInboxId}
+                onChange={(e) => setChatwootInboxId(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveChatwoot()}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Encuéntralo en Chatwoot → Configuración → Inboxes → (tu inbox de WhatsApp) → ID en la URL.
+                Déjalo vacío para desvincular.
+              </p>
+            </div>
+            {editingInstance && (
+              <p className="text-xs text-muted-foreground">Instancia: {editingInstance.instance_name}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChatwootDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveChatwoot} disabled={savingChatwoot}>
+              {savingChatwoot ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Guardar
             </Button>
           </DialogFooter>

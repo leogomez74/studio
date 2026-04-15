@@ -17,6 +17,7 @@ class EvolutionInstance extends Model
         'profile_name',
         'status',
         'is_active',
+        'chatwoot_inbox_id',
     ];
 
     protected $casts = [

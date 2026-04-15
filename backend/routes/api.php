@@ -199,6 +199,13 @@ Route::post('/webhooks/jira', [\App\Http\Controllers\Api\JiraWebhookController::
 Route::post('/jira/register-webhook', fn() => response()->json((new \App\Services\JiraService())->registerWebhook()))->middleware('auth:sanctum');
 
 // =============================================================================
+// WEBHOOK CHATWOOT — Público (Chatwoot llama sin auth)
+// Recibe mensajes de instancias Evolution que están sincronizadas con Chatwoot.
+// En esos casos, Evolution no notifica directamente; lo hace Chatwoot.
+// =============================================================================
+Route::post('/webhooks/chatwoot', [\App\Http\Controllers\Api\ChatwootWebhookController::class, 'handle']);
+
+// =============================================================================
 // RUTAS PROTEGIDAS — Requieren autenticación Sanctum
 // =============================================================================
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -921,6 +928,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/evolution-instances',                                       [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'store']);
         Route::delete('/evolution-instances/{evolutionInstance}',                 [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'destroy']);
         Route::patch('/evolution-instances/{evolutionInstance}/alias',            [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'updateAlias']);
+        Route::patch('/evolution-instances/{evolutionInstance}/chatwoot',        [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'updateChatwoot']);
         Route::post('/evolution-instances/{evolutionInstance}/reconnect',         [\App\Http\Controllers\Api\EvolutionInstanceController::class, 'reconnect']);
     });
 }); // fin middleware auth:sanctum

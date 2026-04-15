@@ -113,6 +113,24 @@ class EvolutionInstanceController extends Controller
         return response()->json(array_merge($evolutionInstance->fresh()->toArray(), ['has_api_key' => true]));
     }
 
+    /**
+     * PATCH /api/evolution-instances/{evolutionInstance}/chatwoot
+     * Vincula o desvincula esta instancia con un inbox de Chatwoot.
+     * Cuando está vinculada, los mensajes entrantes llegan vía webhook de Chatwoot
+     * en lugar del webhook directo de Evolution API.
+     */
+    public function updateChatwoot(Request $request, EvolutionInstance $evolutionInstance): JsonResponse
+    {
+        $validated = $request->validate([
+            // null = desvincular; número = inbox_id de Chatwoot
+            'chatwoot_inbox_id' => 'nullable|integer|min:1',
+        ]);
+
+        $evolutionInstance->update(['chatwoot_inbox_id' => $validated['chatwoot_inbox_id']]);
+
+        return response()->json(array_merge($evolutionInstance->fresh()->toArray(), ['has_api_key' => true]));
+    }
+
     /** DELETE /api/evolution-instances/{evolutionInstance} */
     public function destroy(Request $request, EvolutionInstance $evolutionInstance): JsonResponse
     {
