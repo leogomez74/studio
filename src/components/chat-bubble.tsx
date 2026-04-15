@@ -588,8 +588,8 @@ export function ChatBubble() {
     } catch { /* silencioso */ }
   }, [hasWhatsapp]);
 
-  const fetchWaMessages = useCallback(async (phone: string) => {
-    setWaLoadingMessages(true);
+  const fetchWaMessages = useCallback(async (phone: string, silent = false) => {
+    if (!silent) setWaLoadingMessages(true);
     try {
       const res = await api.get('/api/whatsapp/messages', {
         params: { phone, limit: WA_LIMIT, offset: 0 },
@@ -598,7 +598,7 @@ export function ChatBubble() {
       setWaHasMore(res.data.has_more ?? false);
       setWaOffset(WA_LIMIT);
     } catch { /* silencioso */ } finally {
-      setWaLoadingMessages(false);
+      if (!silent) setWaLoadingMessages(false);
     }
   }, [WA_LIMIT]);
 
@@ -731,7 +731,7 @@ export function ChatBubble() {
     if (!isOpen || !hasWhatsapp) return;
     const iv = setInterval(() => {
       if (waPhone) {
-        fetchWaMessages(waPhone);
+        fetchWaMessages(waPhone, true); // silent: no spinner en polling
       } else {
         fetchWaConversations();
       }
