@@ -939,10 +939,8 @@ export default function AnalisisDetailPage() {
                         analisis.ingreso_neto_10, analisis.ingreso_neto_11, analisis.ingreso_neto_12,
                       ].map(v => Number(v) || 0);
                       const numPeriodos = vals.filter(v => v > 0).length;
-                      const esMicro2 = analisis.category?.toLowerCase().includes('micro');
-                      const mesesEsp = esMicro2 ? 3 : 6;
-                      const esQ = numPeriodos > mesesEsp;
-                      const numMeses = esQ ? Math.ceil(numPeriodos / 2) : numPeriodos;
+                      const esQ = numPeriodos === 6 || numPeriodos === 12;
+                      const numMeses = esQ ? numPeriodos / 2 : numPeriodos;
                       const totalesMes = esQ
                         ? Array.from({ length: numMeses }, (_, mi) =>
                             (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
@@ -1141,14 +1139,13 @@ export default function AnalisisDetailPage() {
                 );
 
                 const refDate = new Date(analisis.created_at || Date.now());
-                const esMicro = analisis.category?.toLowerCase().includes('micro');
                 const totalPeriodos = datos.length;
 
-                // Detectar modo: micro espera 6 periodos (quincenas), 3 = por mes
-                // Regular espera 12 periodos, 6 = por mes
-                const mesesEsperados = esMicro ? 3 : 6;
-                const esPerQuincena = totalPeriodos > mesesEsperados;
-                const totalMeses = esPerQuincena ? Math.ceil(totalPeriodos / 2) : totalPeriodos;
+                // Regla simple: 6 o 12 periodos = quincenas (pares q1+q2 por mes)
+                //               3 o 6 periodos impares = por mes (1 valor por mes)
+                // Micro: 6=quincenas, 3=por mes | Regular: 12=quincenas, 6=por mes
+                const esPerQuincena = totalPeriodos === 6 || totalPeriodos === 12;
+                const totalMeses = esPerQuincena ? totalPeriodos / 2 : totalPeriodos;
 
                 const getLabelFor = (idx: number): string => {
                   const d = new Date(refDate);
