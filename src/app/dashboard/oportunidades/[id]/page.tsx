@@ -815,13 +815,18 @@ export default function OpportunityDetailPage() {
       <div className="grid grid-cols-1 gap-6">
         {/* Main Content - Full Width (Chat panel commented out) */}
         <div className="space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={(v) => {
+            if (v === 'hoja-analisis' && existingAnalisis) {
+              router.push(`/dashboard/analisis/${existingAnalisis.id}`);
+              return;
+            }
+            setActiveTab(v);
+          }} className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
               <TabsTrigger
                 value="hoja-analisis"
                 className="relative"
-                onClick={existingAnalisis ? (e) => { e.preventDefault(); router.push(`/dashboard/analisis/${existingAnalisis.id}`); } : undefined}
               >
                 Hoja de Análisis
                 {existingAnalisis ? (
