@@ -109,13 +109,18 @@ class ActualizarAnalisis extends Command
             $lead = Lead::withoutGlobalScope('is_lead')->where('cedula', $cedula)->first();
             if ($lead) {
                 $analisis = Analisis::where('lead_id', $lead->id)
-                    ->where('opportunity_id', $anaRef)
+                    ->where(function ($q) use ($anaRef) {
+                        $q->where('opportunity_id', $anaRef)
+                          ->orWhere('reference', $anaRef);
+                    })
                     ->first();
             }
         }
 
         if (!$analisis && $anaRef) {
-            $analisis = Analisis::where('opportunity_id', $anaRef)->first();
+            $analisis = Analisis::where('opportunity_id', $anaRef)
+                ->orWhere('reference', $anaRef)
+                ->first();
         }
 
         if (!$analisis && $cedula) {
@@ -149,6 +154,10 @@ class ActualizarAnalisis extends Command
 
         if (!$dryRun) {
             // Actualizar analisis (solo campos con valor en el Excel)
+            // Siempre sincronizar reference con opportunity_id
+            if ($analisis->opportunity_id) {
+                $updateData['reference'] = $analisis->opportunity_id;
+            }
             if (!empty($updateData)) {
                 $updateData['updated_at'] = now();
                 DB::table('analisis')->where('id', $analisis->id)->update($updateData);
@@ -299,7 +308,7 @@ class ActualizarAnalisis extends Command
             return [];
         }
 
-        $rows = $sheet->toArray(null, true, true, false);
+        $rows = $sheet->toArray(null, true, false, false);
 
         if (count($rows) < 2) {
             return [];
