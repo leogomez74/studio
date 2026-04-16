@@ -821,8 +821,7 @@ export default function OpportunityDetailPage() {
               <TabsTrigger
                 value="hoja-analisis"
                 className="relative"
-                disabled={!!existingAnalisis}
-                title={existingAnalisis ? 'Ya existe un análisis creado para esta oportunidad' : undefined}
+                onClick={existingAnalisis ? (e) => { e.preventDefault(); router.push(`/dashboard/analisis/${existingAnalisis.id}`); } : undefined}
               >
                 Hoja de Análisis
                 {existingAnalisis ? (
