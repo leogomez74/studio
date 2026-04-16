@@ -802,10 +802,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
               const q1 = ingresos[mi * 2];
               const q2 = ingresos[mi * 2 + 1];
               // Modo por mes: el ingreso mensual está en q1
-              const mensual = colillasPorQuincena ? null : ingresos[mi];
+              const mensual = colillasPorQuincena ? undefined : ingresos[mi];
               const totalMes = colillasPorQuincena
-                ? (parseFloat(q1?.liquido) || 0) + (parseFloat(q2?.liquido) || 0)
-                : (parseFloat(mensual?.liquido) || 0);
+                ? (parseFloat(q1?.liquido ?? '') || 0) + (parseFloat(q2?.liquido ?? '') || 0)
+                : (parseFloat(mensual?.liquido ?? '') || 0);
               return (
                 <div key={mi} className="border rounded-md p-3 bg-slate-50">
                   <p className="text-xs font-semibold text-slate-700 mb-2">{nombreMes}</p>
