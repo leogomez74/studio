@@ -815,14 +815,25 @@ export default function OpportunityDetailPage() {
       <div className="grid grid-cols-1 gap-6">
         {/* Main Content - Full Width (Chat panel commented out) */}
         <div className="space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={(v) => {
+            if (v === 'hoja-analisis' && existingAnalisis) {
+              router.push(`/dashboard/analisis/${existingAnalisis.id}`);
+              return;
+            }
+            setActiveTab(v);
+          }} className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
-              <TabsTrigger value="hoja-analisis" className="relative">
+              <TabsTrigger
+                value="hoja-analisis"
+                className="relative"
+              >
                 Hoja de Análisis
-                {datosPreCargados && (
+                {existingAnalisis ? (
+                  <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] text-blue-700 border-blue-400">Creado</Badge>
+                ) : datosPreCargados ? (
                   <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] text-green-700 border-green-400">Listo</Badge>
-                )}
+                ) : null}
               </TabsTrigger>
               <TabsTrigger value="archivos" className="relative">
                 Archivos
