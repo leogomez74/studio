@@ -18,6 +18,15 @@ class WhatsappController extends Controller
         return $user->evolutionInstance ?? null;
     }
 
+    // Nombres que WhatsApp asigna al propio número (auto-chat).
+    // Se tratan como vacíos para mostrar el número en su lugar.
+    private const SELF_NAMES = ['você', 'voce', 'usted', 'you', 'tú', 'tu'];
+
+    private function isSelfName(string $name): bool
+    {
+        return in_array(mb_strtolower(trim($name)), self::SELF_NAMES, true);
+    }
+
     private function getBaseUrl(): string
     {
         return rtrim(EvolutionServerConfig::instance()->base_url, '/');
@@ -52,7 +61,8 @@ class WhatsappController extends Controller
                 if ($aliases->has($phone)) {
                     $name = $aliases[$phone];
                 } else {
-                    $name = $last->contact_name ?: '';
+                    $raw = $last->contact_name ?? '';
+                    $name = ($raw && !$this->isSelfName($raw)) ? $raw : '';
                     if (!$name) {
                         $person = \App\Models\Person::where('phone', 'like', "%{$phone}%")
                             ->orWhere('whatsapp', 'like', "%{$phone}%")
@@ -123,7 +133,8 @@ class WhatsappController extends Controller
                     ?? '[media]';
                 $direction = ($msg['key']['fromMe'] ?? false) ? 'out' : 'in';
                 $waId      = $msg['key']['id'] ?? null;
-                $pushName  = $msg['pushName'] ?? '';
+                $rawPush   = $msg['pushName'] ?? '';
+                $pushName  = ($rawPush && !$this->isSelfName($rawPush)) ? $rawPush : '';
                 $ts        = isset($msg['messageTimestamp'])
                     ? \Carbon\Carbon::createFromTimestamp($msg['messageTimestamp'])
                     : now();
@@ -218,7 +229,8 @@ class WhatsappController extends Controller
                     ->exists();
 
                 if (!$exists) {
-                    $contactName = $chat['name'] ?? '';
+                    $raw         = $chat['name'] ?? '';
+                    $contactName = ($raw && !$this->isSelfName($raw)) ? $raw : '';
                     $lastTs      = isset($chat['lastMsgTimestamp'])
                         ? \Carbon\Carbon::createFromTimestamp($chat['lastMsgTimestamp'])
                         : now();
