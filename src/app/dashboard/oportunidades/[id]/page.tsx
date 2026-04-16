@@ -818,11 +818,18 @@ export default function OpportunityDetailPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
-              <TabsTrigger value="hoja-analisis" className="relative">
+              <TabsTrigger
+                value="hoja-analisis"
+                className="relative"
+                disabled={!!existingAnalisis}
+                title={existingAnalisis ? 'Ya existe un análisis creado para esta oportunidad' : undefined}
+              >
                 Hoja de Análisis
-                {datosPreCargados && (
+                {existingAnalisis ? (
+                  <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] text-blue-700 border-blue-400">Creado</Badge>
+                ) : datosPreCargados ? (
                   <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] text-green-700 border-green-400">Listo</Badge>
-                )}
+                ) : null}
               </TabsTrigger>
               <TabsTrigger value="archivos" className="relative">
                 Archivos

@@ -931,11 +931,28 @@ export default function AnalisisDetailPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Ingreso Neto</p>
                   <p className="text-lg font-bold text-green-600">
-                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
-                      Math.min(...[analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3, analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6].filter((v): v is number => v != null && v > 0)) || 0
-                    )}
+                    {(() => {
+                      const vals = [
+                        analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3,
+                        analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6,
+                        analisis.ingreso_neto_7, analisis.ingreso_neto_8, analisis.ingreso_neto_9,
+                        analisis.ingreso_neto_10, analisis.ingreso_neto_11, analisis.ingreso_neto_12,
+                      ].map(v => Number(v) || 0);
+                      const numPeriodos = vals.filter(v => v > 0).length;
+                      const esMicro2 = analisis.category?.toLowerCase().includes('micro');
+                      const mesesEsp = esMicro2 ? 3 : 6;
+                      const esQ = numPeriodos > mesesEsp;
+                      const numMeses = esQ ? Math.ceil(numPeriodos / 2) : numPeriodos;
+                      const totalesMes = esQ
+                        ? Array.from({ length: numMeses }, (_, mi) =>
+                            (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
+                          ).filter(t => t > 0)
+                        : vals.filter(v => v > 0);
+                      const promedio = totalesMes.length > 0 ? totalesMes.reduce((a, b) => a + b, 0) / totalesMes.length : 0;
+                      return '₡' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(promedio));
+                    })()}
                   </p>
-                  <p className="text-xs text-muted-foreground">Mínimo mensual</p>
+                  <p className="text-xs text-muted-foreground">Promedio mensual</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Monto Crédito</p>
@@ -1123,28 +1140,40 @@ export default function AnalisisDetailPage() {
                   <p className="text-sm text-gray-400 text-center py-4">No hay ingresos registrados</p>
                 );
 
-                // Calcular nombres de mes desde la fecha del análisis (excluye mes actual)
                 const refDate = new Date(analisis.created_at || Date.now());
                 const esMicro = analisis.category?.toLowerCase().includes('micro');
                 const totalPeriodos = datos.length;
 
+                // Detectar modo: micro espera 6 periodos (quincenas), 3 = por mes
+                // Regular espera 12 periodos, 6 = por mes
+                const mesesEsperados = esMicro ? 3 : 6;
+                const esPerQuincena = totalPeriodos > mesesEsperados;
+                const totalMeses = esPerQuincena ? Math.ceil(totalPeriodos / 2) : totalPeriodos;
+
                 const getLabelFor = (idx: number): string => {
-                  if (esMicro) {
-                    // 6 quincenas → 3 meses × Q1/Q2
+                  const d = new Date(refDate);
+                  if (esPerQuincena) {
                     const mesIdx = Math.floor(idx / 2);
                     const quincena = (idx % 2) + 1;
-                    const d = new Date(refDate);
-                    d.setMonth(d.getMonth() - (3 - mesIdx));
-                    return `${MESES[d.getMonth()]} Q${quincena}`;
+                    d.setMonth(d.getMonth() - (totalMeses - mesIdx));
+                    return `${MESES[d.getMonth()]} ${quincena}Q`;
+                  } else {
+                    // Por mes: solo mostrar el nombre del mes
+                    d.setMonth(d.getMonth() - (totalMeses - idx));
+                    return MESES[d.getMonth()];
                   }
-                  // Regular: N meses hacia atrás
-                  const d = new Date(refDate);
-                  d.setMonth(d.getMonth() - (totalPeriodos - idx));
-                  return MESES[d.getMonth()];
                 };
 
+                // Promedio mensual adaptado al modo
                 const valores = datos.map(p => p.val);
-                const promedio = valores.reduce((a, b) => a + b, 0) / valores.length;
+                const totalesMensuales = esPerQuincena
+                  ? Array.from({ length: totalMeses }, (_, mi) =>
+                      (datos[mi * 2]?.val || 0) + (datos[mi * 2 + 1]?.val || 0)
+                    ).filter(t => t > 0)
+                  : valores.filter(v => v > 0);
+                const promedio = totalesMensuales.length > 0
+                  ? totalesMensuales.reduce((a, b) => a + b, 0) / totalesMensuales.length
+                  : 0;
                 const minVal = Math.min(...valores);
                 const maxVal = Math.max(...valores);
                 const fmt = (n: number) => '₡' + new Intl.NumberFormat('en-US').format(Math.round(n));
