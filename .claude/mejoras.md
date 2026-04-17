@@ -97,6 +97,7 @@
 | 2026-04-08 | **automation_variables.php — campos faltantes**: leads (credid_consultado_at, cedula_vencimiento, salario_exacto, nivel_academico, sector, nacionalidad, indice_desarrollo_social), opportunities (lost_reason, assigned_to_id), credits (tipo_credito, cierre_motivo, refundicion_at), investments (fecha_pago_total, tipo_cancelacion_total) |
 | 2026-04-08 | **KPI Ventas integrado en KPIs Globales**: `getAgentKpis()` reescrito con datos reales por vendedor (créditos, monto, comisiones, visitas, alcance de meta). `getConversionPorVendedor()` agregado a `getLeadKpis()`. `getBusinessHealthKpis()` usa comisiones pagadas para `revenuePerEmployee` + `atribucionVendedores` + `creditosSinAtribucion`. Fix: `persons.assigned_to_id` (no `assigned_to`) |
 | 2026-04-17 | **WhatsApp bubble — paso 1 emojis**: composer del tab WhatsApp en `chat-bubble.tsx` ahora tiene botón de emojis propio, picker `emoji-mart`, inserción en posición del cursor y cierre por click fuera. Sin cambios todavía en micrófono, grabación ni envío de media. |
+| 2026-04-17 | **WhatsApp bubble — paso 2 micrófono UX local**: botón principal del composer WhatsApp ahora muestra `Mic` si no hay texto y `Send` si `waInput` tiene contenido. Se agregó grabación real con `MediaRecorder`, ocultando el input durante la captura, contador visible, cancelar/detener y preview local del audio al finalizar. El envío del audio a Evolution queda para el siguiente paso. |
 
 ## Pendiente — Media prioridad
 
