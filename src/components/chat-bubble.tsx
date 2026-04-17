@@ -550,10 +550,13 @@ export function ChatBubble() {
   const [waEditingAlias, setWaEditingAlias]   = useState(false);
   const [waAliasInput, setWaAliasInput]       = useState('');
   const [waSavingAlias, setWaSavingAlias]     = useState(false);
+  const [waShowEmoji, setWaShowEmoji]         = useState(false);
   // Edición de alias desde la lista (sin abrir el chat)
   const [waListEditPhone, setWaListEditPhone] = useState<string | null>(null);
   const [waListEditInput, setWaListEditInput] = useState('');
   const lastWaOpenedAtRef                     = useRef<number>(Date.now());
+  const waInputRef                            = useRef<HTMLInputElement>(null);
+  const waEmojiRef                            = useRef<HTMLDivElement>(null);
   const WA_LIMIT = 20;
 
   // Entity selector state
@@ -635,6 +638,25 @@ export function ChatBubble() {
     } finally {
       setWaSending(false);
     }
+  };
+
+  const handleWaEmojiSelect = (emoji: any) => {
+    const native = emoji?.native;
+    if (!native) return;
+
+    const input = waInputRef.current;
+    const start = input?.selectionStart ?? waInput.length;
+    const end = input?.selectionEnd ?? waInput.length;
+    const nextValue = waInput.slice(0, start) + native + waInput.slice(end);
+
+    setWaInput(nextValue);
+    setWaShowEmoji(false);
+
+    requestAnimationFrame(() => {
+      const newPos = start + native.length;
+      waInputRef.current?.focus();
+      waInputRef.current?.setSelectionRange(newPos, newPos);
+    });
   };
 
   const openWaConversation = (phone: string, name: string, alias?: string | null) => {
@@ -876,6 +898,17 @@ export function ChatBubble() {
   useEffect(() => {
     if (directMode && directUserId) fetchDirectThread(directUserId);
   }, [directMode, directUserId, fetchDirectThread]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (waEmojiRef.current && !waEmojiRef.current.contains(e.target as Node)) {
+        setWaShowEmoji(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // ---- Send direct message ----
   const handleSendDirect = async (body: string, mentions: Mention[]) => {
@@ -1264,7 +1297,33 @@ export function ChatBubble() {
                   </div>
                   {/* Input de envío */}
                   <div className="flex items-center gap-2 p-2 border-t shrink-0">
+                    <div ref={waEmojiRef} className="relative shrink-0">
+                      {waShowEmoji && (
+                        <div className="absolute bottom-full left-0 mb-2 z-50">
+                          <Picker
+                            data={emojiData}
+                            onEmojiSelect={handleWaEmojiSelect}
+                            theme="light"
+                            locale="es"
+                            previewPosition="none"
+                            skinTonePosition="none"
+                            maxFrequentRows={2}
+                          />
+                        </div>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn('h-8 w-8 shrink-0', waShowEmoji && 'bg-accent text-accent-foreground')}
+                        onClick={() => setWaShowEmoji((prev) => !prev)}
+                        disabled={waSending}
+                      >
+                        <Smile className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <input
+                      ref={waInputRef}
                       className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       placeholder="Escribe un mensaje..."
                       value={waInput}
