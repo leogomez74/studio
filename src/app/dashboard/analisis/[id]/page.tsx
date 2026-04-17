@@ -1353,6 +1353,11 @@ export default function AnalisisDetailPage() {
                           <div className="text-sm font-semibold text-foreground">
                             {formatCurrency(p.monto)}
                           </div>
+                          {p.cuota && (
+                            <div className="text-xs font-medium text-blue-700 mt-0.5">
+                              Cuota: {formatCurrency(p.cuota)}
+                            </div>
+                          )}
                           <div className="text-xs text-muted-foreground mt-1">
                             {p.plazo} meses
                           </div>
@@ -1431,6 +1436,7 @@ export default function AnalisisDetailPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-xs">Monto</TableHead>
+                        <TableHead className="text-xs">Cuota</TableHead>
                         <TableHead className="text-xs">Plazo</TableHead>
                         <TableHead className="text-xs">Estado</TableHead>
                         <TableHead className="text-xs">Motivo</TableHead>
@@ -1442,6 +1448,7 @@ export default function AnalisisDetailPage() {
                       {propuestas.map((p, index) => (
                         <TableRow key={p.id}>
                           <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
+                          <TableCell className="text-sm font-medium text-blue-700">{p.cuota ? formatCurrency(p.cuota) : '-'}</TableCell>
                           <TableCell className="text-sm">{p.plazo} meses</TableCell>
                           <TableCell>
                             <Badge
