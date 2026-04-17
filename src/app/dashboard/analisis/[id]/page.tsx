@@ -1359,7 +1359,7 @@ export default function AnalisisDetailPage() {
                             </div>
                           )}
                           <div className="text-xs text-muted-foreground mt-1">
-                            {p.plazo} meses
+                            {p.plazo} meses{p.cuota ? ` · ${formatCurrency(p.cuota)}/mes` : ''}
                           </div>
                         </div>
                         <Badge
@@ -1438,6 +1438,7 @@ export default function AnalisisDetailPage() {
                         <TableHead className="text-xs">Monto</TableHead>
                         <TableHead className="text-xs">Cuota</TableHead>
                         <TableHead className="text-xs">Plazo</TableHead>
+                        <TableHead className="text-xs">Cuota</TableHead>
                         <TableHead className="text-xs">Estado</TableHead>
                         <TableHead className="text-xs">Motivo</TableHead>
                         <TableHead className="text-xs">Fecha</TableHead>
@@ -1450,6 +1451,7 @@ export default function AnalisisDetailPage() {
                           <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
                           <TableCell className="text-sm font-medium text-blue-700">{p.cuota ? formatCurrency(p.cuota) : '-'}</TableCell>
                           <TableCell className="text-sm">{p.plazo} meses</TableCell>
+                          <TableCell className="text-sm">{p.cuota ? formatCurrency(p.cuota) : '-'}</TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"
