@@ -534,6 +534,7 @@ export function AnalisisWizardModal({
         monto_solicitado: monto_solicitado || null,
         monto_sugerido: parseFloat(formData.monto_sugerido),
         plazo: parseInt(formData.plazo),
+        cuota: parseFloat(formData.cuota) || null,
         assigned_to: formData.assigned_to,
         ingreso_bruto: parseFloat(formData.ingreso_bruto) || null,
         ingreso_neto: parseFloat(formData.ingreso_bruto) || null,
