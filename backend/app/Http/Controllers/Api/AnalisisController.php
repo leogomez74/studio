@@ -174,11 +174,28 @@ class AnalisisController extends Controller
 
         // Crear automáticamente la primera propuesta con el monto sugerido y plazo
         if (!empty($validated['monto_sugerido']) && !empty($validated['plazo'])) {
+            // Usar cuota del analisis si ya existe, sino calcular con sistema francés
+            $cuotaPropuesta = $analisis->cuota ?: null;
+            if (!$cuotaPropuesta) {
+                $tasa = \App\Models\Tasa::activa()->orderBy('id')->first();
+                if ($tasa) {
+                    $capital     = (float) $validated['monto_sugerido'];
+                    $plazo       = (int)   $validated['plazo'];
+                    $tasaMensual = ((float) $tasa->tasa / 100) / 12;
+                    if ($tasaMensual > 0 && $plazo > 0) {
+                        $potencia        = pow(1 + $tasaMensual, $plazo);
+                        $cuotaPropuesta  = round($capital * ($tasaMensual * $potencia) / ($potencia - 1), 2);
+                    } elseif ($plazo > 0) {
+                        $cuotaPropuesta = round($capital / $plazo, 2);
+                    }
+                }
+            }
+
             \App\Models\Propuesta::create([
                 'analisis_reference' => $analisis->reference,
-                'monto' => $validated['monto_sugerido'],
-                'plazo' => $validated['plazo'],
-                'cuota' => $validated['cuota'] ?? null,
+                'monto'  => $validated['monto_sugerido'],
+                'plazo'  => $validated['plazo'],
+                'cuota'  => $cuotaPropuesta,
                 'estado' => 'Pendiente',
             ]);
         }
