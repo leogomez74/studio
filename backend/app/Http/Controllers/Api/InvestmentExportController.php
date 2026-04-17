@@ -228,14 +228,14 @@ class InvestmentExportController extends Controller
         $balance = $capitalInicial;
 
         $rows = [];
-        $fechaAnterior = Carbon::parse($investment->fecha_inicio);
+        $fechaAnterior = Carbon::parse($investment->fecha_inicio)->startOfDay();
         $interesPendienteAcum = 0; // Acumulado de intereses devengados no pagados
 
         // Group payments by date and sum them
         $paymentsByDate = $payments->groupBy(fn($p) => Carbon::parse($p->fecha_pago)->format('Y-m-d'));
 
         foreach ($paymentsByDate as $dateStr => $dayPayments) {
-            $fechaPago = Carbon::parse($dateStr);
+            $fechaPago = Carbon::parse($dateStr)->startOfDay();
             $dias = $fechaAnterior->diffInDays($fechaPago);
             $interes = $balance * $tasaAnual * $dias / 365;
             $interes = round($interes, 2);
@@ -251,23 +251,26 @@ class InvestmentExportController extends Controller
                 ->sum(fn($p) => (float) $p->monto);
 
             if ($explicitCapital > 0) {
-                // When there are explicit capital payments, use actual payment types
                 $interestPayment = $explicitInterest;
-                $capitalPayment = $explicitCapital;
+                $capitalPayment  = $explicitCapital;
             } else {
-                // Legacy behavior: interest is paid first, remainder goes to capital
                 $interestPayment = min($interes, $totalPago);
-                $capitalPayment = $totalPago - $interestPayment;
+                $capitalPayment  = $totalPago - $interestPayment;
             }
             $balance = round($balance - $capitalPayment, 2);
 
+            // Si hubo pago explícito de interés (cupón corregido manualmente),
+            // usar ese monto como interés devengado para el período (no el calculado).
+            // Esto sincroniza el estado de cuenta con los ajustes manuales.
+            $interesDevengado = ($explicitInterest > 0) ? $explicitInterest : $interes;
+
             // Acumular intereses devengados y restar lo que se pagó
-            $interesPendienteAcum = round($interesPendienteAcum + $interes - $interestPayment, 2);
+            $interesPendienteAcum = round($interesPendienteAcum + $interesDevengado - $interestPayment, 2);
 
             $rows[] = [
                 'date' => $fechaPago->format($lang === 'en' ? 'F d,Y' : 'd/m/Y'),
                 'days' => $dias,
-                'interest' => $interes,
+                'interest' => $interesDevengado,
                 'payment' => $totalPago,
                 'interest_payment' => round($interestPayment, 2),
                 'capital_payment' => round($capitalPayment, 2),
@@ -278,10 +281,10 @@ class InvestmentExportController extends Controller
             $fechaAnterior = $fechaPago;
         }
 
-        // Last row: from last payment to now (or vencimiento), showing pending interest
-        $fechaCorte = Carbon::now();
-        if ($investment->fecha_vencimiento && Carbon::parse($investment->fecha_vencimiento)->lt($fechaCorte)) {
-            $fechaCorte = Carbon::parse($investment->fecha_vencimiento);
+        // Last row: from last payment to today (or vencimiento), usando solo fecha sin hora
+        $fechaCorte = Carbon::today();
+        if ($investment->fecha_vencimiento && Carbon::parse($investment->fecha_vencimiento)->startOfDay()->lt($fechaCorte)) {
+            $fechaCorte = Carbon::parse($investment->fecha_vencimiento)->startOfDay();
         }
         $diasPendientes = $fechaAnterior->diffInDays($fechaCorte);
         if ($diasPendientes > 0 && $balance > 0) {
