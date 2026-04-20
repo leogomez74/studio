@@ -162,11 +162,76 @@ class PlanillaUploadController extends Controller
                     }
                 }
 
-                // 5. Capturar sobrante ANTES de eliminar SaldoPendiente
-                $sobranteAnulado = (float) SaldoPendiente::where('credit_payment_id', $pago->id)->sum('monto');
+                // 5. Procesar SaldoPendientes — revertir aplicados y eliminar todos
+                $saldosDelPago = SaldoPendiente::where('credit_payment_id', $pago->id)->get();
+                $sobranteAnulado = 0;
 
-                // 5. Eliminar saldos pendientes creados por esta planilla
-                SaldoPendiente::where('credit_payment_id', $pago->id)->delete();
+                foreach ($saldosDelPago as $saldo) {
+                    $sobranteAnulado += (float) $saldo->monto;
+
+                    // Si el saldo ya fue aplicado a cuota o capital, revertir ese pago derivado
+                    if (in_array($saldo->estado, ['asignado_cuota', 'asignado_capital'])) {
+                        $pagoSaldo = CreditPayment::where('saldo_pendiente_id', $saldo->id)
+                            ->whereNotIn('estado', ['Reversado'])
+                            ->first();
+
+                        if ($pagoSaldo) {
+                            $creditSaldo = Credit::lockForUpdate()->find($pagoSaldo->credit_id);
+
+                            // Restaurar saldo del crédito
+                            if ($pagoSaldo->amortizacion > 0 && $creditSaldo) {
+                                $creditSaldo->saldo = ((float) $creditSaldo->saldo) + ((float) $pagoSaldo->amortizacion);
+                                $creditSaldo->save();
+                            }
+
+                            // Revertir movimientos en plan_de_pagos
+                            if ($pagoSaldo->numero_cuota > 0) {
+                                $cuotaSaldo = PlanDePago::where('credit_id', $pagoSaldo->credit_id)
+                                    ->where('numero_cuota', $pagoSaldo->numero_cuota)
+                                    ->first();
+                                if ($cuotaSaldo) {
+                                    $cuotaSaldo->movimiento_interes_moratorio = max(0, ((float)$cuotaSaldo->movimiento_interes_moratorio) - ((float)$pagoSaldo->interes_moratorio));
+                                    $cuotaSaldo->movimiento_interes_corriente = max(0, ((float)$cuotaSaldo->movimiento_interes_corriente) - ((float)$pagoSaldo->interes_corriente));
+                                    $cuotaSaldo->movimiento_amortizacion      = max(0, ((float)$cuotaSaldo->movimiento_amortizacion) - ((float)$pagoSaldo->amortizacion));
+                                    $cuotaSaldo->movimiento_principal          = max(0, ((float)$cuotaSaldo->movimiento_principal) - ((float)$pagoSaldo->amortizacion));
+                                    $cuotaSaldo->movimiento_poliza             = max(0, ((float)$cuotaSaldo->movimiento_poliza) - ((float)$pagoSaldo->poliza));
+                                    $cuotaSaldo->movimiento_total              = max(0, ((float)$cuotaSaldo->movimiento_total) - ((float)$pagoSaldo->monto));
+                                    if ($cuotaSaldo->movimiento_total <= 0.01) {
+                                        $cuotaSaldo->estado          = 'Pendiente';
+                                        $cuotaSaldo->fecha_movimiento = null;
+                                        $cuotaSaldo->fecha_pago       = null;
+                                    }
+                                    $cuotaSaldo->save();
+                                }
+                            }
+
+                            // Marcar pago del saldo como reversado
+                            $pagoSaldo->estado          = 'Reversado';
+                            $pagoSaldo->estado_reverso  = 'Anulado';
+                            $pagoSaldo->motivo_anulacion = 'Anulación planilla #' . $planilla->id;
+                            $pagoSaldo->anulado_por     = $user->id;
+                            $pagoSaldo->fecha_anulacion = now();
+                            $pagoSaldo->save();
+
+                            // Asiento contable de reversión del saldo aplicado
+                            $this->triggerAccountingEntry(
+                                'ANULACION_SALDO_APLICADO',
+                                (float) $pagoSaldo->monto,
+                                "ANULA-SALDO-{$pagoSaldo->id}-{$credit->reference}",
+                                [
+                                    'reference'      => "ANULA-SALDO-{$pagoSaldo->id}-{$credit->reference}",
+                                    'credit_id'      => $credit->reference,
+                                    'cedula'         => $pagoSaldo->cedula,
+                                    'clienteNombre'  => $credit->lead->name ?? null,
+                                    'deductora_id'   => $credit->deductora_id,
+                                    'saldo_id'       => $saldo->id,
+                                ]
+                            );
+                        }
+                    }
+
+                    $saldo->delete();
+                }
 
                 // 6. Marcar pago como anulado (visible en historial de abonos)
                 $pago->estado = 'Reversado';

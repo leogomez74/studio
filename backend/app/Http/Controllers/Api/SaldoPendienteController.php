@@ -419,6 +419,11 @@ class SaldoPendienteController extends Controller
                     $saldo->cedula
                 );
 
+                // Guardar link bidireccional SaldoPendiente → CreditPayment
+                if ($payment) {
+                    $payment->update(['saldo_pendiente_id' => $saldo->id]);
+                }
+
                 // Calcular restante del saldo
                 $restante = (float) $saldo->monto - $montoAplicar;
 

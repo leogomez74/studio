@@ -148,6 +148,23 @@ trait AccountingTrigger
                 breakdown: $context
             ),
 
+            // Saldo pendiente aplicado a cuota — mismo asiento que ventanilla pero origen distinto
+            'PAGO_SALDO_PENDIENTE' => $this->triggerAccountingPagoVentanilla(
+                creditId: $creditId,
+                paymentId: $paymentId,
+                amount: $amount,
+                breakdown: array_merge($context, ['trigger_type' => 'PAGO_SALDO_PENDIENTE', 'source' => 'Saldo Pendiente'])
+            ),
+
+            // Reverso de un saldo pendiente aplicado (cuando se anula la planilla origen)
+            'ANULACION_SALDO_APLICADO' => $this->triggerAccountingDevolucion(
+                creditId: $creditId,
+                paymentId: $paymentId,
+                amount: $amount,
+                reason: 'Anulación de saldo pendiente aplicado',
+                additionalData: array_merge($context, ['trigger_type' => 'ANULACION_SALDO_APLICADO'])
+            ),
+
             'ABONO_EXTRAORDINARIO' => $this->triggerAccountingAbonoExtraordinario(
                 creditId: $creditId,
                 paymentId: $paymentId,

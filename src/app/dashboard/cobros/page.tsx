@@ -1631,7 +1631,7 @@ export default function CobrosPage() {
       setAnularDialogOpen(false);
       setPlanillaToAnular(null);
       setMotivoAnulacion('');
-      await fetchPlanillas();
+      setPlanRefreshKey(k => k + 1);
     } catch (err: any) {
       toast({
         title: 'Error',
