@@ -1400,12 +1400,12 @@ export default function ClientDetailPage() {
                     {datosAdicionales.filiacion?.indice_desarrollo_social != null && (
                       <div>
                         <Label className="text-muted-foreground text-xs">Índice Desarrollo Social</Label>
-                        <p className="text-sm">
+                        <div className="flex items-center gap-1 text-sm">
                           {datosAdicionales.filiacion.indice_desarrollo_social}
                           {datosAdicionales.filiacion.nivel_desarrollo_social && (
                             <Badge variant="outline" className="ml-2 text-xs">{datosAdicionales.filiacion.nivel_desarrollo_social}</Badge>
                           )}
-                        </p>
+                        </div>
                       </div>
                     )}
                     {datosAdicionales.filiacion?.domicilio_electoral?.provincia && (
