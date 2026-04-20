@@ -1122,6 +1122,7 @@ export default function LeadDetailPage() {
                                          ) : (
                                              <Input value={formData.distrito || ""} disabled />
                                          )}
+                                     </div>
                                     <div className="col-span-3 md:col-span-2 space-y-2">
                                         <Label>Dirección Exacta {isFieldMissing('direccion1') && <span className="text-red-500">*</span>}</Label>
                                         <Textarea
