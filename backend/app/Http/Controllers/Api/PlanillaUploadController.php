@@ -171,9 +171,27 @@ class PlanillaUploadController extends Controller
 
                     // Si el saldo ya fue aplicado a cuota o capital, revertir ese pago derivado
                     if (in_array($saldo->estado, ['asignado_cuota', 'asignado_capital'])) {
+                        // Buscar primero por saldo_pendiente_id (datos nuevos)
                         $pagoSaldo = CreditPayment::where('saldo_pendiente_id', $saldo->id)
                             ->whereNotIn('estado', ['Reversado'])
                             ->first();
+
+                        // Fallback para datos históricos (sin saldo_pendiente_id)
+                        if (!$pagoSaldo && $saldo->asignado_at) {
+                            $pagoSaldo = CreditPayment::where('credit_id', $saldo->credit_id)
+                                ->where(function($q) {
+                                    $q->where('source', 'Saldo Pendiente')
+                                      ->orWhere('source', 'like', '%Saldo Pendiente%')
+                                      ->orWhere('source', 'like', '%Capital%Saldo%')
+                                      ->orWhere('source', 'like', '%Abono a Capital%');
+                                })
+                                ->whereNotIn('estado', ['Reversado'])
+                                ->whereBetween('created_at', [
+                                    \Carbon\Carbon::parse($saldo->asignado_at)->subDays(2),
+                                    \Carbon\Carbon::parse($saldo->asignado_at)->addDays(2),
+                                ])
+                                ->first();
+                        }
 
                         if ($pagoSaldo) {
                             $creditSaldo = Credit::lockForUpdate()->find($pagoSaldo->credit_id);
