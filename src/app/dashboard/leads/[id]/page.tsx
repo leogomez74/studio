@@ -174,6 +174,20 @@ export default function LeadDetailPage() {
     const [institucionOpen, setInstitucionOpen] = useState(false);
     const [profesionSearch, setProfesionSearch] = useState("");
     const [profesionOpen, setProfesionOpen] = useState(false);
+    // Búsqueda para provincia/cantón/distrito (dirección personal)
+    const [provinciaOpen, setProvinciaOpen] = useState(false);
+    const [provinciaSearch, setProvinciaSearch] = useState("");
+    const [cantonOpen, setCantonOpen] = useState(false);
+    const [cantonSearch, setCantonSearch] = useState("");
+    const [distritoOpen, setDistritoOpen] = useState(false);
+    const [distritoSearch, setDistritoSearch] = useState("");
+    // Búsqueda para provincia/cantón/distrito (dirección trabajo)
+    const [workProvinciaOpen, setWorkProvinciaOpen] = useState(false);
+    const [workProvinciaSearch, setWorkProvinciaSearch] = useState("");
+    const [workCantonOpen, setWorkCantonOpen] = useState(false);
+    const [workCantonSearch, setWorkCantonSearch] = useState("");
+    const [workDistritoOpen, setWorkDistritoOpen] = useState(false);
+    const [workDistritoSearch, setWorkDistritoSearch] = useState("");
     const [opportunities, setOpportunities] = useState<{id: string, opportunity_type: string, status: string, amount?: number}[]>([]);
     const [syncing, setSyncing] = useState(false);
     const [opportunitiesModalOpen, setOpportunitiesModalOpen] = useState(false);
@@ -1028,21 +1042,27 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Provincia {isFieldMissing('province') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
-                                            <Select
-                                                value={formData.province || ""}
-                                                onValueChange={handleProvinceChange}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar provincia" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {provinceOptions.map((p) => (
-                                                        <SelectItem key={p.value} value={p.value}>
-                                                            {p.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover open={provinciaOpen} onOpenChange={setProvinciaOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                                                        {formData.province || "Seleccionar provincia"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[250px] p-0" align="start">
+                                                    <div className="p-2 border-b">
+                                                        <Input placeholder="Buscar provincia..." value={provinciaSearch} onChange={e => setProvinciaSearch(e.target.value)} className="h-8" autoFocus />
+                                                    </div>
+                                                    <div className="max-h-[200px] overflow-y-auto">
+                                                        {provinceOptions.filter(p => p.label.toLowerCase().includes(provinciaSearch.toLowerCase())).map(p => (
+                                                            <div key={p.value} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleProvinceChange(p.value); setProvinciaOpen(false); setProvinciaSearch(""); }}>
+                                                                {formData.province === p.value && <Check className="h-4 w-4 text-primary" />}
+                                                                {p.label}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
                                         ) : (
                                             <Input value={formData.province || ""} disabled />
                                         )}
@@ -1050,22 +1070,27 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Cantón {isFieldMissing('canton') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
-                                            <Select
-                                                value={formData.canton || ""}
-                                                onValueChange={handleCantonChange}
-                                                disabled={!formData?.province}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar cantón" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {cantonOptions.map((c) => (
-                                                        <SelectItem key={c.value} value={c.value}>
-                                                            {c.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover open={cantonOpen} onOpenChange={setCantonOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal" disabled={!formData?.province}>
+                                                        {formData.canton || "Seleccionar cantón"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[250px] p-0" align="start">
+                                                    <div className="p-2 border-b">
+                                                        <Input placeholder="Buscar cantón..." value={cantonSearch} onChange={e => setCantonSearch(e.target.value)} className="h-8" autoFocus />
+                                                    </div>
+                                                    <div className="max-h-[200px] overflow-y-auto">
+                                                        {cantonOptions.filter(c => c.label.toLowerCase().includes(cantonSearch.toLowerCase())).map(c => (
+                                                            <div key={c.value} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleCantonChange(c.value); setCantonOpen(false); setCantonSearch(""); }}>
+                                                                {formData.canton === c.value && <Check className="h-4 w-4 text-primary" />}
+                                                                {c.label}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
                                          ) : (
                                              <Input value={formData.canton || ""} disabled />
                                          )}
@@ -1073,27 +1098,30 @@ export default function LeadDetailPage() {
                                      <div className="space-y-2">
                                          <Label>Distrito {isFieldMissing('distrito') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
-                                            <Select
-                                                value={formData.distrito || ""}
-                                                onValueChange={handleDistrictChange}
-                                                disabled={!formData?.canton}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar distrito" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {districtOptions.map((d) => (
-                                                        <SelectItem key={d.value} value={d.value}>
-                                                            {d.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover open={distritoOpen} onOpenChange={setDistritoOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal" disabled={!formData?.canton}>
+                                                        {formData.distrito || "Seleccionar distrito"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[250px] p-0" align="start">
+                                                    <div className="p-2 border-b">
+                                                        <Input placeholder="Buscar distrito..." value={distritoSearch} onChange={e => setDistritoSearch(e.target.value)} className="h-8" autoFocus />
+                                                    </div>
+                                                    <div className="max-h-[200px] overflow-y-auto">
+                                                        {districtOptions.filter(d => d.label.toLowerCase().includes(distritoSearch.toLowerCase())).map(d => (
+                                                            <div key={d.value} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleDistrictChange(d.value); setDistritoOpen(false); setDistritoSearch(""); }}>
+                                                                {formData.distrito === d.value && <Check className="h-4 w-4 text-primary" />}
+                                                                {d.label}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
                                          ) : (
                                              <Input value={formData.distrito || ""} disabled />
                                          )}
-                                     </div>
-
                                     <div className="col-span-3 md:col-span-2 space-y-2">
                                         <Label>Dirección Exacta {isFieldMissing('direccion1') && <span className="text-red-500">*</span>}</Label>
                                         <Textarea
@@ -1338,21 +1366,27 @@ export default function LeadDetailPage() {
                                     <div className="space-y-2">
                                         <Label>Provincia {isFieldMissing('trabajo_provincia') && <span className="text-red-500">*</span>}</Label>
                                         {isEditMode ? (
-                                            <Select
-                                                value={formData.trabajo_provincia || ""}
-                                                onValueChange={handleWorkProvinceChange}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar provincia" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {workProvinceOptions.map((p) => (
-                                                        <SelectItem key={p.value} value={p.value}>
-                                                            {p.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover open={workProvinciaOpen} onOpenChange={setWorkProvinciaOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                                                        {formData.trabajo_provincia || "Seleccionar provincia"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[250px] p-0" align="start">
+                                                    <div className="p-2 border-b">
+                                                        <Input placeholder="Buscar provincia..." value={workProvinciaSearch} onChange={e => setWorkProvinciaSearch(e.target.value)} className="h-8" autoFocus />
+                                                    </div>
+                                                    <div className="max-h-[200px] overflow-y-auto">
+                                                        {workProvinceOptions.filter(p => p.label.toLowerCase().includes(workProvinciaSearch.toLowerCase())).map(p => (
+                                                            <div key={p.value} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleWorkProvinceChange(p.value); setWorkProvinciaOpen(false); setWorkProvinciaSearch(""); }}>
+                                                                {formData.trabajo_provincia === p.value && <Check className="h-4 w-4 text-primary" />}
+                                                                {p.label}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
                                         ) : (
                                             <Input value={formData.trabajo_provincia || ""} disabled />
                                         )}
@@ -1360,22 +1394,27 @@ export default function LeadDetailPage() {
                                      <div className="space-y-2">
                                          <Label>Cantón {isFieldMissing('trabajo_canton') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
-                                            <Select
-                                                value={formData.trabajo_canton || ""}
-                                                onValueChange={handleWorkCantonChange}
-                                                disabled={!(formData.trabajo_provincia)}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar cantón" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {workCantonOptions.map((c) => (
-                                                        <SelectItem key={c.value} value={c.value}>
-                                                            {c.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover open={workCantonOpen} onOpenChange={setWorkCantonOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal" disabled={!formData.trabajo_provincia}>
+                                                        {formData.trabajo_canton || "Seleccionar cantón"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[250px] p-0" align="start">
+                                                    <div className="p-2 border-b">
+                                                        <Input placeholder="Buscar cantón..." value={workCantonSearch} onChange={e => setWorkCantonSearch(e.target.value)} className="h-8" autoFocus />
+                                                    </div>
+                                                    <div className="max-h-[200px] overflow-y-auto">
+                                                        {workCantonOptions.filter(c => c.label.toLowerCase().includes(workCantonSearch.toLowerCase())).map(c => (
+                                                            <div key={c.value} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleWorkCantonChange(c.value); setWorkCantonOpen(false); setWorkCantonSearch(""); }}>
+                                                                {formData.trabajo_canton === c.value && <Check className="h-4 w-4 text-primary" />}
+                                                                {c.label}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
                                          ) : (
                                              <Input value={formData.trabajo_canton || ""} disabled />
                                          )}
@@ -1383,22 +1422,27 @@ export default function LeadDetailPage() {
                                      <div className="space-y-2">
                                          <Label>Distrito {isFieldMissing('trabajo_distrito') && <span className="text-red-500">*</span>}</Label>
                                          {isEditMode ? (
-                                            <Select
-                                                value={formData.trabajo_distrito || ""}
-                                                onValueChange={handleWorkDistrictChange}
-                                                disabled={!(formData.trabajo_canton)}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar distrito" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {workDistrictOptions.map((d) => (
-                                                        <SelectItem key={d.value} value={d.value}>
-                                                            {d.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover open={workDistritoOpen} onOpenChange={setWorkDistritoOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal" disabled={!formData.trabajo_canton}>
+                                                        {formData.trabajo_distrito || "Seleccionar distrito"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[250px] p-0" align="start">
+                                                    <div className="p-2 border-b">
+                                                        <Input placeholder="Buscar distrito..." value={workDistritoSearch} onChange={e => setWorkDistritoSearch(e.target.value)} className="h-8" autoFocus />
+                                                    </div>
+                                                    <div className="max-h-[200px] overflow-y-auto">
+                                                        {workDistrictOptions.filter(d => d.label.toLowerCase().includes(workDistritoSearch.toLowerCase())).map(d => (
+                                                            <div key={d.value} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleWorkDistrictChange(d.value); setWorkDistritoOpen(false); setWorkDistritoSearch(""); }}>
+                                                                {formData.trabajo_distrito === d.value && <Check className="h-4 w-4 text-primary" />}
+                                                                {d.label}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
                                          ) : (
                                              <Input value={formData.trabajo_distrito || ""} disabled />
                                          )}
