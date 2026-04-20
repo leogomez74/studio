@@ -79,6 +79,8 @@ export function SaldosPorAsignar({
   const { user } = useAuth();
   const { hasPermission } = usePermissions();
   const canReintegrarDirecto = hasPermission('cobros', 'assign');
+  const canAplicarParcial = hasPermission('cobros', 'formalizar');
+  const canAplicarCapital = hasPermission('cobros', 'formalizar_admin');
 
   // Determinar modo: compacto (para crédito) o completo (para cobros)
   const isCompact = !!cedula;
@@ -180,10 +182,13 @@ export function SaldosPorAsignar({
     creditId?: number,
     monto?: number
   ) => {
-    if (user?.role?.name !== "Administrador" && !user?.role?.full_access) {
+    const permisoRequerido = accion === "capital" ? canAplicarCapital : canAplicarParcial;
+    if (!permisoRequerido) {
       toast({
         title: "Acceso denegado",
-        description: "Solo administradores pueden aplicar saldos",
+        description: accion === "capital"
+          ? "No tienes permiso para aplicar abonos a capital"
+          : "No tienes permiso para aplicar saldos parciales",
         variant: "destructive",
       });
       return;
