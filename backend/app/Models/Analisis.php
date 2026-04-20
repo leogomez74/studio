@@ -187,16 +187,19 @@ class Analisis extends Model
      */
     public function getHasCreditAttribute(): bool
     {
-        return Credit::where('opportunity_id', $this->opportunity_id)->exists();
+        if (!$this->lead_id) return false;
+        return Credit::where('lead_id', $this->lead_id)->exists();
     }
 
     /**
      * Accessor para obtener el ID del crédito asociado
-     * Solo busca por opportunity_id para permitir múltiples créditos por cliente
      */
     public function getCreditIdAttribute(): ?int
     {
-        return Credit::where('opportunity_id', $this->opportunity_id)->value('id');
+        if (!$this->lead_id) return null;
+        return Credit::where('lead_id', $this->lead_id)
+            ->orderByDesc('id')
+            ->value('id');
     }
 
     /**
