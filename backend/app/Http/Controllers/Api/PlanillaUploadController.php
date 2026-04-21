@@ -267,13 +267,29 @@ class PlanillaUploadController extends Controller
                 // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
                 // $sobranteAnulado ya fue calculado arriba desde SaldoPendiente
 
-                // El total debe incluir el sobrante para que el asiento cuadre
-                // (es el espejo exacto del PAGO_PLANILLA original)
-                $montoTotalOriginal = (float) $pago->monto + $sobranteAnulado;
+                // ANULACION_PLANILLA: solo revierte lo aplicado a la cuota (capital + interés).
+                // El sobrante se maneja por separado en ANULACION_SOBRANTE — no incluirlo aquí
+                // para evitar que los débitos superen el crédito (partida doble).
+                // Los campos $pago->interes_corriente y $pago->amortizacion son sumas acumulativas
+                // del crédito completo, no de este pago; se usan los details para precisión.
+                $pago->loadMissing('details');
+                if ($pago->details->isNotEmpty()) {
+                    $breakdownInteresCorr = round($pago->details->sum('pago_int_corriente') + $pago->details->sum('pago_int_vencido'), 2);
+                    $breakdownInteresMora = round($pago->details->sum('pago_mora'), 2);
+                    $breakdownPoliza      = round($pago->details->sum('pago_poliza'), 2);
+                    $breakdownCapital     = round($pago->details->sum('pago_principal'), 2);
+                } else {
+                    // Fallback para pagos históricos sin details: usar monto como base
+                    $breakdownCapital     = (float) $pago->amortizacion;
+                    $breakdownInteresCorr = round(max(0, (float) $pago->monto - $breakdownCapital), 2);
+                    $breakdownInteresMora = 0.0;
+                    $breakdownPoliza      = 0.0;
+                }
+                $montoAplicado = (float) $pago->monto;
 
                 $this->triggerAccountingEntry(
                     'ANULACION_PLANILLA',
-                    $montoTotalOriginal,
+                    $montoAplicado,
                     "ANULA-PLAN-{$pago->id}-{$credit->reference}",
                     [
                         'reference' => "ANULA-PLAN-{$pago->id}-{$credit->reference}",
@@ -284,14 +300,14 @@ class PlanillaUploadController extends Controller
                         'deductora_id' => $planilla->deductora_id,
                         'fecha_planilla' => $planilla->fecha_planilla,
                         'amount_breakdown' => [
-                            'total' => $montoTotalOriginal,
-                            'interes_corriente' => (float) $pago->interes_corriente,
-                            'interes_moratorio' => (float) $pago->interes_moratorio,
-                            'poliza' => 0,
-                            'capital' => (float) $pago->amortizacion,
-                            'sobrante' => $sobranteAnulado,
+                            'total'                    => $montoAplicado,
+                            'interes_corriente'        => $breakdownInteresCorr,
+                            'interes_moratorio'        => $breakdownInteresMora,
+                            'poliza'                   => $breakdownPoliza,
+                            'capital'                  => $breakdownCapital,
+                            'sobrante'                 => 0,
                             'cargos_adicionales_total' => 0,
-                            'cargos_adicionales' => [],
+                            'cargos_adicionales'       => [],
                         ],
                     ]
                 );
