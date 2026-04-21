@@ -1,7 +1,7 @@
 // 'use client' indica que este es un Componente de Cliente, lo que permite interactividad.
 "use client";
 import React, { useRef, useCallback, useState, useEffect, useMemo } from 'react';
-import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Info, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw, FileSpreadsheet, FileText, X, ExternalLink, Building2, User, Calendar, CreditCard, Banknote, Percent, Clock, Maximize2, Minimize2 } from 'lucide-react';
+import { MoreHorizontal, Phone, MessageSquareWarning, Upload, PlusCircle, AlertTriangle, Info, Check, Calculator, FileDown, ChevronLeft, ChevronRight, Wallet, RotateCcw, FileSpreadsheet, FileText, X, ExternalLink, Building2, User, Calendar, CreditCard, Banknote, Percent, Clock, Maximize2, Minimize2, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PermissionButton } from '@/components/PermissionButton';
@@ -331,9 +331,10 @@ const generateCertificacionDeuda = async (creditId: number, fechaCorte: string) 
 // ---------------------------------------------------------------------------
 // Panel lateral de detalle de crédito
 // ---------------------------------------------------------------------------
-function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onToggleExpand }: { credit: Credit; tab: string; onTabChange: (t: 'credito' | 'plan' | 'cliente') => void; onClose: () => void; expanded: boolean; onToggleExpand: () => void }) {
+function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onToggleExpand, allPayments = [] }: { credit: Credit; tab: string; onTabChange: (t: 'credito' | 'plan' | 'cliente') => void; onClose: () => void; expanded: boolean; onToggleExpand: () => void; allPayments?: any[] }) {
   const lead = credit.lead;
   const plan = credit.plan_de_pagos || [];
+  const creditPayments = credit.payments || allPayments.filter((p: any) => p.credit_id === credit.id);
   const fmtMoney = (v: any) => `₡${Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`;
   const fmtDate = (d: any) => {
     if (!d) return '-';
@@ -441,7 +442,42 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                 </tr>
               </thead>
               <tbody>
-                {plan.filter((p: any) => p.numero_cuota > 0).map((p: any) => (
+                {(() => {
+                  const abonosCapital = creditPayments.filter(
+                    (p: any) => p.source?.includes('Abono a Capital') && p.estado_reverso !== 'Anulado'
+                  );
+                  type Row = { type: 'cuota'; data: any } | { type: 'abono'; data: any };
+                  const rows: Row[] = [
+                    ...plan.filter((p: any) => p.numero_cuota > 0).map((p: any) => ({ type: 'cuota' as const, data: p })),
+                    ...abonosCapital.map((p: any) => ({ type: 'abono' as const, data: p })),
+                  ].sort((a, b) => {
+                    const da = a.type === 'cuota' ? a.data.fecha_corte : a.data.fecha_pago;
+                    const db = b.type === 'cuota' ? b.data.fecha_corte : b.data.fecha_pago;
+                    if (!da) return 1;
+                    if (!db) return -1;
+                    return new Date(da).getTime() - new Date(db).getTime();
+                  });
+                  return rows.map((row) => {
+                    if (row.type === 'abono') {
+                      const ab = row.data;
+                      return (
+                        <tr key={`abono-${ab.id}`} className="border-b bg-blue-50/60 hover:bg-blue-100/60">
+                          <td className="py-1.5 px-2 text-blue-500 text-center">—</td>
+                          <td className="py-1.5 px-2 whitespace-nowrap" colSpan={6}>
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
+                              {ab.source}
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-2 text-right tabular-nums font-semibold text-blue-700">{fmtMoney(ab.monto)}</td>
+                          <td className="py-1.5 px-2 text-muted-foreground" colSpan={6}>-</td>
+                          <td className="py-1.5 px-2 text-right tabular-nums font-medium text-blue-700">{fmtMoney(ab.nuevo_saldo)}</td>
+                          <td className="py-1.5 px-2 text-muted-foreground" colSpan={9}>-</td>
+                          <td className="py-1.5 px-2 text-blue-600 whitespace-nowrap">Abono a Capital</td>
+                        </tr>
+                      );
+                    }
+                    const p = row.data;
+                    return (
                   <tr key={p.numero_cuota} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="py-1.5 px-2 tabular-nums">{p.numero_cuota}</td>
                     <td className="py-1.5 px-2 whitespace-nowrap">{p.proceso || '-'}</td>
@@ -481,7 +517,9 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                     <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.movimiento_amortizacion)}</td>
                     <td className="py-1.5 px-2 whitespace-nowrap">{p.concepto || '-'}</td>
                   </tr>
-                ))}
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
@@ -898,6 +936,7 @@ export default function CobrosPage() {
   // Paginación - Gestión de Cobros
   const [cobrosPage, setCobrosPage] = useState(1);
   const [cobrosPerPage, setCobrosPerPage] = useState(10);
+  const [cobrosSearch, setCobrosSearch] = useState('');
 
   // Panel lateral de detalle de crédito
   const [panelCreditId, setPanelCreditId] = useState<number | null>(null);
@@ -1067,15 +1106,25 @@ export default function CobrosPage() {
   }, []);
 
   // Filtered credit lists using live data
+  const cobrosFiltered = useMemo(() => {
+    if (!cobrosSearch.trim()) return creditsList;
+    const q = cobrosSearch.toLowerCase().trim();
+    return creditsList.filter(c => {
+      const fullName = `${c.lead?.name || ''} ${c.lead?.apellido1 || ''} ${c.lead?.apellido2 || ''}`.toLowerCase();
+      const ref = (c.reference || c.numero_operacion || '').toLowerCase();
+      return fullName.includes(q) || ref.includes(q);
+    });
+  }, [creditsList, cobrosSearch]);
+
   const alDiaCredits = useMemo(() =>
-    creditsList.filter(c => c.status === 'Al día' || c.status === 'Formalizado'),
-    [creditsList]
+    cobrosFiltered.filter(c => c.status === 'Al día' || c.status === 'Formalizado'),
+    [cobrosFiltered]
   );
-  const mora30 = useMemo(() => filterCreditsByArrearsRange(creditsList, 1, 30), [creditsList, filterCreditsByArrearsRange]);
-  const mora60 = useMemo(() => filterCreditsByArrearsRange(creditsList, 31, 60), [creditsList, filterCreditsByArrearsRange]);
-  const mora90 = useMemo(() => filterCreditsByArrearsRange(creditsList, 61, 90), [creditsList, filterCreditsByArrearsRange]);
-  const mora180 = useMemo(() => filterCreditsByArrearsRange(creditsList, 91, 180), [creditsList, filterCreditsByArrearsRange]);
-  const mas180 = useMemo(() => filterCreditsByArrearsRange(creditsList, 181, null), [creditsList, filterCreditsByArrearsRange]);
+  const mora30 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 1, 30), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mora60 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 31, 60), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mora90 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 61, 90), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mora180 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 91, 180), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mas180 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 181, null), [cobrosFiltered, filterCreditsByArrearsRange]);
 
   const uniqueLeads = useMemo(() => {
     const leadsMap = new Map();
@@ -1671,7 +1720,19 @@ export default function CobrosPage() {
             <div className={`transition-all duration-300 overflow-hidden ${panelCredit ? (panelExpanded ? 'w-0 hidden' : 'w-[55%]') : 'w-full'}`}>
              <Tabs defaultValue="al-dia" className="w-full">
                 <Card>
-                    <CardHeader className="pt-4">
+                    <CardHeader className="pt-4 pb-2">
+                      <div className="flex items-center justify-end mb-2">
+                        <div className="relative w-56">
+                          <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="Buscar..."
+                            value={cobrosSearch}
+                            onChange={e => { setCobrosSearch(e.target.value); setCobrosPage(1); }}
+                            className="w-full pl-7 pr-3 py-1 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                      </div>
                         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                             <TabsTrigger value="al-dia">Al día ({alDiaCredits.length})</TabsTrigger>
                             <TabsTrigger value="30-dias">30 días ({mora30.length})</TabsTrigger>
@@ -1694,7 +1755,7 @@ export default function CobrosPage() {
             {/* Panel lateral de detalle */}
             {panelCredit && (
               <div className={`transition-all duration-300 shrink-0 h-[calc(100vh-220px)] sticky top-4 ${panelExpanded ? 'w-full' : 'w-[45%]'}`}>
-                <CreditDetailPanel credit={panelCredit} tab={panelTab} onTabChange={setPanelTab} onClose={() => { setPanelCreditId(null); setPanelExpanded(false); }} expanded={panelExpanded} onToggleExpand={() => setPanelExpanded(e => !e)} />
+                <CreditDetailPanel credit={panelCredit} tab={panelTab} onTabChange={setPanelTab} onClose={() => { setPanelCreditId(null); setPanelExpanded(false); }} expanded={panelExpanded} onToggleExpand={() => setPanelExpanded(e => !e)} allPayments={paymentsState} />
               </div>
             )}
           </div>
