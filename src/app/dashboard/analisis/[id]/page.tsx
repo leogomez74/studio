@@ -167,8 +167,8 @@ export default function AnalisisDetailPage() {
     try {
       setSavingEmbargo(true);
       const embargoNuevo = {
-        fecha_inicio: newEmbargo.fecha_inicio || null,
-        motivo: newEmbargo.motivo.trim() || null,
+        fecha_inicio: newEmbargo.fecha_inicio || '',
+        motivo: newEmbargo.motivo.trim() || '',
         monto: parseFloat(newEmbargo.monto) || 0,
       };
       const detallesActuales = analisis?.embargo_detalles ?? [];
