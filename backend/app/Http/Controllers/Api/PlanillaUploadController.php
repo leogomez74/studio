@@ -177,15 +177,16 @@ class PlanillaUploadController extends Controller
                             ->first();
 
                         // Fallback para datos históricos (sin saldo_pendiente_id)
+                        // Busca por monto + source + fecha, sin filtrar por credit_id
+                        // porque el saldo puede haberse aplicado a un crédito diferente al origen
                         if (!$pagoSaldo && $saldo->asignado_at) {
-                            $pagoSaldo = CreditPayment::where('credit_id', $saldo->credit_id)
-                                ->where(function($q) {
-                                    $q->where('source', 'Saldo Pendiente')
-                                      ->orWhere('source', 'like', '%Saldo Pendiente%')
-                                      ->orWhere('source', 'like', '%Capital%Saldo%')
-                                      ->orWhere('source', 'like', '%Abono a Capital%');
+                            $pagoSaldo = CreditPayment::where(function($q) {
+                                    $q->where('source', 'like', '%Abono a Capital%')
+                                      ->orWhere('source', 'Saldo Pendiente')
+                                      ->orWhere('source', 'like', '%Saldo Pendiente%');
                                 })
-                                ->whereNotIn('estado', ['Reversado'])
+                                ->where('monto', $saldo->monto)
+                                ->whereNotIn('estado_reverso', ['Anulado'])
                                 ->whereBetween('created_at', [
                                     \Carbon\Carbon::parse($saldo->asignado_at)->subDays(2),
                                     \Carbon\Carbon::parse($saldo->asignado_at)->addDays(2),
@@ -243,6 +244,16 @@ class PlanillaUploadController extends Controller
                                     'clienteNombre'  => $credit->lead->name ?? null,
                                     'deductora_id'   => $credit->deductora_id,
                                     'saldo_id'       => $saldo->id,
+                                    'amount_breakdown' => [
+                                        'total'                    => (float) $pagoSaldo->monto,
+                                        'capital'                  => (float) $pagoSaldo->monto,
+                                        'interes_corriente'        => 0,
+                                        'interes_moratorio'        => 0,
+                                        'poliza'                   => 0,
+                                        'sobrante'                 => 0,
+                                        'cargos_adicionales_total' => 0,
+                                        'cargos_adicionales'       => [],
+                                    ],
                                 ]
                             );
                         }
