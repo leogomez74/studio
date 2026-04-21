@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Plus } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -157,6 +157,44 @@ export default function AnalisisDetailPage() {
   const [manchasOpen, setManchasOpen] = useState(false);
   const [juiciosOpen, setJuiciosOpen] = useState(false);
   const [embargosOpen, setEmbargosOpen] = useState(false);
+
+  // Estados para agregar embargo manual
+  const [embargoDialogOpen, setEmbargoDialogOpen] = useState(false);
+  const [newEmbargo, setNewEmbargo] = useState({ fecha_inicio: '', motivo: '', monto: '' });
+  const [savingEmbargo, setSavingEmbargo] = useState(false);
+
+  const handleAddEmbargo = async () => {
+    if (!newEmbargo.fecha_inicio || !newEmbargo.motivo.trim()) {
+      toast({ title: 'Error', description: 'La fecha y el motivo son requeridos.', variant: 'destructive' });
+      return;
+    }
+    try {
+      setSavingEmbargo(true);
+      const embargoNuevo = {
+        fecha_inicio: newEmbargo.fecha_inicio,
+        motivo: newEmbargo.motivo.trim(),
+        monto: parseFloat(newEmbargo.monto) || 0,
+      };
+      const detallesActuales = analisis?.embargo_detalles ?? [];
+      const nuevosDetalles = [...detallesActuales, embargoNuevo];
+      await api.put(`/api/analisis/${analisisId}`, {
+        embargos_detalle: nuevosDetalles,
+        numero_embargos: nuevosDetalles.length,
+      });
+      setAnalisis(prev => prev ? {
+        ...prev,
+        embargo_detalles: nuevosDetalles,
+        numero_embargos: nuevosDetalles.length,
+      } : null);
+      setEmbargoDialogOpen(false);
+      setNewEmbargo({ fecha_inicio: '', motivo: '', monto: '' });
+      toast({ title: 'Embargo registrado', description: 'El embargo se agregó correctamente.' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo guardar el embargo.', variant: 'destructive' });
+    } finally {
+      setSavingEmbargo(false);
+    }
+  };
 
   // Estados para consulta Credid
   const [credidLoading, setCredidLoading] = useState(false);
@@ -1096,9 +1134,19 @@ export default function AnalisisDetailPage() {
                       Embargos
                       {embargosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </span>
-                    <Badge variant={(analisis.numero_embargos ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
-                      {analisis.numero_embargos || 0}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={(analisis.numero_embargos ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                        {analisis.numero_embargos || 0}
+                      </Badge>
+                      <span
+                        role="button"
+                        onClick={e => { e.stopPropagation(); setEmbargoDialogOpen(true); }}
+                        className="p-1 rounded hover:bg-purple-200 text-purple-700 transition-colors"
+                        title="Agregar embargo manual"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </span>
+                    </div>
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -1119,6 +1167,56 @@ export default function AnalisisDetailPage() {
                   )}
                 </CollapsibleContent>
               </Collapsible>
+
+              {/* Dialog: agregar embargo manual */}
+              <Dialog open={embargoDialogOpen} onOpenChange={open => { setEmbargoDialogOpen(open); if (!open) setNewEmbargo({ fecha_inicio: '', motivo: '', monto: '' }); }}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Agregar embargo</DialogTitle>
+                    <DialogDescription>Registra un embargo que no aparece en CREDID.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 py-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="embargo-fecha">Fecha de inicio *</Label>
+                      <Input
+                        id="embargo-fecha"
+                        type="date"
+                        value={newEmbargo.fecha_inicio}
+                        onChange={e => setNewEmbargo(prev => ({ ...prev, fecha_inicio: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="embargo-motivo">Motivo / Acreedor *</Label>
+                      <Input
+                        id="embargo-motivo"
+                        placeholder="Ej. Banco Nacional — Cobro judicial"
+                        value={newEmbargo.motivo}
+                        onChange={e => setNewEmbargo(prev => ({ ...prev, motivo: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="embargo-monto">Monto (₡)</Label>
+                      <Input
+                        id="embargo-monto"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={newEmbargo.monto}
+                        onChange={e => setNewEmbargo(prev => ({ ...prev, monto: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setEmbargoDialogOpen(false)} disabled={savingEmbargo}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleAddEmbargo} disabled={savingEmbargo}>
+                      {savingEmbargo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Guardar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
 
