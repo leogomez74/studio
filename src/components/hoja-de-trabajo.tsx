@@ -386,10 +386,13 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
   const otroEmbargoNum = parseFloat(otroEmbargo) || 0;
   const embargoActualNum = parseFloat(embargoActual) || 0;
-  const embargoPorNuevoCredito = otroEmbargoNum > 0
-    ? Math.max(0, totalEmbargo - otroEmbargoNum)  // embargada: solo la diferencia
-    : totalEmbargo;                                 // libre: restar todo el máximo embargable
-  const salarioCastigado = Math.max(0, minSalarioMeses - embargoPorNuevoCredito - embargoActualNum);
+  // embargoActual resta del máx embargable → solo la diferencia castiga el salario
+  const embargoPorNuevoCredito = embargoActualNum > 0
+    ? Math.max(0, totalEmbargo - embargoActualNum)
+    : otroEmbargoNum > 0
+      ? Math.max(0, totalEmbargo - otroEmbargoNum)
+      : totalEmbargo;
+  const salarioCastigado = Math.max(0, minSalarioMeses - embargoPorNuevoCredito);
   const capacidadReal = Math.round(salarioCastigado * 0.25);
   const cuotaSuperaCapacidad = cuotaCalculada > 0 && minSalarioMeses > 0 && cuotaCalculada > capacidadReal;
 
@@ -1035,15 +1038,9 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                       <span>{fmt(minSalarioMeses)}</span>
                     </div>
                     <div className="flex justify-between text-orange-600">
-                      <span>− {otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
+                      <span>− {embargoActualNum > 0 ? 'Disponible nuevo crédito' : otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
                       <span>{fmt(embargoPorNuevoCredito)}</span>
                     </div>
-                    {embargoActualNum > 0 && (
-                      <div className="flex justify-between text-orange-600">
-                        <span>− Embargo Actual</span>
-                        <span>{fmt(embargoActualNum)}</span>
-                      </div>
-                    )}
                     <div className="flex justify-between font-semibold border-t pt-1 text-slate-700">
                       <span>= Sal. Castigado</span>
                       <span>{fmt(salarioCastigado)}</span>
