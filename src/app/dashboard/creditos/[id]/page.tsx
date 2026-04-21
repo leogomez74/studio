@@ -2196,8 +2196,54 @@ function CreditDetailClient({ id }: { id: string }) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 ? (
-                        credit.plan_de_pagos.map((payment) => (
+                      {credit.plan_de_pagos && credit.plan_de_pagos.length > 0 ? (() => {
+                        // Intercalar abonos a capital como filas especiales
+                        const abonosCapital = (credit.payments || []).filter(
+                          (p: any) => p.source?.includes('Abono a Capital') && p.estado_reverso !== 'Anulado'
+                        );
+                        type PlanRow = { type: 'cuota'; data: any } | { type: 'abono'; data: any };
+                        const rows: PlanRow[] = [
+                          ...credit.plan_de_pagos.map((p: any) => ({ type: 'cuota' as const, data: p })),
+                          ...abonosCapital.map((p: any) => ({ type: 'abono' as const, data: p })),
+                        ].sort((a, b) => {
+                          const da = a.type === 'cuota' ? a.data.fecha_corte : a.data.fecha_pago;
+                          const db = b.type === 'cuota' ? b.data.fecha_corte : b.data.fecha_pago;
+                          if (!da) return 1;
+                          if (!db) return -1;
+                          return new Date(da).getTime() - new Date(db).getTime();
+                        });
+                        return rows.map((row) => {
+                          if (row.type === 'abono') {
+                            const ab = row.data;
+                            return (
+                              <TableRow key={`abono-${ab.id}`} className="bg-blue-50/60 hover:bg-blue-100/60">
+                                <TableCell className="text-xs text-center font-semibold text-blue-700">—</TableCell>
+                                <TableCell className="text-xs" colSpan={6}>
+                                  <Badge variant="outline" className="text-[10px] h-5 bg-blue-50 text-blue-700 border-blue-300">
+                                    {ab.source}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs text-right font-mono font-semibold text-blue-700">
+                                  {formatCurrency(ab.monto)}
+                                </TableCell>
+                                <TableCell className="text-xs" colSpan={6}>-</TableCell>
+                                <TableCell className="text-xs text-right font-mono text-blue-700">
+                                  {formatCurrency(ab.nuevo_saldo)}
+                                </TableCell>
+                                <TableCell className="text-xs" colSpan={14}>-</TableCell>
+                                <TableCell className="text-xs">Abono a Capital</TableCell>
+                                <TableCell className="text-xs text-center">
+                                  <Link href={`/dashboard/cobros/recibo/${ab.id}`}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                                      <Receipt className="h-4 w-4 text-blue-600" />
+                                    </Button>
+                                  </Link>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+                          const payment = row.data;
+                          return (
                           <TableRow key={payment.id} className="hover:bg-muted/50">
                             <TableCell className="text-xs text-center">{payment.numero_cuota}</TableCell>
                             <TableCell className="text-xs">{payment.proceso || "-"}</TableCell>
@@ -2254,8 +2300,9 @@ function CreditDetailClient({ id }: { id: string }) {
                               })()}
                             </TableCell>
                           </TableRow>
-                        ))
-                      ) : (
+                          );
+                        });
+                      })() : (
                         <TableRow>
                           <TableCell colSpan={33} className="text-center py-12">
                             <div className="flex flex-col items-center gap-4">
