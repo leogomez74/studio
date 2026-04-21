@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Plus } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -189,6 +189,33 @@ export default function AnalisisDetailPage() {
       toast({ title: 'Error', description: 'No se pudo guardar el embargo.', variant: 'destructive' });
     } finally {
       setSavingEmbargo(false);
+    }
+  };
+
+  // Estados para eliminar embargo
+  const [deleteEmbargoIdx, setDeleteEmbargoIdx] = useState<number | null>(null);
+  const [deletingEmbargo, setDeletingEmbargo] = useState(false);
+
+  const handleDeleteEmbargo = async () => {
+    if (deleteEmbargoIdx === null) return;
+    try {
+      setDeletingEmbargo(true);
+      const nuevosDetalles = (analisis?.embargo_detalles ?? []).filter((_: any, i: number) => i !== deleteEmbargoIdx);
+      await api.put(`/api/analisis/${analisisId}`, {
+        embargos_detalle: nuevosDetalles,
+        numero_embargos: nuevosDetalles.length,
+      });
+      setAnalisis(prev => prev ? {
+        ...prev,
+        embargo_detalles: nuevosDetalles,
+        numero_embargos: nuevosDetalles.length,
+      } : null);
+      setDeleteEmbargoIdx(null);
+      toast({ title: 'Embargo eliminado', description: 'El embargo fue eliminado correctamente.' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo eliminar el embargo.', variant: 'destructive' });
+    } finally {
+      setDeletingEmbargo(false);
     }
   };
 
@@ -1150,8 +1177,17 @@ export default function AnalisisDetailPage() {
                     <div className="mt-2 space-y-2 pl-4">
                       {analisis.embargo_detalles.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
-                          <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
-                          <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}</p>
+                          <div className="flex items-start justify-between">
+                            <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
+                            <button
+                              onClick={() => setDeleteEmbargoIdx(idx)}
+                              className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors ml-2 flex-shrink-0"
+                              title="Eliminar embargo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-gray-600">Inicio: {embargo.fecha_inicio ? new Date(embargo.fecha_inicio).toLocaleDateString('es-CR') : 'Sin fecha'}</p>
                           <p className="text-purple-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(embargo.monto)}
                           </p>
@@ -1163,6 +1199,25 @@ export default function AnalisisDetailPage() {
                   )}
                 </CollapsibleContent>
               </Collapsible>
+
+              {/* Dialog: confirmar eliminar embargo */}
+              <Dialog open={deleteEmbargoIdx !== null} onOpenChange={open => { if (!open) setDeleteEmbargoIdx(null); }}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Eliminar embargo</DialogTitle>
+                    <DialogDescription>¿Estás seguro de que deseas eliminar este embargo? Esta acción no se puede deshacer.</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteEmbargoIdx(null)} disabled={deletingEmbargo}>
+                      Cancelar
+                    </Button>
+                    <Button variant="destructive" onClick={handleDeleteEmbargo} disabled={deletingEmbargo}>
+                      {deletingEmbargo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Eliminar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {/* Dialog: agregar embargo manual */}
               <Dialog open={embargoDialogOpen} onOpenChange={open => { setEmbargoDialogOpen(open); if (!open) setNewEmbargo({ fecha_inicio: '', motivo: '', monto: '' }); }}>
