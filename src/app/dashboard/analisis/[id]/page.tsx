@@ -164,15 +164,11 @@ export default function AnalisisDetailPage() {
   const [savingEmbargo, setSavingEmbargo] = useState(false);
 
   const handleAddEmbargo = async () => {
-    if (!newEmbargo.fecha_inicio || !newEmbargo.motivo.trim()) {
-      toast({ title: 'Error', description: 'La fecha y el motivo son requeridos.', variant: 'destructive' });
-      return;
-    }
     try {
       setSavingEmbargo(true);
       const embargoNuevo = {
-        fecha_inicio: newEmbargo.fecha_inicio,
-        motivo: newEmbargo.motivo.trim(),
+        fecha_inicio: newEmbargo.fecha_inicio || null,
+        motivo: newEmbargo.motivo.trim() || null,
         monto: parseFloat(newEmbargo.monto) || 0,
       };
       const detallesActuales = analisis?.embargo_detalles ?? [];
@@ -1177,7 +1173,7 @@ export default function AnalisisDetailPage() {
                   </DialogHeader>
                   <div className="space-y-3 py-2">
                     <div className="space-y-1">
-                      <Label htmlFor="embargo-fecha">Fecha de inicio *</Label>
+                      <Label htmlFor="embargo-fecha">Fecha de inicio</Label>
                       <Input
                         id="embargo-fecha"
                         type="date"
@@ -1186,7 +1182,7 @@ export default function AnalisisDetailPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="embargo-motivo">Motivo / Acreedor *</Label>
+                      <Label htmlFor="embargo-motivo">Motivo / Acreedor</Label>
                       <Input
                         id="embargo-motivo"
                         placeholder="Ej. Banco Nacional — Cobro judicial"
