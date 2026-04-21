@@ -334,7 +334,7 @@ const generateCertificacionDeuda = async (creditId: number, fechaCorte: string) 
 function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onToggleExpand, allPayments = [] }: { credit: Credit; tab: string; onTabChange: (t: 'credito' | 'plan' | 'cliente') => void; onClose: () => void; expanded: boolean; onToggleExpand: () => void; allPayments?: any[] }) {
   const lead = credit.lead;
   const plan = credit.plan_de_pagos || [];
-  const creditPayments = credit.payments || allPayments.filter((p: any) => p.credit_id === credit.id);
+  const creditPayments = (credit as any).payments || allPayments.filter((p: any) => p.credit_id === credit.id);
   const fmtMoney = (v: any) => `₡${Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}`;
   const fmtDate = (d: any) => {
     if (!d) return '-';
