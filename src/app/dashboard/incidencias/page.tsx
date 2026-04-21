@@ -30,6 +30,8 @@ interface BugImage {
 interface BugItem {
   id: number;
   reference: string;
+  jira_key: string | null;
+  archived_at: string | null;
   title: string;
   description: string | null;
   status: 'abierto' | 'en_progreso' | 'en_revision' | 'cerrado';
@@ -40,6 +42,7 @@ interface BugItem {
   created_at: string;
   updated_at: string;
   assignee: { id: number; name: string } | null;
+  assignees: { id: number; name: string }[];
   creator: { id: number; name: string } | null;
   images: BugImage[];
 }
@@ -47,6 +50,21 @@ interface BugItem {
 interface UserOption {
   id: number;
   name: string;
+}
+
+interface Subtask {
+  key: string;
+  summary: string;
+  status: string;
+  assignee: string | null;
+  url: string;
+}
+
+interface JiraUser {
+  accountId: string;
+  displayName: string;
+  email: string | null;
+  avatar: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,10 +89,15 @@ export default function IncidenciasPage() {
   const { toast } = useToast();
   const [bugs, setBugs] = useState<BugItem[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [jiraUsers, setJiraUsers] = useState<JiraUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterUser, setFilterUser] = useState<string>('all');
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivedBugs, setArchivedBugs] = useState<BugItem[]>([]);
+  const [jiraConnected, setJiraConnected] = useState<boolean | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -82,14 +105,22 @@ export default function IncidenciasPage() {
   const [selectedBug, setSelectedBug] = useState<BugItem | null>(null);
 
   // Create form
+  const [formJiraAssignee, setFormJiraAssignee] = useState<string>('');
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formPriority, setFormPriority] = useState<string>('media');
-  const [formAssignee, setFormAssignee] = useState<string>('');
+  const [formAssignees, setFormAssignees] = useState<number[]>([]);
   const [formImages, setFormImages] = useState<File[]>([]);
   const [creating, setCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreviews, setImagePreviews] = useState<{ file: File; url: string }[]>([]);
+
+  // Subtareas Jira
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [loadingSubtasks, setLoadingSubtasks] = useState(false);
+  const [newSubtask, setNewSubtask] = useState('');
+  const [newSubtaskAssignee, setNewSubtaskAssignee] = useState('');
+  const [creatingSubtask, setCreatingSubtask] = useState(false);
 
   // Drag & drop
   const [draggedBug, setDraggedBug] = useState<BugItem | null>(null);
@@ -152,6 +183,38 @@ export default function IncidenciasPage() {
     }
   }, []);
 
+  // ── Polling Jira — refresca cada 15s cuando el modal está abierto ────────────
+  useEffect(() => {
+    if (!showDetailModal || !selectedBug) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get(`/api/bugs/${selectedBug.id}`);
+        const updated = res.data;
+        // Actualizar bug en la lista y en el modal si cambió en Jira
+        setBugs(prev => prev.map(b => b.id === updated.id ? updated : b));
+        setSelectedBug(prev => {
+          if (!prev || prev.id !== updated.id) return prev;
+          // Solo actualizar si hay cambios reales
+          if (prev.status !== updated.status || prev.priority !== updated.priority ||
+              prev.title !== updated.title || prev.assigned_to !== updated.assigned_to) {
+            return updated;
+          }
+          return prev;
+        });
+      } catch { /* silencioso */ }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [showDetailModal, selectedBug?.id]);
+
+  // ── Polling global — sincroniza con Jira y refresca el kanban cada 10 minutos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (jiraConnected) api.post('/api/jira/sync').catch(() => {});
+      fetchBugs();
+    }, 600000);
+    return () => clearInterval(interval);
+  }, [fetchBugs, jiraConnected]);
+
   useEffect(() => {
     Promise.all([
       api.get('/api/bugs'),
@@ -162,13 +225,31 @@ export default function IncidenciasPage() {
     }).catch(() => {
       toast({ title: 'Error', description: 'Error al cargar datos', variant: 'destructive' });
     }).finally(() => setLoading(false));
+
+    // Jira users, status y auto-sync al entrar
+    api.get('/api/jira/users').then(res => setJiraUsers(res.data || [])).catch(() => setJiraUsers([]));
+    api.get('/api/jira/status').then(res => {
+      const connected = res.data?.connected ?? false;
+      setJiraConnected(connected);
+      if (connected) api.post('/api/jira/sync').then(() => fetchBugs()).catch(() => {});
+    }).catch(() => setJiraConnected(false));
   }, []);
 
   // ── Filtrado ──────────────────────────────────────────────────────────────────
   const filteredBugs = bugs.filter(b => {
     if (search && !b.title.toLowerCase().includes(search.toLowerCase()) && !b.reference.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterPriority !== 'all' && b.priority !== filterPriority) return false;
-    if (filterUser !== 'all' && String(b.assigned_to) !== filterUser) return false;
+    if (filterUser !== 'all') {
+      if (jiraUsers.length > 0) {
+        // Filtrar por nombre del assignee comparando con displayName de Jira
+        const jiraUser = jiraUsers.find(u => u.accountId === filterUser);
+        if (!jiraUser) return false;
+        const assigneeName = b.assignee?.name?.toLowerCase() || '';
+        if (!assigneeName.includes(jiraUser.displayName.split(' ')[0].toLowerCase())) return false;
+      } else {
+        if (String(b.assigned_to) !== filterUser) return false;
+      }
+    }
     return true;
   });
 
@@ -180,13 +261,28 @@ export default function IncidenciasPage() {
     if (!formTitle.trim()) return;
     setCreating(true);
     try {
+      // Mapear primer asignado de Studio → cuenta Jira por nombre
+      const primaryUser = formAssignees.length > 0 ? users.find(u => u.id === formAssignees[0]) : null;
+      const jiraAccountId = primaryUser
+        ? (jiraUsers.find(u => u.displayName.toLowerCase().includes(primaryUser.name.split(' ')[0].toLowerCase()))?.accountId ?? null)
+        : null;
+
+      const primaryId = formAssignees[0] ?? null;
+
       const res = await api.post('/api/bugs', {
         title: formTitle.trim(),
         description: formDesc.trim() || null,
         priority: formPriority,
-        assigned_to: formAssignee || null,
+        assigned_to: primaryId,
+        jira_assignee_id: jiraAccountId,
       });
       const newBug = res.data;
+
+      // Sincronizar todos los asignados
+      if (formAssignees.length > 0) {
+        const assignRes = await api.patch(`/api/bugs/${newBug.id}/assignees`, { user_ids: formAssignees });
+        newBug.assignees = assignRes.data.assignees;
+      }
 
       // Subir imágenes si hay
       if (formImages.length > 0) {
@@ -215,7 +311,8 @@ export default function IncidenciasPage() {
     setFormTitle('');
     setFormDesc('');
     setFormPriority('media');
-    setFormAssignee('');
+    setFormAssignees([]);
+    setFormJiraAssignee('');
     setFormImages([]);
     setImagePreviews([]);
   };
@@ -269,6 +366,44 @@ export default function IncidenciasPage() {
   };
 
   // ── Eliminar bug ──────────────────────────────────────────────────────────────
+  const handleArchive = async (bugId: number) => {
+    const result = await Swal.fire({
+      title: '¿Archivar incidencia?',
+      text: 'Se ocultará del kanban y se cerrará en Jira.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, archivar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#6b7280',
+      cancelButtonColor: '#3b82f6',
+      customClass: { container: 'swal-over-modal' },
+      didOpen: () => { document.body.style.pointerEvents = 'auto'; },
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await api.patch(`/api/bugs/${bugId}/archive`);
+      setBugs(prev => prev.filter(b => b.id !== bugId));
+      setShowDetailModal(false);
+      setSelectedBug(null);
+      toast({ title: 'Archivada', description: 'Incidencia archivada y cerrada en Jira' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo archivar', variant: 'destructive' });
+    }
+  };
+
+  const handleSyncJira = async () => {
+    setSyncing(true);
+    try {
+      const res = await api.post('/api/jira/sync');
+      await fetchBugs();
+      toast({ title: 'Sincronización completa', description: `${res.data.created} creadas, ${res.data.updated} actualizadas de ${res.data.total} tareas en Jira` });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo sincronizar con Jira', variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleDelete = async (bugId: number) => {
     const result = await Swal.fire({
       title: '¿Eliminar incidencia?',
@@ -311,6 +446,25 @@ export default function IncidenciasPage() {
   };
 
   // ── Delete imagen ─────────────────────────────────────────────────────────────
+  const handleCreateSubtask = async () => {
+    if (!newSubtask.trim() || !selectedBug) return;
+    setCreatingSubtask(true);
+    try {
+      const res = await api.post(`/api/bugs/${selectedBug.id}/subtasks`, {
+        title: newSubtask.trim(),
+        assignee_id: newSubtaskAssignee && newSubtaskAssignee !== 'none' ? newSubtaskAssignee : null,
+      });
+      setSubtasks(prev => [...prev, { key: res.data.key, summary: newSubtask.trim(), status: 'Tareas por hacer', assignee: null, url: `https://ssccr.atlassian.net/browse/${res.data.key}` }]);
+      setNewSubtask('');
+      setNewSubtaskAssignee('');
+      toast({ title: 'Subtarea creada', description: `${res.data.key} creada en Jira` });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo crear la subtarea', variant: 'destructive' });
+    } finally {
+      setCreatingSubtask(false);
+    }
+  };
+
   const handleDeleteImage = async (bugId: number, imageId: number) => {
     try {
       await api.delete(`/api/bugs/${bugId}/images/${imageId}`);
@@ -388,11 +542,21 @@ export default function IncidenciasPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
-              {users.map(u => (
-                <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-              ))}
+              {jiraUsers.length > 0
+                ? jiraUsers.map(u => (
+                    <SelectItem key={u.accountId} value={u.accountId}>{u.displayName}</SelectItem>
+                  ))
+                : users.map(u => (
+                    <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                  ))
+              }
             </SelectContent>
           </Select>
+          {/* Indicador de conexión Jira */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border bg-white text-xs">
+            <span className={`w-2 h-2 rounded-full ${jiraConnected === null ? 'bg-gray-300 animate-pulse' : jiraConnected ? 'bg-green-500' : 'bg-red-400'}`} />
+            <span className="text-muted-foreground">{jiraConnected ? 'Jira' : 'Sin Jira'}</span>
+          </div>
           <Button onClick={() => setShowCreateModal(true)} size="sm" className="h-8 gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs">
             <Plus className="h-3.5 w-3.5" />
             Nueva Incidencia
@@ -424,7 +588,7 @@ export default function IncidenciasPage() {
               </div>
 
               {/* Column Body */}
-              <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[200px]">
+              <div className="overflow-y-auto p-2 space-y-2" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                 {items.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
                     <Bug className="h-6 w-6 mb-1" />
@@ -439,7 +603,20 @@ export default function IncidenciasPage() {
                       key={bug.id}
                       draggable
                       onDragStart={() => handleDragStart(bug)}
-                      onClick={() => { setSelectedBug(bug); setShowDetailModal(true); }}
+                      onClick={() => {
+                        setSelectedBug(bug);
+                        setShowDetailModal(true);
+                        setSubtasks([]);
+                        setNewSubtask('');
+                        setNewSubtaskAssignee('');
+                        if (bug.jira_key) {
+                          setLoadingSubtasks(true);
+                          api.get(`/api/bugs/${bug.id}/subtasks`)
+                            .then(r => setSubtasks(r.data || []))
+                            .catch(() => {})
+                            .finally(() => setLoadingSubtasks(false));
+                        }
+                      }}
                       className={`group bg-white rounded-lg border border-slate-200 p-2.5 cursor-pointer
                         hover:border-slate-300 hover:shadow-md transition-all duration-150
                         ${draggedBug?.id === bug.id ? 'opacity-40 scale-95' : ''}`}
@@ -476,18 +653,30 @@ export default function IncidenciasPage() {
                         </div>
                       )}
 
-                      {/* Footer: assignee + date */}
+                      {/* Footer: assignees + date */}
                       <div className="flex items-center justify-between">
-                        {bug.assignee ? (
-                          <div className="flex items-center gap-1">
-                            <div className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[8px] font-bold">
-                              {bug.assignee.name.charAt(0)}
+                        {(() => {
+                          // Usa multi-assignees si existen, si no fallback al assignee simple
+                          const all = bug.assignees?.length > 0
+                            ? bug.assignees
+                            : (bug.assignee ? [bug.assignee] : []);
+                          return all.length > 0 ? (
+                            <div className="flex items-center -space-x-1">
+                              {all.slice(0, 3).map(a => (
+                                <div key={a.id} title={a.name} className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 border border-white flex items-center justify-center text-[8px] font-bold">
+                                  {a.name.charAt(0)}
+                                </div>
+                              ))}
+                              {all.length > 3 && (
+                                <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 border border-white flex items-center justify-center text-[8px] font-bold">
+                                  +{all.length - 3}
+                                </div>
+                              )}
                             </div>
-                            <span className="text-[10px] text-muted-foreground">{bug.assignee.name.split(' ')[0]}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-300 italic">Sin asignar</span>
-                        )}
+                          ) : (
+                            <span className="text-[10px] text-slate-300 italic">Sin asignar</span>
+                          );
+                        })()}
                         <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
                           <Clock className="h-2.5 w-2.5" />
                           {new Date(bug.created_at).toLocaleDateString('es-CR', { day: '2-digit', month: 'short' })}
@@ -500,6 +689,44 @@ export default function IncidenciasPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Sección Archivadas ───────────────────────────────────────────────── */}
+      <div className="mt-4 border-t pt-3">
+        <button
+          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-slate-700 transition"
+          onClick={() => {
+            setShowArchived(v => {
+              if (!v) api.get('/api/bugs/archived').then(r => setArchivedBugs(r.data || []));
+              return !v;
+            });
+          }}
+        >
+          <span className={`transition-transform ${showArchived ? 'rotate-90' : ''}`}>▶</span>
+          Archivadas {archivedBugs.length > 0 && `(${archivedBugs.length})`}
+        </button>
+        {showArchived && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {archivedBugs.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic col-span-3">Sin incidencias archivadas</p>
+            ) : archivedBugs.map(bug => {
+              const prio = PRIORITY_CONFIG[bug.priority];
+              return (
+                <div key={bug.id} className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 opacity-75">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-mono text-muted-foreground">{bug.reference}</span>
+                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 ${prio.badgeCls}`}>{prio.label}</Badge>
+                  </div>
+                  <p className="text-xs font-medium text-slate-600 line-clamp-1 mb-1">{bug.title}</p>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>{bug.jira_key && <span className="text-blue-500">{bug.jira_key}</span>}</span>
+                    <span>{bug.archived_at ? new Date(bug.archived_at).toLocaleDateString('es-CR') : ''}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Modal: Crear Incidencia ──────────────────────────────────────────── */}
@@ -536,14 +763,32 @@ export default function IncidenciasPage() {
               </div>
               <div>
                 <Label className="text-xs">Asignar a</Label>
-                <Select value={formAssignee} onValueChange={setFormAssignee}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
-                  <SelectContent>
-                    {users.map(u => (
-                      <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="mt-1 border rounded-md p-1.5 bg-white min-h-[36px] flex flex-wrap gap-1 items-center">
+                  {formAssignees.map(id => {
+                    const u = users.find(x => x.id === id);
+                    if (!u) return null;
+                    return (
+                      <span key={id} className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full">
+                        {u.name.split(' ')[0]}
+                        <button type="button" className="hover:text-red-600 font-bold"
+                          onClick={() => setFormAssignees(prev => prev.filter(x => x !== id))}>×</button>
+                      </span>
+                    );
+                  })}
+                  <Select onValueChange={val => {
+                    const id = Number(val);
+                    if (!formAssignees.includes(id)) setFormAssignees(prev => [...prev, id]);
+                  }}>
+                    <SelectTrigger className="h-7 text-xs w-auto border-dashed border-indigo-300 text-indigo-500 px-2 flex-1 min-w-[100px]">
+                      <SelectValue placeholder="+ Agregar persona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.filter(u => !formAssignees.includes(u.id)).map(u => (
+                        <SelectItem key={u.id} value={String(u.id)} className="text-xs">{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
@@ -611,10 +856,23 @@ export default function IncidenciasPage() {
             return (
               <>
                 <DialogHeader>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-mono text-muted-foreground bg-slate-100 px-2 py-0.5 rounded">{b.reference}</span>
                     <Badge variant="outline" className={`text-[10px] ${prio.badgeCls}`}>{prio.label}</Badge>
+                    {b.jira_key && (
+                      <a
+                        href={`https://ssccr.atlassian.net/browse/${b.jira_key}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-mono bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 transition"
+                      >
+                        <span className="font-bold">J</span> {b.jira_key}
+                      </a>
+                    )}
                     <div className="ml-auto flex items-center gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50" onClick={() => handleArchive(b.id)}>
+                        <span className="text-[10px]">Archivar</span>
+                      </Button>
                       <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(b.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -650,16 +908,39 @@ export default function IncidenciasPage() {
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground uppercase">Asignado a</Label>
-                      <Select value={b.assigned_to ? String(b.assigned_to) : 'none'} onValueChange={val => handleUpdateBug(b.id, { assigned_to: val === 'none' ? null : Number(val) } as Partial<BugItem>)}>
-                        <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sin asignar</SelectItem>
-                          {users.map(u => (
-                            <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-[10px] text-muted-foreground uppercase">Asignados</Label>
+                      <div className="mt-1 border rounded-md p-1.5 bg-white min-h-[32px] flex flex-wrap gap-1">
+                        {(b.assignees || []).map(u => (
+                          <span key={u.id} className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.5 rounded-full">
+                            {u.name.split(' ')[0]}
+                            <button type="button" className="hover:text-red-600"
+                              onClick={() => {
+                                const ids = (b.assignees || []).filter(a => a.id !== u.id).map(a => a.id);
+                                api.patch(`/api/bugs/${b.id}/assignees`, { user_ids: ids }).then(r => {
+                                  setBugs(prev => prev.map(x => x.id === b.id ? r.data : x));
+                                  setSelectedBug(r.data);
+                                });
+                              }}>×</button>
+                          </span>
+                        ))}
+                        <Select onValueChange={val => {
+                          const current = (b.assignees || []).map(a => a.id);
+                          if (current.includes(Number(val))) return;
+                          api.patch(`/api/bugs/${b.id}/assignees`, { user_ids: [...current, Number(val)] }).then(r => {
+                            setBugs(prev => prev.map(x => x.id === b.id ? r.data : x));
+                            setSelectedBug(r.data);
+                          });
+                        }}>
+                          <SelectTrigger className="h-6 text-[10px] w-auto border-dashed border-indigo-300 text-indigo-600 px-1.5">
+                            <span>+ Agregar</span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {users.filter(u => !(b.assignees || []).some(a => a.id === u.id)).map(u => (
+                              <SelectItem key={u.id} value={String(u.id)} className="text-xs">{u.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
 
@@ -716,6 +997,70 @@ export default function IncidenciasPage() {
                       </div>
                     )}
                   </div>
+
+                  <Separator />
+
+                  {/* Subtareas Jira */}
+                  {b.jira_key && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-blue-600 text-white text-[8px] font-bold">J</span>
+                          Subtareas Jira
+                        </Label>
+                      </div>
+
+                      {/* Lista de subtareas existentes */}
+                      {loadingSubtasks ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Cargando...
+                        </div>
+                      ) : subtasks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic mb-2">Sin subtareas</p>
+                      ) : (
+                        <div className="space-y-1 mb-3">
+                          {subtasks.map(s => (
+                            <a key={s.key} href={s.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center justify-between p-2 rounded border border-slate-100 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 transition group">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-[10px] font-mono text-blue-600 shrink-0">{s.key}</span>
+                                <span className="text-xs text-slate-700 truncate">{s.summary}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 ml-2">
+                                {s.assignee && <span className="text-[10px] text-muted-foreground">{s.assignee.split(' ')[0]}</span>}
+                                <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">{s.status}</span>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Crear nueva subtarea */}
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          value={newSubtask}
+                          onChange={e => setNewSubtask(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleCreateSubtask()}
+                          placeholder="Nueva subtarea..."
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Select value={newSubtaskAssignee} onValueChange={setNewSubtaskAssignee}>
+                          <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Asignar" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin asignar</SelectItem>
+                            {jiraUsers.map(u => (
+                              <SelectItem key={u.accountId} value={u.accountId}>{u.displayName.split(' ')[0]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white px-2"
+                          disabled={!newSubtask.trim() || creatingSubtask}
+                          onClick={handleCreateSubtask}>
+                          {creatingSubtask ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <Separator />
 

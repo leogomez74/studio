@@ -33,7 +33,7 @@ export interface VendedorRow {
   tier_activo_nombre: string;
   tier_porcentaje: number | null;
   ultima_actividad: string | null;
-  posicion: number;
+  posicion: number | null;
 }
 
 interface VendedoresTableProps {
@@ -50,7 +50,8 @@ type SortKey = 'posicion' | 'creditos_mes' | 'monto_colocado' | 'alcance_pct' | 
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CR', { style: 'currency', currency: 'CRC', maximumFractionDigits: 0 }).format(n);
 
-function MedalBadge({ posicion }: { posicion: number }) {
+function MedalBadge({ posicion }: { posicion: number | null }) {
+  if (posicion === null) return <span className="text-xs text-muted-foreground">—</span>;
   if (posicion === 1) return <span className="text-lg">🥇</span>;
   if (posicion === 2) return <span className="text-lg">🥈</span>;
   if (posicion === 3) return <span className="text-lg">🥉</span>;

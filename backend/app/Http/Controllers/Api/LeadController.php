@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\CredidService;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use App\Models\Lead;
 use App\Models\Person;
@@ -20,7 +21,9 @@ use App\Events\BusinessActionPerformed;
 
 class LeadController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
+
     public function index(Request $request)
     {
         $activeFilter = $this->resolveActiveFilter($request);
@@ -149,6 +152,9 @@ class LeadController extends Controller
             'estado_civil' => 'nullable|string|max:255',
             'relacionado_a' => 'nullable|string|max:255',
             'tipo_relacion' => 'nullable|string|max:255',
+            'tel_amigo_2' => 'nullable|string|max:50',
+            'relacionado_a_2' => 'nullable|string|max:255',
+            'tipo_relacion_2' => 'nullable|string|max:255',
             'fecha_nacimiento' => 'nullable|date',
             'is_active' => 'sometimes|boolean',
             'cedula_vencimiento' => 'nullable|date',
@@ -208,6 +214,10 @@ class LeadController extends Controller
         $validated['status'] = $leadStatus?->name ?? $validated['status'] ?? 'Activo';
         $validated['is_active'] = $validated['is_active'] ?? true;
 
+        if (empty($validated['assigned_to_id'])) {
+            $validated['assigned_to_id'] = app(\App\Services\AssignmentService::class)->getNextAssignee('leads');
+        }
+
         // Usar transacción para asegurar consistencia
         $result = DB::transaction(function () use ($validated, $monto, $vertical, $opportunityType, $createOpportunity) {
             $lead = Lead::create($validated);
@@ -242,34 +252,10 @@ class LeadController extends Controller
 
         $this->logActivity('create', 'Leads', $result['lead'], $result['lead']->cedula ?? $result['lead']->name, [], $request);
 
-        // Crear tarea automática si está configurada
-        try {
-            $automation = TaskAutomation::where('event_type', 'lead_created')
-                ->where('is_active', true)
-                ->first();
+        $this->dispararAutoTarea('lead_created', 'LEAD-' . $result['lead']->id);
 
-            if ($automation) {
-                $tasks = Task::createFromAutomation($automation, 'LEAD-' . $result['lead']->id);
-                if (!empty($tasks)) {
-                    Log::info('Tareas automáticas creadas para lead', ['cedula' => $result['lead']->cedula, 'count' => count($tasks)]);
-                }
-            }
-
-            // Tarea automática para la oportunidad creada junto con el lead
-            if ($result['opportunity']) {
-                $oppAutomation = TaskAutomation::where('event_type', 'opportunity_created')
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($oppAutomation) {
-                    $oppTasks = Task::createFromAutomation($oppAutomation, 'OPP-' . $result['opportunity']->id);
-                    if (!empty($oppTasks)) {
-                        Log::info('Tareas automáticas creadas para oportunidad', ['opportunity_id' => $result['opportunity']->id, 'count' => count($oppTasks)]);
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('Error creando tarea automática', ['lead_id' => $result['lead']->id ?? null, 'opportunity_id' => $result['opportunity']->id ?? null, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        if ($result['opportunity']) {
+            $this->dispararAutoTarea('opportunity_created', 'OPP-' . $result['opportunity']->id);
         }
 
         // Consultar Credid automáticamente si tiene cédula
@@ -390,6 +376,9 @@ class LeadController extends Controller
             'estado_civil' => 'sometimes|nullable|string|max:255',
             'relacionado_a' => 'sometimes|nullable|string|max:255',
             'tipo_relacion' => 'sometimes|nullable|string|max:255',
+            'tel_amigo_2' => 'sometimes|nullable|string|max:50',
+            'relacionado_a_2' => 'sometimes|nullable|string|max:255',
+            'tipo_relacion_2' => 'sometimes|nullable|string|max:255',
             'fecha_nacimiento' => 'sometimes|nullable|date',
             'is_active' => 'sometimes|boolean',
             'cedula_vencimiento' => 'sometimes|nullable|date',
@@ -516,13 +505,8 @@ class LeadController extends Controller
             BusinessActionPerformed::dispatch('lead_converted', $request->user(), $lead);
         }
 
-        // Auto-tarea: lead_converted
-        $automation = TaskAutomation::where('event_type', 'lead_converted')
-            ->where('is_active', true)->first();
-        if ($automation) {
-            Task::createFromAutomation($automation, 'LEAD-' . $lead->id,
-                "Lead convertido a cliente: {$lead->name}");
-        }
+        $this->dispararAutoTarea('lead_converted', 'LEAD-' . $lead->id,
+            "Lead convertido a cliente: {$lead->name}");
 
         return response()->json($lead);
     }

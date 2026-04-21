@@ -459,7 +459,7 @@ class TaskController extends Controller
         $task = Task::findOrFail($id);
 
         $request->validate([
-            'file' => 'required|file|max:10240',
+            'file' => 'required|file|max:10240|mimes:pdf,jpg,jpeg,png,webp,gif,doc,docx,xls,xlsx,csv,txt,zip',
             'name' => 'required|string|max:255',
             'notes' => 'nullable|string|max:500',
         ]);

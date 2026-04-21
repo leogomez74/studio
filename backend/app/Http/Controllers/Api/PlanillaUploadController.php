@@ -162,11 +162,105 @@ class PlanillaUploadController extends Controller
                     }
                 }
 
-                // 5. Capturar sobrante ANTES de eliminar SaldoPendiente
-                $sobranteAnulado = (float) SaldoPendiente::where('credit_payment_id', $pago->id)->sum('monto');
+                // 5. Procesar SaldoPendientes — revertir aplicados y eliminar todos
+                $saldosDelPago = SaldoPendiente::where('credit_payment_id', $pago->id)->get();
+                $sobranteAnulado = 0;
 
-                // 5. Eliminar saldos pendientes creados por esta planilla
-                SaldoPendiente::where('credit_payment_id', $pago->id)->delete();
+                foreach ($saldosDelPago as $saldo) {
+                    $sobranteAnulado += (float) $saldo->monto;
+
+                    // Si el saldo ya fue aplicado a cuota o capital, revertir ese pago derivado
+                    if (in_array($saldo->estado, ['asignado_cuota', 'asignado_capital'])) {
+                        // Buscar primero por saldo_pendiente_id (datos nuevos)
+                        $pagoSaldo = CreditPayment::where('saldo_pendiente_id', $saldo->id)
+                            ->whereNotIn('estado', ['Reversado'])
+                            ->first();
+
+                        // Fallback para datos históricos (sin saldo_pendiente_id)
+                        // Busca por monto + source + fecha, sin filtrar por credit_id
+                        // porque el saldo puede haberse aplicado a un crédito diferente al origen
+                        if (!$pagoSaldo && $saldo->asignado_at) {
+                            $pagoSaldo = CreditPayment::where(function($q) {
+                                    $q->where('source', 'like', '%Abono a Capital%')
+                                      ->orWhere('source', 'Saldo Pendiente')
+                                      ->orWhere('source', 'like', '%Saldo Pendiente%');
+                                })
+                                ->where('monto', $saldo->monto)
+                                ->whereNotIn('estado_reverso', ['Anulado'])
+                                ->whereBetween('created_at', [
+                                    \Carbon\Carbon::parse($saldo->asignado_at)->subDays(2),
+                                    \Carbon\Carbon::parse($saldo->asignado_at)->addDays(2),
+                                ])
+                                ->first();
+                        }
+
+                        if ($pagoSaldo) {
+                            $creditSaldo = Credit::lockForUpdate()->find($pagoSaldo->credit_id);
+
+                            // Restaurar saldo del crédito
+                            if ($pagoSaldo->amortizacion > 0 && $creditSaldo) {
+                                $creditSaldo->saldo = ((float) $creditSaldo->saldo) + ((float) $pagoSaldo->amortizacion);
+                                $creditSaldo->save();
+                            }
+
+                            // Revertir movimientos en plan_de_pagos
+                            if ($pagoSaldo->numero_cuota > 0) {
+                                $cuotaSaldo = PlanDePago::where('credit_id', $pagoSaldo->credit_id)
+                                    ->where('numero_cuota', $pagoSaldo->numero_cuota)
+                                    ->first();
+                                if ($cuotaSaldo) {
+                                    $cuotaSaldo->movimiento_interes_moratorio = max(0, ((float)$cuotaSaldo->movimiento_interes_moratorio) - ((float)$pagoSaldo->interes_moratorio));
+                                    $cuotaSaldo->movimiento_interes_corriente = max(0, ((float)$cuotaSaldo->movimiento_interes_corriente) - ((float)$pagoSaldo->interes_corriente));
+                                    $cuotaSaldo->movimiento_amortizacion      = max(0, ((float)$cuotaSaldo->movimiento_amortizacion) - ((float)$pagoSaldo->amortizacion));
+                                    $cuotaSaldo->movimiento_principal          = max(0, ((float)$cuotaSaldo->movimiento_principal) - ((float)$pagoSaldo->amortizacion));
+                                    $cuotaSaldo->movimiento_poliza             = max(0, ((float)$cuotaSaldo->movimiento_poliza) - ((float)$pagoSaldo->poliza));
+                                    $cuotaSaldo->movimiento_total              = max(0, ((float)$cuotaSaldo->movimiento_total) - ((float)$pagoSaldo->monto));
+                                    if ($cuotaSaldo->movimiento_total <= 0.01) {
+                                        $cuotaSaldo->estado          = 'Pendiente';
+                                        $cuotaSaldo->fecha_movimiento = null;
+                                        $cuotaSaldo->fecha_pago       = null;
+                                    }
+                                    $cuotaSaldo->save();
+                                }
+                            }
+
+                            // Marcar pago del saldo como reversado
+                            $pagoSaldo->estado          = 'Reversado';
+                            $pagoSaldo->estado_reverso  = 'Anulado';
+                            $pagoSaldo->motivo_anulacion = 'Anulación planilla #' . $planilla->id;
+                            $pagoSaldo->anulado_por     = $user->id;
+                            $pagoSaldo->fecha_anulacion = now();
+                            $pagoSaldo->save();
+
+                            // Asiento contable de reversión del saldo aplicado
+                            $this->triggerAccountingEntry(
+                                'ANULACION_SALDO_APLICADO',
+                                (float) $pagoSaldo->monto,
+                                "ANULA-SALDO-{$pagoSaldo->id}-{$credit->reference}",
+                                [
+                                    'reference'      => "ANULA-SALDO-{$pagoSaldo->id}-{$credit->reference}",
+                                    'credit_id'      => $credit->reference,
+                                    'cedula'         => $pagoSaldo->cedula,
+                                    'clienteNombre'  => $credit->lead->name ?? null,
+                                    'deductora_id'   => $credit->deductora_id,
+                                    'saldo_id'       => $saldo->id,
+                                    'amount_breakdown' => [
+                                        'total'                    => (float) $pagoSaldo->monto,
+                                        'capital'                  => (float) $pagoSaldo->monto,
+                                        'interes_corriente'        => 0,
+                                        'interes_moratorio'        => 0,
+                                        'poliza'                   => 0,
+                                        'sobrante'                 => 0,
+                                        'cargos_adicionales_total' => 0,
+                                        'cargos_adicionales'       => [],
+                                    ],
+                                ]
+                            );
+                        }
+                    }
+
+                    $saldo->delete();
+                }
 
                 // 6. Marcar pago como anulado (visible en historial de abonos)
                 $pago->estado = 'Reversado';
@@ -184,13 +278,29 @@ class PlanillaUploadController extends Controller
                 // CRÉDITO: Banco CREDIPEP (monto del pago revertido)
                 // $sobranteAnulado ya fue calculado arriba desde SaldoPendiente
 
-                // El total debe incluir el sobrante para que el asiento cuadre
-                // (es el espejo exacto del PAGO_PLANILLA original)
-                $montoTotalOriginal = (float) $pago->monto + $sobranteAnulado;
+                // ANULACION_PLANILLA: solo revierte lo aplicado a la cuota (capital + interés).
+                // El sobrante se maneja por separado en ANULACION_SOBRANTE — no incluirlo aquí
+                // para evitar que los débitos superen el crédito (partida doble).
+                // Los campos $pago->interes_corriente y $pago->amortizacion son sumas acumulativas
+                // del crédito completo, no de este pago; se usan los details para precisión.
+                $pago->loadMissing('details');
+                if ($pago->details->isNotEmpty()) {
+                    $breakdownInteresCorr = round($pago->details->sum('pago_int_corriente') + $pago->details->sum('pago_int_vencido'), 2);
+                    $breakdownInteresMora = round($pago->details->sum('pago_mora'), 2);
+                    $breakdownPoliza      = round($pago->details->sum('pago_poliza'), 2);
+                    $breakdownCapital     = round($pago->details->sum('pago_principal'), 2);
+                } else {
+                    // Fallback para pagos históricos sin details: usar monto como base
+                    $breakdownCapital     = (float) $pago->amortizacion;
+                    $breakdownInteresCorr = round(max(0, (float) $pago->monto - $breakdownCapital), 2);
+                    $breakdownInteresMora = 0.0;
+                    $breakdownPoliza      = 0.0;
+                }
+                $montoAplicado = (float) $pago->monto;
 
                 $this->triggerAccountingEntry(
                     'ANULACION_PLANILLA',
-                    $montoTotalOriginal,
+                    $montoAplicado,
                     "ANULA-PLAN-{$pago->id}-{$credit->reference}",
                     [
                         'reference' => "ANULA-PLAN-{$pago->id}-{$credit->reference}",
@@ -201,14 +311,14 @@ class PlanillaUploadController extends Controller
                         'deductora_id' => $planilla->deductora_id,
                         'fecha_planilla' => $planilla->fecha_planilla,
                         'amount_breakdown' => [
-                            'total' => $montoTotalOriginal,
-                            'interes_corriente' => (float) $pago->interes_corriente,
-                            'interes_moratorio' => (float) $pago->interes_moratorio,
-                            'poliza' => 0,
-                            'capital' => (float) $pago->amortizacion,
-                            'sobrante' => $sobranteAnulado,
+                            'total'                    => $montoAplicado,
+                            'interes_corriente'        => $breakdownInteresCorr,
+                            'interes_moratorio'        => $breakdownInteresMora,
+                            'poliza'                   => $breakdownPoliza,
+                            'capital'                  => $breakdownCapital,
+                            'sobrante'                 => 0,
                             'cargos_adicionales_total' => 0,
-                            'cargos_adicionales' => [],
+                            'cargos_adicionales'       => [],
                         ],
                     ]
                 );
@@ -596,5 +706,197 @@ class PlanillaUploadController extends Controller
 
         $filename = 'resumen_planilla_' . $planilla->id . '_' . ($planilla->fecha_planilla ?? 'sin-fecha') . '.pdf';
         return $pdf->stream($filename);
+    }
+
+    /**
+     * Preview de candidatos para ajuste de decimales (diferencia <= ₡1.00)
+     */
+    public function previewAjusteDecimales($id)
+    {
+        $planilla = PlanillaUpload::findOrFail($id);
+
+        if ($planilla->estado === 'anulada') {
+            return response()->json(['candidatos' => [], 'total' => 0]);
+        }
+
+        $pagos = CreditPayment::where('planilla_upload_id', $planilla->id)
+            ->where('estado', 'Aplicado')
+            ->whereNull('estado_reverso')
+            ->where('numero_cuota', '>', 0)
+            ->with(['credit.lead'])
+            ->get();
+
+        $candidatos = [];
+
+        foreach ($pagos as $pago) {
+            $cuota = PlanDePago::where('credit_id', $pago->credit_id)
+                ->where('numero_cuota', $pago->numero_cuota)
+                ->where('estado', 'Parcial')
+                ->first();
+
+            if (!$cuota) continue;
+
+            $totalExigible = (float) $cuota->interes_corriente
+                           + (float) ($cuota->int_corriente_vencido ?? 0)
+                           + (float) $cuota->interes_moratorio
+                           + (float) $cuota->poliza
+                           + (float) $cuota->amortizacion;
+
+            $diferencia = round($totalExigible - (float) $cuota->movimiento_total, 2);
+
+            if ($diferencia > 0 && $diferencia <= 1.00) {
+                $candidatos[] = [
+                    'credito_referencia' => $pago->credit->reference ?? null,
+                    'nombre'             => $pago->credit->lead->name ?? null,
+                    'cedula'             => $pago->cedula,
+                    'monto_planilla'     => (float) $pago->monto,
+                    'cuota_esperada'     => round($totalExigible, 2),
+                    'diferencia'         => $diferencia,
+                ];
+            }
+        }
+
+        return response()->json([
+            'candidatos' => $candidatos,
+            'total'      => count($candidatos),
+        ]);
+    }
+
+    /**
+     * Aplicar ajuste de decimales en cuotas Parciales con diferencia <= ₡1.00
+     */
+    public function ajustarDecimales(Request $request, $id)
+    {
+        $planilla = PlanillaUpload::findOrFail($id);
+
+        if ($planilla->estado === 'anulada') {
+            return response()->json(['message' => 'No se puede ajustar una planilla anulada'], 400);
+        }
+
+        $pagos = CreditPayment::where('planilla_upload_id', $planilla->id)
+            ->where('estado', 'Aplicado')
+            ->whereNull('estado_reverso')
+            ->where('numero_cuota', '>', 0)
+            ->with(['credit.lead'])
+            ->get();
+
+        $ajustados = [];
+        $omitidos  = [];
+
+        DB::beginTransaction();
+        try {
+            foreach ($pagos as $pago) {
+                $cuota = PlanDePago::where('credit_id', $pago->credit_id)
+                    ->where('numero_cuota', $pago->numero_cuota)
+                    ->where('estado', 'Parcial')
+                    ->first();
+
+                if (!$cuota) continue;
+
+                $totalExigible = (float) $cuota->interes_corriente
+                               + (float) ($cuota->int_corriente_vencido ?? 0)
+                               + (float) $cuota->interes_moratorio
+                               + (float) $cuota->poliza
+                               + (float) $cuota->amortizacion;
+
+                $diferencia = round($totalExigible - (float) $cuota->movimiento_total, 2);
+
+                if ($diferencia <= 0 || $diferencia > 1.00) {
+                    if ($diferencia > 1.00) {
+                        $omitidos[] = [
+                            'credito_referencia' => $pago->credit->reference ?? null,
+                            'diferencia'         => $diferencia,
+                            'motivo'             => 'Diferencia mayor a ₡1.00',
+                        ];
+                    }
+                    continue;
+                }
+
+                $credit = Credit::lockForUpdate()->find($pago->credit_id);
+                if (!$credit) continue;
+
+                // Distribuir la diferencia en los componentes residuales
+                $restoMora      = max(0, (float)$cuota->interes_moratorio    - (float)$cuota->movimiento_interes_moratorio);
+                $restoVencido   = max(0, (float)($cuota->int_corriente_vencido ?? 0) - (float)($cuota->movimiento_int_corriente_vencido ?? 0));
+                $restoInteres   = max(0, (float)$cuota->interes_corriente    - (float)$cuota->movimiento_interes_corriente);
+                $restoPoliza    = max(0, (float)$cuota->poliza               - (float)$cuota->movimiento_poliza);
+                $restoPrincipal = max(0, (float)$cuota->amortizacion         - (float)$cuota->movimiento_amortizacion);
+
+                $rem = $diferencia;
+                $ajMora      = min($rem, $restoMora);      $rem = round($rem - $ajMora, 2);
+                $ajVencido   = min($rem, $restoVencido);   $rem = round($rem - $ajVencido, 2);
+                $ajInteres   = min($rem, $restoInteres);   $rem = round($rem - $ajInteres, 2);
+                $ajPoliza    = min($rem, $restoPoliza);    $rem = round($rem - $ajPoliza, 2);
+                $ajPrincipal = min($rem, $restoPrincipal); $rem = round($rem - $ajPrincipal, 2);
+
+                $montoAjuste = round($ajMora + $ajVencido + $ajInteres + $ajPoliza + $ajPrincipal, 2);
+                if ($montoAjuste <= 0) continue;
+
+                // Actualizar PlanDePago
+                $cuota->movimiento_interes_moratorio     = round((float)$cuota->movimiento_interes_moratorio + $ajMora, 2);
+                $cuota->movimiento_int_corriente_vencido = round((float)($cuota->movimiento_int_corriente_vencido ?? 0) + $ajVencido, 2);
+                $cuota->movimiento_interes_corriente     = round((float)$cuota->movimiento_interes_corriente + $ajInteres, 2);
+                $cuota->movimiento_poliza                = round((float)$cuota->movimiento_poliza + $ajPoliza, 2);
+                $cuota->movimiento_amortizacion          = round((float)$cuota->movimiento_amortizacion + $ajPrincipal, 2);
+                $cuota->movimiento_principal             = round((float)$cuota->movimiento_principal + $ajPrincipal, 2);
+                $cuota->movimiento_total                 = round((float)$cuota->movimiento_total + $montoAjuste, 2);
+                $cuota->estado                           = 'Pagado';
+                $cuota->concepto                         = 'Ajuste de decimales planilla #' . $planilla->id;
+                $cuota->save();
+
+                // Actualizar saldo del crédito
+                if ($ajPrincipal > 0) {
+                    $credit->saldo = max(0.0, (float)$credit->saldo - $ajPrincipal);
+                    $credit->save();
+                }
+
+                // Crear CreditPayment complementario
+                CreditPayment::create([
+                    'credit_id'          => $pago->credit_id,
+                    'planilla_upload_id' => $planilla->id,
+                    'numero_cuota'       => $pago->numero_cuota,
+                    'fecha_cuota'        => $cuota->fecha_corte,
+                    'fecha_pago'         => $pago->fecha_pago,
+                    'monto'              => $montoAjuste,
+                    'cuota'              => $pago->cuota,
+                    'saldo_anterior'     => $credit->saldo + $ajPrincipal,
+                    'nuevo_saldo'        => $credit->saldo,
+                    'estado'             => 'Aplicado',
+                    'interes_corriente'  => $ajInteres,
+                    'amortizacion'       => $ajPrincipal,
+                    'interes_moratorio'  => $ajMora,
+                    'poliza'             => $ajPoliza,
+                    'source'             => 'Ajuste Planilla',
+                    'referencia'         => 'Ajuste decimales planilla #' . $planilla->id,
+                    'cedula'             => $pago->cedula,
+                    'movimiento_total'   => 0,
+                ]);
+
+                $ajustados[] = [
+                    'credito_referencia'  => $credit->reference,
+                    'nombre'              => $credit->lead->name ?? null,
+                    'monto_original'      => (float) $pago->monto,
+                    'diferencia_ajustada' => $montoAjuste,
+                    'nuevo_estado'        => 'Pagado',
+                ];
+            }
+
+            DB::commit();
+
+            $this->logActivity('update', 'Planilla', $planilla,
+                'Ajuste de decimales planilla #' . $planilla->id . ' — ' . count($ajustados) . ' cuota(s)', [], $request);
+
+            return response()->json([
+                'message'         => count($ajustados) . ' cuota(s) ajustadas exitosamente.',
+                'ajustados'       => $ajustados,
+                'omitidos'        => $omitidos,
+                'total_ajustados' => count($ajustados),
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error en ajuste de decimales', ['planilla_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Error al procesar ajuste', 'error' => $e->getMessage()], 500);
+        }
     }
 }

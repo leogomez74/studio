@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Analisis;
 use App\Models\Propuesta;
+use App\Models\Tasa;
 use App\Models\Task;
 use App\Models\TaskAutomation;
 use Illuminate\Http\JsonResponse;
@@ -56,13 +57,26 @@ class PropuestaController extends Controller
             // 'categoria' => 'nullable|string|max:255',
         ]);
 
+        // Calcular cuota con sistema francés usando la tasa activa
+        $cuota = null;
+        $tasa = Tasa::activa()->orderBy('id')->first();
+        if ($tasa) {
+            $capital      = (float) $validated['monto'];
+            $plazo        = (int)   $validated['plazo'];
+            $tasaMensual  = ((float) $tasa->tasa / 100) / 12;
+            if ($tasaMensual > 0 && $plazo > 0) {
+                $potencia = pow(1 + $tasaMensual, $plazo);
+                $cuota    = round($capital * ($tasaMensual * $potencia) / ($potencia - 1), 2);
+            } elseif ($plazo > 0) {
+                $cuota = round($capital / $plazo, 2);
+            }
+        }
+
         $propuesta = Propuesta::create([
             'analisis_reference' => $reference,
-            'monto' => $validated['monto'],
-            'plazo' => $validated['plazo'],
-            // 'cuota' => $validated['cuota'],
-            // 'interes' => $validated['interes'],
-            // 'categoria' => $validated['categoria'] ?? null,
+            'monto'  => $validated['monto'],
+            'plazo'  => $validated['plazo'],
+            'cuota'  => $cuota,
             'estado' => Propuesta::ESTADO_PENDIENTE,
         ]);
 

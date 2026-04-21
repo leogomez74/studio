@@ -23,7 +23,7 @@ class SaldoPendienteController extends Controller
      */
     public function index(Request $request)
     {
-        $query = SaldoPendiente::with(['credit.lead', 'credit.deductora'])
+        $query = SaldoPendiente::with(['credit.lead', 'credit.deductora', 'creditPayment'])
             ->orderBy('created_at', 'desc');
 
         if ($request->has('estado')) {
@@ -78,38 +78,48 @@ class SaldoPendienteController extends Controller
 
         $saldos = $query->paginate($perPage, ['*'], 'page', $page);
 
-        $mapped = $saldos->getCollection()->map(function ($saldo) {
+        // Pre-cargar créditos y primeras cuotas en bulk para evitar N+1
+        $collection = $saldos->getCollection();
+
+        $cedulas = $collection->map(fn($s) => $s->cedula ?? $s->credit->lead?->cedula ?? '')->filter()->unique()->values()->all();
+        $deductoraIds = $collection->map(fn($s) => $s->credit->deductora_id)->filter()->unique()->values()->all();
+
+        $creditosBulk = Credit::whereIn('deductora_id', $deductoraIds)
+            ->whereIn('status', ['Formalizado', 'En Mora'])
+            ->whereHas('lead', fn($q) => $q->whereIn('cedula', $cedulas))
+            ->with(['lead:id,cedula,person_type_id'])
+            ->orderBy('formalized_at', 'asc')
+            ->get()
+            ->groupBy(fn($c) => ($c->lead->cedula ?? '') . '-' . $c->deductora_id);
+
+        $creditIds = $creditosBulk->flatten()->pluck('id');
+
+        $primerasCuotas = PlanDePago::whereIn('credit_id', $creditIds)
+            ->where('numero_cuota', '>', 0)
+            ->where('estado', 'Pendiente')
+            ->orderBy('numero_cuota')
+            ->get()
+            ->groupBy('credit_id')
+            ->map(fn($cuotas) => $cuotas->first());
+
+        $mapped = $collection->map(function ($saldo) use ($creditosBulk, $primerasCuotas) {
             $person = $saldo->credit->lead;
             $cedula = $saldo->cedula ?? ($person->cedula ?? '');
             $deductoraId = $saldo->credit->deductora_id;
 
-            // Buscar TODOS los créditos de esta cédula + deductora para distribuciones
-            $allCredits = Credit::where('deductora_id', $deductoraId)
-                ->whereIn('status', ['Formalizado', 'En Mora'])
-                ->whereHas('lead', function($q) use ($cedula) {
-                    $q->where('cedula', $cedula);
-                })
-                ->orderBy('formalized_at', 'asc')
-                ->get();
+            $allCredits = $creditosBulk->get($cedula . '-' . $deductoraId, collect());
 
-            $distribuciones = $allCredits->map(function ($credit) use ($saldo) {
+            $distribuciones = $allCredits->map(function ($credit) use ($saldo, $primerasCuotas) {
                 $cuotaAmount = (float) $credit->cuota;
                 $montoSobrante = (float) $saldo->monto;
                 $maxCuotas = $cuotaAmount > 0 ? (int) floor($montoSobrante / $cuotaAmount) : 0;
                 $restante = $cuotaAmount > 0 ? round($montoSobrante - ($maxCuotas * $cuotaAmount), 2) : $montoSobrante;
 
-                // Calcular si el restante sería un pago parcial o completo
                 $esParcial = false;
                 if ($restante > 1) {
-                    // Obtener la primera cuota pendiente
-                    $cuota = $credit->planDePagos()
-                        ->where('numero_cuota', '>', 0)
-                        ->where('estado', 'Pendiente')
-                        ->orderBy('numero_cuota')
-                        ->first();
+                    $cuota = $primerasCuotas->get($credit->id);
 
                     if ($cuota) {
-                        // Calcular pendientes de cada componente
                         $pendienteMora = max(0, ((float) $cuota->interes_moratorio) - ((float) $cuota->movimiento_interes_moratorio ?? 0));
                         $pendienteInteres = max(0, ((float) $cuota->interes_corriente) - ((float) $cuota->movimiento_interes_corriente ?? 0));
                         $pendientePoliza = max(0, ((float) $cuota->poliza) - ((float) $cuota->movimiento_poliza ?? 0));
@@ -117,7 +127,6 @@ class SaldoPendienteController extends Controller
 
                         $totalPendienteCuota = $pendienteMora + $pendienteInteres + $pendientePoliza + $pendienteAmortizacion;
 
-                        // Si el restante es menor que el total pendiente, es parcial
                         $esParcial = ($restante < $totalPendienteCuota - 0.01);
                     }
                 }
@@ -150,6 +159,7 @@ class SaldoPendienteController extends Controller
                 'estado' => $saldo->estado,
                 'notas' => $saldo->notas,
                 'saldo_credito' => (float) $saldo->credit->saldo,
+                'planilla_id' => $saldo->creditPayment?->planilla_upload_id,
                 'distribuciones' => $distribuciones,
             ];
         });
@@ -175,10 +185,14 @@ class SaldoPendienteController extends Controller
             'capital_strategy' => 'nullable|in:reduce_amount,reduce_term',
         ]);
 
-        // Solo administradores pueden aplicar saldos
         $user = $request->user();
-        if (!$user->role || (!$user->role->full_access && $user->role->name !== 'Administrador')) {
-            return response()->json(['message' => 'Solo administradores pueden aplicar saldos'], 403);
+        $perms = $user->role?->getFormattedPermissions() ?? [];
+        $esCapital = ($validated['accion'] === 'capital');
+        $permKey  = $esCapital ? 'formalizar_admin' : 'formalizar';
+        $puedeAplicar = $user->role?->full_access || ($perms['cobros'][$permKey] ?? false);
+        if (!$puedeAplicar) {
+            $label = $esCapital ? 'aplicar abonos a capital' : 'aplicar saldos parciales';
+            return response()->json(['message' => "No tienes permiso para {$label}"], 403);
         }
 
         $saldo = SaldoPendiente::where('estado', 'pendiente')->find($id);
@@ -357,11 +371,7 @@ class SaldoPendienteController extends Controller
      */
     public function asignar(Request $request, int $id)
     {
-        // Solo administradores pueden aplicar saldos
         $user = $request->user();
-        if (!$user->role || (!$user->role->full_access && $user->role->name !== 'Administrador')) {
-            return response()->json(['message' => 'Solo administradores pueden aplicar saldos'], 403);
-        }
 
         $validated = $request->validate([
             'accion' => 'required|in:cuota,capital',
@@ -370,6 +380,15 @@ class SaldoPendienteController extends Controller
             'notas' => 'nullable|string|max:500',
             'capital_strategy' => 'nullable|required_if:accion,capital|in:reduce_amount,reduce_term',
         ]);
+
+        $perms    = $user->role?->getFormattedPermissions() ?? [];
+        $esCapital = ($validated['accion'] === 'capital');
+        $permKey  = $esCapital ? 'formalizar_admin' : 'formalizar';
+        $puedeAplicar = $user->role?->full_access || ($perms['cobros'][$permKey] ?? false);
+        if (!$puedeAplicar) {
+            $label = $esCapital ? 'aplicar abonos a capital' : 'aplicar saldos parciales';
+            return response()->json(['message' => "No tienes permiso para {$label}"], 403);
+        }
 
         $saldo = SaldoPendiente::where('estado', 'pendiente')->find($id);
         if (!$saldo) {
@@ -400,6 +419,11 @@ class SaldoPendienteController extends Controller
                     'Saldo Pendiente',
                     $saldo->cedula
                 );
+
+                // Guardar link bidireccional SaldoPendiente → CreditPayment
+                if ($payment) {
+                    $payment->update(['saldo_pendiente_id' => $saldo->id]);
+                }
 
                 // Calcular restante del saldo
                 $restante = (float) $saldo->monto - $montoAplicar;
@@ -447,6 +471,11 @@ class SaldoPendienteController extends Controller
                     'Abono a Capital (Saldo Pendiente)',
                     $saldo->cedula
                 );
+
+                // Guardar link bidireccional SaldoPendiente → CreditPayment
+                if ($payment) {
+                    $payment->update(['saldo_pendiente_id' => $saldo->id]);
+                }
 
                 // Calcular restante del saldo
                 $restante = (float) $saldo->monto - $montoCapital;

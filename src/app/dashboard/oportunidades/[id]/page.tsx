@@ -60,6 +60,7 @@ import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/contexts/PermissionsContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AnalisisWizardModal } from "@/components/analisis-wizard-modal";
+import { ReassignButton } from "@/components/ReassignButton";
 import { TareasTab } from '@/components/TareasTab';
 import { HojaDeTrabajo } from '@/components/hoja-de-trabajo';
 import type { DatosPreAnalisis } from '@/components/hoja-de-trabajo';
@@ -814,14 +815,25 @@ export default function OpportunityDetailPage() {
       <div className="grid grid-cols-1 gap-6">
         {/* Main Content - Full Width (Chat panel commented out) */}
         <div className="space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={(v) => {
+            if (v === 'hoja-analisis' && existingAnalisis) {
+              router.push(`/dashboard/analisis/${existingAnalisis.id}`);
+              return;
+            }
+            setActiveTab(v);
+          }} className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="resumen">Resumen</TabsTrigger>
-              <TabsTrigger value="hoja-analisis" className="relative">
+              <TabsTrigger
+                value="hoja-analisis"
+                className="relative"
+              >
                 Hoja de Análisis
-                {datosPreCargados && (
+                {existingAnalisis ? (
+                  <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] text-blue-700 border-blue-400">Creado</Badge>
+                ) : datosPreCargados ? (
                   <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] text-green-700 border-green-400">Listo</Badge>
-                )}
+                ) : null}
               </TabsTrigger>
               <TabsTrigger value="archivos" className="relative">
                 Archivos
@@ -837,7 +849,16 @@ export default function OpportunityDetailPage() {
             <TabsContent value="resumen">
               <Card className="border shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 border-b">
-                  <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-xl font-bold">{opportunity.id}</CardTitle>
+                    <ReassignButton
+                      currentAssigneeId={opportunity.assigned_to_id ?? null}
+                      currentAssigneeName={users.find(u => u.id === opportunity.assigned_to_id)?.name ?? null}
+                      agents={users}
+                      endpoint={`/api/opportunities/${opportunity.id}`}
+                      onReassigned={(id) => setOpportunity(prev => prev ? { ...prev, assigned_to_id: id } : prev)}
+                    />
+                  </div>
                   <div className="flex items-center gap-2">
                     {OPPORTUNITY_STATUSES.map((status) => {
                       const currentStatusIndex = OPPORTUNITY_STATUSES.indexOf(opportunity.status as typeof OPPORTUNITY_STATUSES[number]);

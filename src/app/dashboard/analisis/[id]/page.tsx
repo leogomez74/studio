@@ -931,11 +931,26 @@ export default function AnalisisDetailPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Ingreso Neto</p>
                   <p className="text-lg font-bold text-green-600">
-                    ₡{new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
-                      Math.min(...[analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3, analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6].filter((v): v is number => v != null && v > 0)) || 0
-                    )}
+                    {(() => {
+                      const vals = [
+                        analisis.ingreso_neto, analisis.ingreso_neto_2, analisis.ingreso_neto_3,
+                        analisis.ingreso_neto_4, analisis.ingreso_neto_5, analisis.ingreso_neto_6,
+                        analisis.ingreso_neto_7, analisis.ingreso_neto_8, analisis.ingreso_neto_9,
+                        analisis.ingreso_neto_10, analisis.ingreso_neto_11, analisis.ingreso_neto_12,
+                      ].map(v => Number(v) || 0);
+                      const numPeriodos = vals.filter(v => v > 0).length;
+                      const esQ = numPeriodos === 6 || numPeriodos === 12;
+                      const numMeses = esQ ? numPeriodos / 2 : numPeriodos;
+                      const totalesMes = esQ
+                        ? Array.from({ length: numMeses }, (_, mi) =>
+                            (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
+                          ).filter(t => t > 0)
+                        : vals.filter(v => v > 0);
+                      const promedio = totalesMes.length > 0 ? totalesMes.reduce((a, b) => a + b, 0) / totalesMes.length : 0;
+                      return '₡' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(promedio));
+                    })()}
                   </p>
-                  <p className="text-xs text-muted-foreground">Mínimo mensual</p>
+                  <p className="text-xs text-muted-foreground">Promedio mensual</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Monto Crédito</p>
@@ -1123,28 +1138,39 @@ export default function AnalisisDetailPage() {
                   <p className="text-sm text-gray-400 text-center py-4">No hay ingresos registrados</p>
                 );
 
-                // Calcular nombres de mes desde la fecha del análisis (excluye mes actual)
                 const refDate = new Date(analisis.created_at || Date.now());
-                const esMicro = analisis.category?.toLowerCase().includes('micro');
                 const totalPeriodos = datos.length;
 
+                // Regla simple: 6 o 12 periodos = quincenas (pares q1+q2 por mes)
+                //               3 o 6 periodos impares = por mes (1 valor por mes)
+                // Micro: 6=quincenas, 3=por mes | Regular: 12=quincenas, 6=por mes
+                const esPerQuincena = totalPeriodos === 6 || totalPeriodos === 12;
+                const totalMeses = esPerQuincena ? totalPeriodos / 2 : totalPeriodos;
+
                 const getLabelFor = (idx: number): string => {
-                  if (esMicro) {
-                    // 6 quincenas → 3 meses × Q1/Q2
+                  const d = new Date(refDate);
+                  if (esPerQuincena) {
                     const mesIdx = Math.floor(idx / 2);
                     const quincena = (idx % 2) + 1;
-                    const d = new Date(refDate);
-                    d.setMonth(d.getMonth() - (3 - mesIdx));
-                    return `${MESES[d.getMonth()]} Q${quincena}`;
+                    d.setMonth(d.getMonth() - (totalMeses - mesIdx));
+                    return `${MESES[d.getMonth()]} ${quincena}Q`;
+                  } else {
+                    // Por mes: solo mostrar el nombre del mes
+                    d.setMonth(d.getMonth() - (totalMeses - idx));
+                    return MESES[d.getMonth()];
                   }
-                  // Regular: N meses hacia atrás
-                  const d = new Date(refDate);
-                  d.setMonth(d.getMonth() - (totalPeriodos - idx));
-                  return MESES[d.getMonth()];
                 };
 
+                // Promedio mensual adaptado al modo
                 const valores = datos.map(p => p.val);
-                const promedio = valores.reduce((a, b) => a + b, 0) / valores.length;
+                const totalesMensuales = esPerQuincena
+                  ? Array.from({ length: totalMeses }, (_, mi) =>
+                      (datos[mi * 2]?.val || 0) + (datos[mi * 2 + 1]?.val || 0)
+                    ).filter(t => t > 0)
+                  : valores.filter(v => v > 0);
+                const promedio = totalesMensuales.length > 0
+                  ? totalesMensuales.reduce((a, b) => a + b, 0) / totalesMensuales.length
+                  : 0;
                 const minVal = Math.min(...valores);
                 const maxVal = Math.max(...valores);
                 const fmt = (n: number) => '₡' + new Intl.NumberFormat('en-US').format(Math.round(n));
@@ -1327,8 +1353,13 @@ export default function AnalisisDetailPage() {
                           <div className="text-sm font-semibold text-foreground">
                             {formatCurrency(p.monto)}
                           </div>
+                          {p.cuota && (
+                            <div className="text-xs font-medium text-blue-700 mt-0.5">
+                              Cuota: {formatCurrency(p.cuota)}
+                            </div>
+                          )}
                           <div className="text-xs text-muted-foreground mt-1">
-                            {p.plazo} meses
+                            {p.plazo} meses{p.cuota ? ` · ${formatCurrency(p.cuota)}/mes` : ''}
                           </div>
                         </div>
                         <Badge
@@ -1405,6 +1436,7 @@ export default function AnalisisDetailPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-xs">Monto</TableHead>
+                        <TableHead className="text-xs">Cuota</TableHead>
                         <TableHead className="text-xs">Plazo</TableHead>
                         <TableHead className="text-xs">Estado</TableHead>
                         <TableHead className="text-xs">Motivo</TableHead>
@@ -1416,6 +1448,7 @@ export default function AnalisisDetailPage() {
                       {propuestas.map((p, index) => (
                         <TableRow key={p.id}>
                           <TableCell className="text-sm">{formatCurrency(p.monto)}</TableCell>
+                          <TableCell className="text-sm font-medium text-blue-700">{p.cuota ? formatCurrency(p.cuota) : '-'}</TableCell>
                           <TableCell className="text-sm">{p.plazo} meses</TableCell>
                           <TableCell>
                             <Badge

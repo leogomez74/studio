@@ -17,7 +17,8 @@ class BugController extends Controller
 
     public function index(Request $request)
     {
-        $query = Bug::with(['assignee:id,name', 'creator:id,name', 'images']);
+        $query = Bug::with(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name'])
+                    ->whereNull('archived_at');
 
         if ($request->status) {
             $query->where('status', $request->status);
@@ -62,15 +63,19 @@ class BugController extends Controller
         // Sincronizar con Jira
         try {
             $jira = new JiraService();
-            $jiraKey = $jira->createIssue($bug->reference, $bug->title, $bug->priority, $bug->description);
-            if ($jiraKey) {
-                $bug->update(['jira_key' => $jiraKey]);
-            }
+            $jiraKey = $jira->createIssue(
+                $bug->reference,
+                $bug->title,
+                $bug->priority,
+                $bug->description,
+                $request->input('jira_assignee_id')
+            );
+            if ($jiraKey) $bug->update(['jira_key' => $jiraKey]);
         } catch (\Exception $e) {
-            Log::warning('Jira sync failed on bug create: ' . $e->getMessage());
+            Log::warning('Jira sync on create: ' . $e->getMessage());
         }
 
-        $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
 
         $this->logActivity('create', 'Incidencias', $bug, $bug->reference . ' - ' . $bug->title, [], $request);
 
@@ -79,7 +84,7 @@ class BugController extends Controller
 
     public function show(Bug $bug)
     {
-        $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
         return response()->json($bug);
     }
 
@@ -97,24 +102,33 @@ class BugController extends Controller
         $bug->update($validated);
         $changes = $this->getChanges($oldData, $bug->fresh()->toArray());
 
-        // Sincronizar status con Jira si cambió
-        if (isset($validated['status']) && $bug->jira_key) {
+        if ($bug->jira_key) {
             try {
-                (new JiraService())->updateStatus($bug->jira_key, $validated['status']);
-            } catch (\Exception $e) {
-                Log::warning('Jira sync failed on bug update: ' . $e->getMessage());
-            }
+                $jira = new JiraService();
+                if (isset($validated['status'])) {
+                    $jira->updateStatus($bug->jira_key, $validated['status']);
+                }
+                if (array_intersect_key($validated, array_flip(['title', 'description']))) {
+                    $jira->updateIssue($bug->jira_key, $validated);
+                }
+            } catch (\Exception $e) { Log::warning('Jira sync on update: ' . $e->getMessage()); }
         }
 
         $this->logActivity('update', 'Incidencias', $bug, $bug->reference, $changes, $request);
 
-        $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
         return response()->json($bug);
     }
 
     public function destroy(Request $request, Bug $bug)
     {
         $this->logActivity('delete', 'Incidencias', $bug, $bug->reference . ' - ' . $bug->title, [], $request);
+
+        // Eliminar en Jira
+        if ($bug->jira_key) {
+            try { (new JiraService())->deleteIssue($bug->jira_key); }
+            catch (\Exception $e) { Log::warning('Jira deleteIssue failed: ' . $e->getMessage()); }
+        }
 
         // Eliminar imágenes del disco
         foreach ($bug->images as $img) {
@@ -137,20 +151,16 @@ class BugController extends Controller
         $oldStatus = $bug->status;
         $bug->update($validated);
 
-        // Sincronizar status con Jira
         if ($bug->jira_key) {
-            try {
-                (new JiraService())->updateStatus($bug->jira_key, $validated['status']);
-            } catch (\Exception $e) {
-                Log::warning('Jira sync status failed: ' . $e->getMessage());
-            }
+            try { (new JiraService())->updateStatus($bug->jira_key, $validated['status']); }
+            catch (\Exception $e) { Log::warning('Jira sync on status: ' . $e->getMessage()); }
         }
 
         $this->logActivity('update', 'Incidencias', $bug, $bug->reference, [
             ['field' => 'status', 'old_value' => $oldStatus, 'new_value' => $validated['status']]
         ], $request);
 
-        $bug->load(['assignee:id,name', 'creator:id,name', 'images']);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
         return response()->json($bug);
     }
 
@@ -165,6 +175,8 @@ class BugController extends Controller
         ]);
 
         $uploaded = [];
+        $jira = new JiraService();
+
         foreach ($request->file('images') as $file) {
             $path = $file->store('bugs/' . $bug->id, 'public');
             $uploaded[] = BugImage::create([
@@ -173,6 +185,16 @@ class BugController extends Controller
                 'original_name' => $file->getClientOriginalName(),
                 'size'          => $file->getSize(),
             ]);
+
+            // Adjuntar imagen a Jira si el bug tiene jira_key
+            if ($bug->jira_key) {
+                try {
+                    $fullPath = Storage::disk('public')->path($path);
+                    $jira->attachFile($bug->jira_key, $fullPath, $file->getClientOriginalName());
+                } catch (\Exception $e) {
+                    Log::warning('Jira attachFile failed: ' . $e->getMessage());
+                }
+            }
         }
 
         return response()->json($uploaded, 201);
@@ -199,11 +221,46 @@ class BugController extends Controller
     public function stats()
     {
         return response()->json([
-            'total'       => Bug::count(),
-            'abierto'     => Bug::where('status', 'abierto')->count(),
-            'en_progreso' => Bug::where('status', 'en_progreso')->count(),
-            'en_revision' => Bug::where('status', 'en_revision')->count(),
-            'cerrado'     => Bug::where('status', 'cerrado')->count(),
+            'total'       => Bug::whereNull('archived_at')->count(),
+            'abierto'     => Bug::whereNull('archived_at')->where('status', 'abierto')->count(),
+            'en_progreso' => Bug::whereNull('archived_at')->where('status', 'en_progreso')->count(),
+            'en_revision' => Bug::whereNull('archived_at')->where('status', 'en_revision')->count(),
+            'cerrado'     => Bug::whereNull('archived_at')->where('status', 'cerrado')->count(),
+            'archivadas'  => Bug::whereNotNull('archived_at')->count(),
         ]);
+    }
+
+    /** Sincronizar asignados múltiples */
+    public function syncAssignees(Request $request, Bug $bug)
+    {
+        $request->validate(['user_ids' => 'required|array', 'user_ids.*' => 'exists:users,id']);
+        $bug->assignees()->sync($request->user_ids);
+        $bug->load(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name']);
+        return response()->json($bug);
+    }
+
+    /** Archivar una incidencia (la oculta del kanban y la cierra en Jira) */
+    public function archive(Request $request, Bug $bug)
+    {
+        $bug->update(['archived_at' => now(), 'status' => 'cerrado']);
+
+        if ($bug->jira_key) {
+            try { (new JiraService())->updateStatus($bug->jira_key, 'cerrado'); }
+            catch (\Exception $e) { Log::warning('Jira archive sync: ' . $e->getMessage()); }
+        }
+
+        $this->logActivity('update', 'Incidencias', $bug, $bug->reference . ' archivada', [], $request);
+        return response()->json(['message' => 'Archivada']);
+    }
+
+    /** Listar incidencias archivadas */
+    public function archived()
+    {
+        return response()->json(
+            Bug::with(['assignee:id,name', 'creator:id,name', 'images', 'assignees:id,name'])
+               ->whereNotNull('archived_at')
+               ->orderBy('archived_at', 'desc')
+               ->get()
+        );
     }
 }

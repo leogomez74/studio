@@ -11,6 +11,13 @@ export interface AuthUser {
     description?: string;
     full_access: boolean;
   };
+  evolution_instance?: {
+    id: number;
+    instance_name: string;
+    alias: string;
+    phone_number: string;
+    status: string;
+  } | null;
 }
 
 export interface AuthState {

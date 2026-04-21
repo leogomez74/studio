@@ -1050,11 +1050,11 @@ export default function InversionesPage() {
       setInvestors(invRes.data);
       setInvestments(investRes.data);
       setPayments(payRes.data);
-      // Users requiere middleware admin — cargar por separado para no bloquear datos principales
+      // Cargar agentes (accesible para todos los usuarios autenticados)
       try {
-        const usersRes = await api.get('/api/users?all=true');
+        const usersRes = await api.get('/api/agents');
         setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.data ?? []);
-      } catch { /* usuario sin acceso admin — lista de usuarios vacía */ }
+      } catch { /* silencioso */ }
     } catch {
       toastError('Error al cargar los datos de inversiones. Recarga la página.');
     } finally {
@@ -1315,7 +1315,7 @@ export default function InversionesPage() {
 
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); if (v === 'tabla-general') fetchTablaGeneral(); if (v === 'pagos-proximos') fetchPagosProximos(); if (v === 'reservas') fetchReservas(); if (v === 'vencimientos') fetchVencimientos(); if (v === 'pagadas') fetchPagadas(); }}>
         <div className="flex items-center justify-between mb-4">
-          <TabsList>
+          <TabsList className="h-auto flex-wrap gap-y-1">
             <TabsTrigger value="inversionistas">Inversionistas</TabsTrigger>
             <TabsTrigger value="inversiones">Inversiones</TabsTrigger>
             <TabsTrigger value="tabla-general">Tabla General</TabsTrigger>

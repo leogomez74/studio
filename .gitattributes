@@ -1,0 +1,2 @@
+# Archivos con configuración diferente por entorno — nunca mezclar en merges
+backend/config/cors.php merge=ours

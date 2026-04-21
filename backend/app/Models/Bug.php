@@ -19,10 +19,12 @@ class Bug extends Model
         'assigned_to',
         'created_by',
         'closed_at',
+        'archived_at',
     ];
 
     protected $casts = [
-        'closed_at' => 'datetime',
+        'closed_at'   => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     public function assignee(): BelongsTo
@@ -38,6 +40,11 @@ class Bug extends Model
     public function images(): HasMany
     {
         return $this->hasMany(BugImage::class);
+    }
+
+    public function assignees(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'bug_assignees')->withTimestamps();
     }
 
     protected static function booted(): void

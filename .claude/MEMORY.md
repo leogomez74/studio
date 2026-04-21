@@ -176,6 +176,10 @@ class MiController extends Controller {
 - **Emojis/GIFs**: Integrados con picker y formato `[GIF](url)`.
 - **Burbuja chat**: Tabs "Directos" y "Comentarios" con ancho ampliado al 85% para tarjetas de verificación.
 - **Archivos clave**: `chat-bubble.tsx`, `comments-panel.tsx`, `comunicaciones/page.tsx`, `CommentController.php`, `Comment.php`.
+- **Filtro teléfonos válidos (Abr 2026)**: `WhatsappController::conversations()` y `syncChats()` filtran `CHAR_LENGTH(phone_number) BETWEEN 7 AND 15` (E.164). Excluye grupos (>15 dígitos) Y JIDs internos de WhatsApp como status/newsletters/lid (<7 dígitos). También se filtra por JID type: `@g.us`, `@broadcast`, `@newsletter`, `@lid`. 54 registros inválidos limpiados de la BD.
+- **Aliases de números (Abr 2026)**: Tabla `whatsapp_contacts` (phone_number + alias por instancia). Endpoints: `POST /api/whatsapp/contacts`, `DELETE /api/whatsapp/contacts/{phone}`. UI: lápiz en hover de cada fila en lista (edición inline sin abrir chat) + ícono `@` en header del chat abierto. El alias tiene prioridad sobre contact_name. También buscable en filtro.
+- **Integración Chatwoot (Abr 2026)**: Cuando una instancia Evolution está sincronizada con Chatwoot, Evolution no notifica directamente — lo hace Chatwoot. Solución: `chatwoot_inbox_id` (nullable) en `evolution_instances` vincula instancia ↔ inbox. Webhook público `POST /api/webhooks/chatwoot` → `ChatwootWebhookController::handle()` procesa evento `message_created` y hace upsert en `whatsapp_messages`. Endpoint admin: `PATCH /api/evolution-instances/{id}/chatwoot` para configurar la vinculación. UI: columna "Chatwoot" en tabla de instancias + dialog para ingresar el inbox ID.
+- **Bug crítico PHP groupBy + JSON**: `groupBy('phone_number')` en PHP castea claves numéricas puras a int → JSON sin comillas → Laravel rechaza con "must be a string". Fix: `(string) $phone` en el `return` del `map()`. También `String(phone)` en el frontend como defensa secundaria.
 
 ---
 
@@ -260,6 +264,34 @@ class MiController extends Controller {
   - `investment_finalized` — archivar expediente finalizado (InvestmentService::markCouponAsPaid, InvestmentService::cancelacionTotal, InvestmentCouponController::markBulkPaid, InvestmentCouponController::bulkPayByDesembolso)
   - `planilla_anulada` — verificar saldos post-anulación (PlanillaUploadController::anular)
   - `lead_inactivity_alert` — seguimiento de leads/oportunidades inactivos (CheckLeadInactivity command, cron diario)
+
+---
+
+## Auditoría Seguridad (Abr 2026)
+
+### Base de datos / Mass Assignment
+- `Person.$guarded = ['*']` — base model bloquea toda escritura directa. Lead y Client definen su propio `$fillable`
+- `Investor.$hidden = ['erp_account_key', 'erp_account_key_prestamos', 'erp_account_key_intereses']`
+
+### Headers HTTP
+- `SecurityHeaders` middleware global (`bootstrap/app.php`, `$middleware->append()`)
+- Headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `HSTS` (solo HTTPS)
+- **Excluido**: X-XSS-Protection (obsoleto, removido por code review)
+
+### Rate Limiting adicional (Abr 2026)
+- `activity-logs` export: `admin + throttle:10,1`
+- Exports financieros (investment, credit-payments, planilla, accounting-entries): `throttle:10-20,1`
+- `/api/health/env/detail`: `auth:sanctum + admin + throttle:10,1`
+
+---
+
+## KPIs Ventas (Abr 2026)
+
+- `KpiController::getAgentKpis()`: datos reales por vendedor — créditos, monto, comisiones, visitas, alcance de meta
+- `KpiController::getConversionPorVendedor()`: tasa lead→crédito por vendedor (llamado desde `getLeadKpis()`)
+- `KpiController::getBusinessHealthKpis()`: usa comisiones pagadas para `revenuePerEmployee`, añade `atribucionVendedores` y `creditosSinAtribucion`
+- **Columna correcta**: `persons.assigned_to_id` (NOT `assigned_to`)
+- Modelos utilizados: `Comision`, `MetaVenta`, `Visita`
 
 ---
 

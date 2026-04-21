@@ -171,11 +171,34 @@ export function InvestmentFormDialog({ open, onOpenChange, investment, investors
     try {
       if (isEditing) {
         await api.put(`/api/investments/${investment!.id}`, payload);
+        onSuccess();
+        onOpenChange(false);
       } else {
-        await api.post('/api/investments', payload);
+        const res = await api.post('/api/investments', payload);
+        const newId = res.data?.id;
+        onSuccess();
+        onOpenChange(false);
+
+        // Descargar contratos en ambos idiomas
+        if (newId) {
+          const downloadContract = async (lang: string, filename: string) => {
+            const res = await api.get(`/api/investments/${newId}/export/contrato/${lang}`, { responseType: 'blob' });
+            const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          };
+          // Descargar ambos en paralelo
+          await Promise.allSettled([
+            downloadContract('es', `contrato_${newId}_es.pdf`),
+            downloadContract('en', `contrato_${newId}_en.pdf`),
+          ]);
+        }
       }
-      onSuccess();
-      onOpenChange(false);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al guardar');
     } finally {

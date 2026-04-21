@@ -82,7 +82,7 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = Auth::user();
-        $user->load('role');
+        $user->load(['role', 'evolutionInstance']);
 
         $permissions = [];
         if ($user->role) {

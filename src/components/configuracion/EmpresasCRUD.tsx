@@ -147,7 +147,7 @@ const EmpresasCRUD: React.FC = () => {
             ? { ...emp, business_name: businessName.trim(), requirements: newRequirements }
             : emp
         ));
-        toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
+        toast({ title: 'Actualizado', description: 'Institución actualizada correctamente.' });
       } else {
         const newId = Math.max(...empresas.map(e => e.id), 0) + 1;
         setEmpresas(prev => [...prev, {
@@ -155,7 +155,7 @@ const EmpresasCRUD: React.FC = () => {
           business_name: businessName.trim(),
           requirements: newRequirements
         }]);
-        toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
+        toast({ title: 'Creado', description: 'Institución creada correctamente.' });
       }
       closeDialog();
       setSaving(false);
@@ -179,12 +179,12 @@ const EmpresasCRUD: React.FC = () => {
           await api.put(`/api/enterprises/${editingEmpresa.id}`, payload, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
-          toast({ title: 'Actualizado', description: 'Empresa actualizada correctamente.' });
+          toast({ title: 'Actualizado', description: 'Institución actualizada correctamente.' });
         } else {
           await api.post('/api/enterprises', payload, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
-          toast({ title: 'Creado', description: 'Empresa creada correctamente.' });
+          toast({ title: 'Creado', description: 'Institución creada correctamente.' });
         }
 
         closeDialog();
@@ -210,11 +210,11 @@ const EmpresasCRUD: React.FC = () => {
         await api.delete(`/api/enterprises/${empresa.id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        toast({ title: 'Eliminado', description: 'Empresa eliminada correctamente.' });
+        toast({ title: 'Eliminado', description: 'Institución eliminada correctamente.' });
         fetchEmpresas();
       } catch (err) {
         console.error('Error deleting empresa:', err);
-        toast({ title: 'Error', description: 'No se pudo eliminar la empresa.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'No se pudo eliminar la institución.', variant: 'destructive' });
       }
     }
   };
@@ -224,26 +224,26 @@ const EmpresasCRUD: React.FC = () => {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Empresas y Requisitos</CardTitle>
-            <CardDescription>Configura los documentos necesarios por cada institución.</CardDescription>
+            <CardTitle>Documentos por Institución</CardTitle>
+            <CardDescription>Configura los documentos requeridos para cada institución.</CardDescription>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <PermissionButton module="config_personas" action="create" size="sm" className="gap-1" onClick={openCreateDialog}>
                 <PlusCircle className="h-4 w-4" />
-                Nueva Empresa
+                Nueva Institución
               </PermissionButton>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingEmpresa ? 'Editar Empresa' : 'Crear Empresa'}</DialogTitle>
+                <DialogTitle>{editingEmpresa ? 'Editar Institución' : 'Nueva Institución'}</DialogTitle>
                 <DialogDescription>
                   Define el nombre y los documentos que se deben solicitar.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="empresa-name">Nombre de la Empresa</Label>
+                  <Label htmlFor="empresa-name">Nombre de la Institución</Label>
                   <Input
                     id="empresa-name"
                     value={businessName}

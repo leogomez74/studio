@@ -8,17 +8,24 @@ use Illuminate\Support\Facades\Log;
 
 class JiraService
 {
-    private string $baseUrl;
-    private string $email;
-    private string $token;
-    private string $projectKey;
+    private ?string $baseUrl;
+    private ?string $email;
+    private ?string $token;
+    private ?string $projectKey;
+    private bool $configured;
 
     public function __construct()
     {
-        $this->baseUrl    = rtrim(config('services.jira.url'), '/');
-        $this->email      = config('services.jira.email');
-        $this->token      = config('services.jira.token');
-        $this->projectKey = config('services.jira.project_key');
+        $this->baseUrl    = rtrim(config('services.jira.url', ''), '/') ?: null;
+        $this->email      = config('services.jira.email') ?: null;
+        $this->token      = config('services.jira.token') ?: null;
+        $this->projectKey = config('services.jira.project_key', 'PJ') ?: null;
+        $this->configured = $this->baseUrl && $this->email && $this->token && $this->projectKey;
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->configured;
     }
 
     private function client()
@@ -27,7 +34,6 @@ class JiraService
                    ->withHeaders(['Content-Type' => 'application/json', 'Accept' => 'application/json']);
     }
 
-    /** Mapeo de prioridades Studio → Jira */
     private function mapPriority(string $priority): string
     {
         return match ($priority) {
@@ -39,7 +45,6 @@ class JiraService
         };
     }
 
-    /** Mapeo de estados Studio → transition name en Jira */
     private function mapStatus(string $status): string
     {
         return match ($status) {
@@ -51,37 +56,42 @@ class JiraService
         };
     }
 
-    /** Crear issue en Jira, retorna la key (ej: PJ-12) o null si falla */
-    public function createIssue(string $reference, string $title, string $priority, ?string $description = null): ?string
+    /**
+     * Crear issue en Jira. Retorna la key (ej: PJ-12) o null si falla.
+     */
+    public function createIssue(string $reference, string $title, string $priority, ?string $description = null, ?string $assigneeAccountId = null): ?string
     {
+        if (!$this->configured) return null;
         try {
-            $body = [
-                'fields' => [
-                    'project'     => ['key' => $this->projectKey],
-                    'summary'     => "[{$reference}] {$title}",
-                    'description' => [
-                        'type'    => 'doc',
-                        'version' => 1,
-                        'content' => [[
-                            'type'    => 'paragraph',
-                            'content' => [[
-                                'type' => 'text',
-                                'text' => $description ?? $title,
-                            ]],
-                        ]],
-                    ],
-                    'issuetype' => ['name' => 'Bug'],
-                    'priority'  => ['name' => $this->mapPriority($priority)],
+            $fields = [
+                'project'     => ['key' => $this->projectKey],
+                'summary'     => "[{$reference}] {$title}",
+                'description' => [
+                    'type'    => 'doc',
+                    'version' => 1,
+                    'content' => [[
+                        'type'    => 'paragraph',
+                        'content' => [['type' => 'text', 'text' => $description ?? $title]],
+                    ]],
                 ],
+                'issuetype' => ['name' => 'Tarea'],
+                'priority'  => ['name' => $this->mapPriority($priority)],
             ];
 
-            $response = $this->client()->post("{$this->baseUrl}/rest/api/3/issue", $body);
+            if ($assigneeAccountId) {
+                $fields['assignee'] = ['accountId' => $assigneeAccountId];
+            }
+
+            $response = $this->client()->post("{$this->baseUrl}/rest/api/3/issue", ['fields' => $fields]);
 
             if ($response->successful()) {
                 return $response->json('key');
             }
 
-            Log::warning('Jira createIssue failed', ['status' => $response->status(), 'body' => $response->body()]);
+            Log::warning('Jira createIssue failed', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
             return null;
 
         } catch (\Exception $e) {
@@ -90,15 +100,100 @@ class JiraService
         }
     }
 
-    /** Actualizar status de un issue en Jira */
+    /**
+     * Obtener subtareas de un issue.
+     */
+    public function getSubtasks(string $jiraKey): array
+    {
+        if (!$this->configured) return [];
+        try {
+            $resp = $this->client()->get("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}", [
+                'fields' => 'subtasks,summary,status,assignee',
+            ]);
+            if (!$resp->successful()) return [];
+
+            return collect($resp->json('fields.subtasks', []))
+                ->map(fn($s) => [
+                    'key'      => $s['key'],
+                    'summary'  => $s['fields']['summary'] ?? '',
+                    'status'   => $s['fields']['status']['name'] ?? '',
+                    'assignee' => $s['fields']['assignee']['displayName'] ?? null,
+                    'url'      => "{$this->baseUrl}/browse/{$s['key']}",
+                ])
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('Jira getSubtasks: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Crear subtarea en Jira.
+     */
+    public function createSubtask(string $parentKey, string $title, ?string $assigneeAccountId = null): ?string
+    {
+        if (!$this->configured) return null;
+        try {
+            $fields = [
+                'project'   => ['key' => $this->projectKey],
+                'parent'    => ['key' => $parentKey],
+                'summary'   => $title,
+                'issuetype' => ['name' => 'Subtarea'],
+            ];
+            if ($assigneeAccountId) {
+                $fields['assignee'] = ['accountId' => $assigneeAccountId];
+            }
+            $resp = $this->client()->post("{$this->baseUrl}/rest/api/3/issue", ['fields' => $fields]);
+            return $resp->successful() ? $resp->json('key') : null;
+        } catch (\Exception $e) {
+            Log::error('Jira createSubtask: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Eliminar un issue de Jira.
+     */
+    public function deleteIssue(string $jiraKey): void
+    {
+        if (!$this->configured) return;
+        try {
+            $this->client()->delete("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}");
+        } catch (\Exception $e) {
+            Log::error('Jira deleteIssue exception: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Adjuntar un archivo a un issue de Jira.
+     */
+    public function attachFile(string $jiraKey, string $filePath, string $fileName): void
+    {
+        if (!$this->configured) return;
+        try {
+            Http::withBasicAuth($this->email, $this->token)
+                ->withHeaders([
+                    'X-Atlassian-Token' => 'no-check',
+                    'Accept'            => 'application/json',
+                ])
+                ->attach('file', file_get_contents($filePath), $fileName)
+                ->post("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}/attachments");
+        } catch (\Exception $e) {
+            Log::error('Jira attachFile exception: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Actualizar status de un issue en Jira via transiciones.
+     */
     public function updateStatus(string $jiraKey, string $status): void
     {
+        if (!$this->configured) return;
         try {
-            // Obtener transiciones disponibles
             $resp = $this->client()->get("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}/transitions");
             if (!$resp->successful()) return;
 
-            $targetName = $this->mapStatus($status);
+            $targetName   = $this->mapStatus($status);
             $transitionId = null;
 
             foreach ($resp->json('transitions', []) as $t) {
@@ -120,12 +215,16 @@ class JiraService
         }
     }
 
-    /** Obtener usuarios del proyecto (caché 1 hora) */
+    /**
+     * Obtener usuarios del proyecto (caché 1 hora).
+     */
     public function getUsers(): array
     {
-        return Cache::remember('jira_users', 3600, function () {
+        if (!$this->configured) return [];
+        return Cache::remember('jira_users_' . $this->projectKey, 3600, function () {
             try {
-                $response = $this->client()->get("{$this->baseUrl}/rest/api/3/users/search", [
+                $response = $this->client()->get("{$this->baseUrl}/rest/api/3/user/assignable/search", [
+                    'project'    => $this->projectKey,
                     'maxResults' => 100,
                 ]);
 
@@ -147,5 +246,125 @@ class JiraService
                 return [];
             }
         });
+    }
+
+    /**
+     * Obtener todas las tareas del proyecto desde Jira.
+     */
+    public function fetchProjectIssues(): array
+    {
+        if (!$this->configured) return [];
+        try {
+            $all  = [];
+            $start = 0;
+            do {
+                $resp = $this->client()->get("{$this->baseUrl}/rest/api/3/search/jql", [
+                    'jql'        => "project = {$this->projectKey} ORDER BY created DESC",
+                    'startAt'    => $start,
+                    'maxResults' => 100,
+                    'fields'     => 'summary,status,priority,assignee,description,attachment',
+                ]);
+                if (!$resp->successful()) break;
+                $issues = $resp->json('issues', []);
+                $all    = array_merge($all, $issues);
+                $total  = $resp->json('total', 0);
+                $start += count($issues);
+            } while ($start < $total);
+            return $all;
+        } catch (\Exception $e) {
+            Log::error('Jira fetchProjectIssues: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Descargar contenido de un attachment de Jira (URL autenticada).
+     * Retorna el contenido binario o null si falla.
+     */
+    public function downloadAttachment(string $contentUrl): ?string
+    {
+        if (!$this->configured) return null;
+        try {
+            $resp = $this->client()->get($contentUrl);
+            return $resp->successful() ? $resp->body() : null;
+        } catch (\Exception $e) {
+            Log::error('Jira downloadAttachment: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Actualizar título y/o descripción de un issue en Jira.
+     */
+    public function updateIssue(string $jiraKey, array $fields): void
+    {
+        if (!$this->configured) return;
+        $update = [];
+        if (isset($fields['title'])) {
+            $update['summary'] = $fields['title'];
+        }
+        if (array_key_exists('description', $fields)) {
+            $text = $fields['description'] ?? '';
+            $update['description'] = [
+                'type'    => 'doc',
+                'version' => 1,
+                'content' => [[
+                    'type'    => 'paragraph',
+                    'content' => [['type' => 'text', 'text' => $text ?: ' ']],
+                ]],
+            ];
+        }
+        if (empty($update)) return;
+        try {
+            $this->client()->put("{$this->baseUrl}/rest/api/3/issue/{$jiraKey}", ['fields' => $update]);
+        } catch (\Exception $e) {
+            Log::error('Jira updateIssue: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Registrar (o actualizar) el webhook en Jira apuntando al APP_URL del .env
+     */
+    public function registerWebhook(): array
+    {
+        if (!$this->configured) return ['error' => 'Jira no configurado'];
+
+        $webhookUrl = rtrim(config('app.url'), '/') . '/api/webhooks/jira';
+
+        try {
+            // Verificar si ya existe
+            $existing = $this->client()->get("{$this->baseUrl}/rest/webhooks/1.0/webhook");
+            $hooks = $existing->json() ?? [];
+            foreach ($hooks as $hook) {
+                if (str_contains($hook['url'] ?? '', '/api/webhooks/jira')) {
+                    // Ya existe, actualizamos la URL por si cambió
+                    $this->client()->put("{$this->baseUrl}/rest/webhooks/1.0/webhook/{$hook['self']}", [
+                        'name'   => 'Studio Sync',
+                        'url'    => $webhookUrl,
+                        'events' => ['jira:issue_created', 'jira:issue_updated', 'jira:issue_deleted'],
+                        'filters' => ['issue-related-events-section' => "project = {$this->projectKey}"],
+                    ]);
+                    return ['status' => 'updated', 'url' => $webhookUrl];
+                }
+            }
+
+            // Crear nuevo
+            $resp = $this->client()->post("{$this->baseUrl}/rest/webhooks/1.0/webhook", [
+                'name'    => 'Studio Sync',
+                'url'     => $webhookUrl,
+                'events'  => ['jira:issue_created', 'jira:issue_updated', 'jira:issue_deleted'],
+                'filters' => ['issue-related-events-section' => "project = {$this->projectKey}"],
+            ]);
+
+            if ($resp->successful()) {
+                return ['status' => 'created', 'url' => $webhookUrl];
+            }
+
+            return ['error' => $resp->body(), 'url' => $webhookUrl];
+
+        } catch (\Exception $e) {
+            Log::error('Jira registerWebhook: ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
     }
 }

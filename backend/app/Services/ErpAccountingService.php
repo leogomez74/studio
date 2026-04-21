@@ -16,11 +16,25 @@ class ErpAccountingService
     private const TOKEN_CACHE_KEY = 'erp_accounting_token';
     private const TOKEN_TTL = 3600; // 1 hora
 
+    private string $serviceToken;
+    private string $serviceSecret;
+
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.erp.url', ''), '/');
-        $this->email = config('services.erp.email', '');
-        $this->password = config('services.erp.password', '');
+        $this->baseUrl       = rtrim(config('services.erp.url', ''), '/');
+        $this->email         = config('services.erp.email', '');
+        $this->password      = config('services.erp.password', '');
+        $this->serviceToken  = config('services.erp.service_token', '');
+        $this->serviceSecret = config('services.erp.service_secret', '');
+    }
+
+    /**
+     * Verifica si usa autenticación por service token (ERP_SERVICE_TOKEN + ERP_SERVICE_SECRET)
+     * o por credenciales email/password.
+     */
+    private function usesServiceToken(): bool
+    {
+        return !empty($this->serviceToken) && !empty($this->serviceSecret);
     }
 
     /**
@@ -28,7 +42,12 @@ class ErpAccountingService
      */
     public function isConfigured(): bool
     {
-        return !empty($this->baseUrl) && !empty($this->email) && !empty($this->password);
+        if (!$this->baseUrl) {
+            return false;
+        }
+
+        return $this->usesServiceToken()
+            || (!empty($this->email) && !empty($this->password));
     }
 
     /**
@@ -48,10 +67,19 @@ class ErpAccountingService
     // ================================================================
 
     /**
-     * Obtener token Bearer. Usa caché y reautentica si es necesario.
+     * Obtener token Bearer.
+     *
+     * Prioridad:
+     *   1. Si ERP_SERVICE_TOKEN + ERP_SERVICE_SECRET están definidos → los usa directamente
+     *      (sin cache, son estáticos en .env)
+     *   2. Si no → autentica con email/password y cachea el JWT resultante 1 hora
      */
     public function getToken(): string
     {
+        if ($this->usesServiceToken()) {
+            return $this->serviceToken;
+        }
+
         $cached = Cache::get(self::TOKEN_CACHE_KEY);
         if ($cached) {
             return $cached;
@@ -156,19 +184,76 @@ class ErpAccountingService
     }
 
     /**
+     * Realiza una petición HTTP autenticada al ERP (HMAC o Bearer según configuración).
+     */
+    private function makeRequest(string $method, string $endpoint, array $payload = []): \Illuminate\Http\Client\Response
+    {
+        $upperMethod = strtoupper($method);
+
+        // GET no lleva body — el ERP firma con sha256('') para requests sin body
+        $body = ($upperMethod === 'GET' || empty($payload)) ? '' : json_encode($payload);
+        if ($body === false) {
+            throw new Exception('No se pudo serializar el payload para el ERP.');
+        }
+
+        if ($this->usesServiceToken()) {
+            $path    = parse_url($endpoint, PHP_URL_PATH);
+            $headers = $this->buildServiceTokenHeaders($upperMethod, $path, $body);
+
+            $client = Http::timeout(20)->withHeaders($headers);
+
+            return $upperMethod === 'GET'
+                ? $client->get($endpoint)
+                : $client->withBody($body, 'application/json')->post($endpoint);
+        }
+
+        $token = $this->getToken();
+        $client = Http::timeout(20)->withToken($token);
+
+        return $upperMethod === 'GET'
+            ? $client->get($endpoint)
+            : $client->withBody($body, 'application/json')->post($endpoint);
+    }
+
+    /**
+     * Construye los headers HMAC para autenticación con service token.
+     * Firma: HMAC-SHA256 de "token\ntimestamp\nnonce\nMETHOD\n/path\nsha256(body)"
+     */
+    private function buildServiceTokenHeaders(string $method, string $path, string $body): array
+    {
+        $timestamp = (string) time();
+        $nonce     = bin2hex(random_bytes(16));
+        $bodyHash  = hash('sha256', $body);
+
+        $sigPayload = implode("\n", [
+            $this->serviceToken,
+            $timestamp,
+            $nonce,
+            strtoupper($method),
+            '/' . ltrim($path, '/'),
+            $bodyHash,
+        ]);
+
+        $signature = hash_hmac('sha256', $sigPayload, $this->serviceSecret);
+
+        return [
+            'X-Service-Token' => $this->serviceToken,
+            'X-Timestamp'     => $timestamp,
+            'X-Nonce'         => $nonce,
+            'X-Signature'     => $signature,
+            'Accept'          => 'application/json',
+            'Content-Type'    => 'application/json',
+        ];
+    }
+
+    /**
      * Enviar request con reintento automático en caso de 401
      */
     private function sendWithRetry(array $payload, bool $isRetry = false): array
     {
         try {
-            $token = $this->getToken();
-
-            $response = Http::timeout(30)
-                ->withHeaders([
-                    'Authorization' => 'Bearer ' . $token,
-                    'Accept' => 'application/json',
-                ])
-                ->post($this->baseUrl . '/journal-entry', $payload);
+            $endpoint = $this->baseUrl . '/journal-entry';
+            $response = $this->makeRequest('POST', $endpoint, $payload);
 
             // 201 = Éxito
             if ($response->status() === 201) {
@@ -188,10 +273,15 @@ class ErpAccountingService
             }
 
             // 401 = Token expirado → reautenticar y reintentar una vez
-            if ($response->status() === 401 && !$isRetry) {
+            // (solo aplica para autenticación email/password; service token es estático)
+            if ($response->status() === 401 && !$isRetry && !$this->usesServiceToken()) {
                 Log::warning('ERP: Token expirado, reautenticando...');
                 $this->clearToken();
                 return $this->sendWithRetry($payload, true);
+            }
+
+            if ($response->status() === 401 && $this->usesServiceToken()) {
+                Log::error('ERP: 401 con ERP_SERVICE_TOKEN — verificar validez del token en .env');
             }
 
             // 422 = Error de validación
@@ -304,6 +394,16 @@ class ErpAccountingService
         }
 
         try {
+            if ($this->usesServiceToken()) {
+                // Con service token la validación real ocurre al crear asientos.
+                // Aquí solo confirmamos que las variables están configuradas.
+                return [
+                    'success'       => true,
+                    'message'       => 'Conexión configurada con ERP_SERVICE_TOKEN.',
+                    'token_preview' => substr($this->serviceToken, 0, 10) . '...',
+                ];
+            }
+
             $this->clearToken();
             $token = $this->authenticate();
 
@@ -334,30 +434,20 @@ class ErpAccountingService
             throw new Exception('ERP no configurado. Verifica ERP_API_URL, ERP_API_EMAIL y ERP_API_PASSWORD.');
         }
 
-        $token = $this->getToken();
+        $accountPayload = [
+            'account_name'     => $accountName,
+            'account_type'     => $accountType,
+            'account_sub_type' => $accountSubType,
+            'opening_balance'  => 0,
+            'prefix'           => $prefix,
+        ];
 
-        $response = Http::timeout(20)
-            ->withToken($token)
-            ->post($this->baseUrl . '/accounts', [
-                'account_name'     => $accountName,
-                'account_type'     => $accountType,
-                'account_sub_type' => $accountSubType,
-                'opening_balance'  => 0,
-                'prefix'           => $prefix,
-            ]);
+        $response = $this->makeRequest('POST', $this->baseUrl . '/accounts', $accountPayload);
 
-        if ($response->status() === 401) {
+        // Reintento por token expirado solo en flujo email/password
+        if ($response->status() === 401 && !$this->usesServiceToken()) {
             Cache::forget(self::TOKEN_CACHE_KEY);
-            $token = $this->authenticate();
-            $response = Http::timeout(20)
-                ->withToken($token)
-                ->post($this->baseUrl . '/accounts', [
-                    'account_name'     => $accountName,
-                    'account_type'     => $accountType,
-                    'account_sub_type' => $accountSubType,
-                    'opening_balance'  => 0,
-                    'prefix'           => $prefix,
-                ]);
+            $response = $this->makeRequest('POST', $this->baseUrl . '/accounts', $accountPayload);
         }
 
         $data = $response->json();

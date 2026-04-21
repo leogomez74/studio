@@ -5,14 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Credit;
 use App\Models\CreditPayment;
-use App\Models\Task;
-use App\Models\TaskAutomation;
 use App\Services\AbonoService;
 use App\Services\CancelacionService;
 use App\Services\MoraService;
 use App\Services\PaymentProcessingService;
 use App\Services\PlanillaService;
 use App\Services\ReversalService;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -21,6 +20,7 @@ use App\Events\BusinessActionPerformed;
 
 class CreditPaymentController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
 
     protected PlanillaService $planilla;
@@ -229,9 +229,11 @@ class CreditPaymentController extends Controller
     public function upload(Request $request)
     {
         $validated = $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'deductora_id' => 'required|exists:deductoras,id',
-            'fecha_test' => 'nullable|date',
+            'file'             => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'deductora_id'     => 'required|exists:deductoras,id',
+            'fecha_test'       => 'nullable|date',
+            'ajustes_decimales' => 'nullable|array',
+            'ajustes_decimales.*' => 'string',
         ]);
 
         $result = $this->planilla->upload($validated, $request->file('file'), $request);
@@ -246,13 +248,8 @@ class CreditPaymentController extends Controller
         // Gamificación: puntos por carga masiva de planilla
         BusinessActionPerformed::dispatch('planilla_uploaded', $request->user(), $result['planillaUpload']);
 
-        // Auto-tarea: planilla_uploaded
-        $automation = TaskAutomation::where('event_type', 'planilla_uploaded')
-            ->where('is_active', true)->first();
-        if ($automation) {
-            Task::createFromAutomation($automation, 'PLANILLA-' . $result['planillaUpload']->id,
-                "Planilla #{$result['planillaUpload']->id} cargada exitosamente.");
-        }
+        $this->dispararAutoTarea('planilla_uploaded', 'PLANILLA-' . $result['planillaUpload']->id,
+            "Planilla #{$result['planillaUpload']->id} cargada exitosamente.");
 
         return response()->json([
             'message' => 'Proceso completado',

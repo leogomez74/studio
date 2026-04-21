@@ -40,9 +40,11 @@ return [
     ],
 
     'erp' => [
-        'url' => env('ERP_API_URL', ''),
-        'email' => env('ERP_API_EMAIL', ''),
-        'password' => env('ERP_API_PASSWORD', ''),
+        'url'            => env('ERP_API_URL', env('ERP_SERVICE_URL', '')),
+        'email'          => env('ERP_API_EMAIL', ''),
+        'password'       => env('ERP_API_PASSWORD', ''),
+        'service_token'  => env('ERP_SERVICE_TOKEN', ''),
+        'service_secret' => env('ERP_SERVICE_SECRET', ''),
     ],
 
     'inversiones' => [
@@ -81,7 +83,6 @@ return [
     'allowed_integration_domains' => array_filter(
         explode(',', env('ALLOWED_INTEGRATION_DOMAINS', ''))
     ),
-
 
     'jira' => [
         'url'         => env('JIRA_URL'),

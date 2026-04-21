@@ -101,7 +101,23 @@
                         : ($pago->cedula ?? '-');
                     $operacion = $credit ? ($credit->numero_operacion ?? $credit->reference ?? '-') : '-';
                     $sobrante  = $pago->movimiento_total > 0 ? '<span class="colones">₡</span>' . number_format((float) $pago->movimiento_total, 2) : '-';
-                    $estado    = $pago->estado_reverso === 'Anulado' ? 'Anulado' : ($pago->estado ?? '-');
+                    // Estado real de la cuota en el plan de pagos
+                    $cuotaEstado = null;
+                    if ($credit && $pago->numero_cuota) {
+                        $cuotaRow = \App\Models\PlanDePago::where('credit_id', $credit->id)
+                            ->where('numero_cuota', $pago->numero_cuota)
+                            ->value('estado');
+                        $cuotaEstado = $cuotaRow;
+                    }
+                    if ($pago->estado_reverso === 'Anulado') {
+                        $estado = 'Anulado';
+                    } elseif ($pago->movimiento_total > 0.50) {
+                        $estado = 'Sobrepago';
+                    } elseif ($cuotaEstado) {
+                        $estado = $cuotaEstado; // Pagado, Parcial, etc.
+                    } else {
+                        $estado = $pago->estado ?? '-';
+                    }
                 @endphp
                 <tr class="{{ $idx % 2 === 1 ? 'alt' : '' }}">
                     <td style="text-align:center;">{{ $idx + 1 }}</td>
@@ -111,7 +127,19 @@
                     <td style="text-align:center;">{{ $pago->numero_cuota ?? '-' }}</td>
                     <td style="text-align:right;"><span class="colones">₡</span>{{ number_format((float) $pago->monto, 2) }}</td>
                     <td style="text-align:right;">{!! $sobrante !!}</td>
-                    <td style="text-align:center;">{{ $estado }}</td>
+                    <td style="text-align:center;">
+                        @if($estado === 'Pagado')
+                            <span style="color:#16a34a;font-weight:bold;">Pagado</span>
+                        @elseif($estado === 'Parcial')
+                            <span style="color:#d97706;font-weight:bold;">Parcial</span>
+                        @elseif($estado === 'Sobrepago')
+                            <span style="color:#2563eb;font-weight:bold;">Sobrepago</span>
+                        @elseif($estado === 'Anulado')
+                            <span style="color:#dc2626;font-weight:bold;">Anulado</span>
+                        @else
+                            {{ $estado }}
+                        @endif
+                    </td>
                 </tr>
                 @empty
                 <tr><td colspan="8" style="text-align:center;padding:8px;color:#888;">Sin pagos registrados</td></tr>

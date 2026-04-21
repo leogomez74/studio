@@ -115,7 +115,7 @@ export function AnalisisWizardModal({
   const router = useRouter();
   const { hasPermission } = usePermissions();
   const canEditResponsable = hasPermission('analizados', 'assign');
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(datosPreCargados ? 2 : 1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [extraMonths, setExtraMonths] = useState(0);
@@ -534,6 +534,7 @@ export function AnalisisWizardModal({
         monto_solicitado: monto_solicitado || null,
         monto_sugerido: parseFloat(formData.monto_sugerido),
         plazo: parseInt(formData.plazo),
+        cuota: parseFloat(formData.cuota) || null,
         assigned_to: formData.assigned_to,
         ingreso_bruto: parseFloat(formData.ingreso_bruto) || null,
         ingreso_neto: parseFloat(formData.ingreso_bruto) || null,
@@ -592,7 +593,7 @@ export function AnalisisWizardModal({
       onSuccess();
       onOpenChange(false);
       setFormData(initialFormData);
-      setCurrentStep(1);
+      setCurrentStep(datosPreCargados ? 2 : 1);
       setExtraMonths(0);
       setSelectedFiles([]);
       setCredidLoaded(false);
@@ -1295,7 +1296,7 @@ export function AnalisisWizardModal({
           <Button
             variant="outline"
             onClick={prevStep}
-            disabled={currentStep === 1}
+            disabled={currentStep === (datosPreCargados ? 2 : 1)}
           >
             <ChevronLeft className="w-4 h-4 mr-2" />
             Anterior

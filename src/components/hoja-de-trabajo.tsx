@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { Loader2, Search, CheckCircle, AlertCircle, PenLine, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
@@ -70,6 +71,23 @@ function withCommas(raw: string): string {
 /** Quita comas y caracteres no numéricos para guardar en estado */
 function stripCommas(value: string): string {
   return value.replace(/[^0-9]/g, '');
+}
+
+/** Normaliza input con formato CR (punto=miles, coma=decimal) → guarda internamente con punto decimal */
+function stripCommasDecimal(value: string): string {
+  // Quitar puntos de miles, convertir coma decimal a punto
+  const normalized = value.replace(/\./g, '').replace(',', '.');
+  const clean = normalized.replace(/[^0-9.]/g, '');
+  const parts = clean.split('.');
+  return parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : clean;
+}
+
+/** Formatea número interno (punto decimal) → display CR (punto=miles, coma=decimal) */
+function withCommasDecimal(raw: string): string {
+  if (!raw) return '';
+  const [integer, decimal] = raw.split('.');
+  const formatted = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decimal !== undefined ? `${formatted},${decimal}` : formatted;
 }
 
 /** Elige negro o blanco según luminosidad del fondo para que el texto siempre sea legible */
@@ -180,6 +198,14 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     return MESES_ES[d.getMonth()];
   }), [totalMeses]);
 
+  // Switch: true = 1Q y 2Q por mes, false = 1 campo por mes
+  const [colillasPorQuincena, setColillasPorQuincena] = useState<boolean>(() => {
+    try {
+      const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
+      return draft.colillasPorQuincena !== undefined ? draft.colillasPorQuincena : true;
+    } catch { return true; }
+  });
+
   const [ingresos, setIngresos] = useState<{ num: number; liquido: string }[]>(() => {
     try {
       const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
@@ -192,23 +218,31 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     setIngresos(prev => prev.map(i => i.num === num ? { ...i, liquido: stripCommas(value) } : i));
   };
 
-  const periodos = ingresos.slice(0, totalPeriodos);
+  // Periodos activos según el switch: con quincenas = 2 por mes, sin = 1 por mes
+  const periodosActivos = colillasPorQuincena ? totalPeriodos : totalMeses;
+  const periodos = ingresos.slice(0, periodosActivos);
 
-  // Solo calcular promedio cuando TODOS los períodos tengan líquido > 0
+  // Solo calcular promedio cuando TODOS los períodos activos tengan líquido > 0
   const todosLlenos = useMemo(() =>
     periodos.every(i => (parseFloat(i.liquido) || 0) > 0),
     [periodos]
   );
 
-  // Promedio = suma de totales mensuales (q1+q2) / totalMeses (3 micro, 6 regular)
+  // Promedio mensual adaptado al modo
   const promedioLiquido = useMemo(() => {
     if (!todosLlenos) return 0;
     const vals = periodos.map(i => parseFloat(i.liquido) || 0);
-    const totalesMes = Array.from({ length: totalMeses }, (_, mi) =>
-      (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
-    );
-    return totalesMes.reduce((a, b) => a + b, 0) / totalMeses;
-  }, [periodos, todosLlenos, totalMeses]);
+    if (colillasPorQuincena) {
+      // Sumar pares q1+q2 por mes
+      const totalesMes = Array.from({ length: totalMeses }, (_, mi) =>
+        (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
+      );
+      return totalesMes.reduce((a, b) => a + b, 0) / totalMeses;
+    } else {
+      // Un valor por mes directo
+      return vals.reduce((a, b) => a + b, 0) / totalMeses;
+    }
+  }, [periodos, todosLlenos, totalMeses, colillasPorQuincena]);
 
   // ── Paso 3: Embargo ──────────────────────────────────────────────────────────
   const [salarioBrutoManual, setSalarioBrutoManual] = useState(() => {
@@ -219,6 +253,9 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   });
   const [otroEmbargo, setOtroEmbargo] = useState(() => {
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').otroEmbargo || ''; } catch { return ''; }
+  });
+  const [embargoActual, setEmbargoActual] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').embargoActual || ''; } catch { return ''; }
   });
   const [embargableResult, setEmbargableResult] = useState<any>(null);
   const [loadingEmbargo, setLoadingEmbargo] = useState(false);
@@ -285,14 +322,25 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   useEffect(() => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo, credidData,
+        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData,
       }));
     } catch {}
-  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo, credidData]);
+  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData]);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleCrearAnalisis = () => {
-    const get = (num: number) => ingresos.find(i => i.num === num)?.liquido ?? '';
+    // En modo "por mes" (switch OFF), cada ingreso mensual ocupa 1 posición.
+    // Lo duplicamos en q1 y q2 para que el wizard lo interprete como mes completo.
+    const get = (num: number): string => {
+      if (colillasPorQuincena) {
+        return ingresos.find(i => i.num === num)?.liquido ?? '';
+      } else {
+        // num 1,2 → mes 1; num 3,4 → mes 2; etc.
+        const mesIdx = Math.floor((num - 1) / 2); // 0-based
+        const mesIngreso = ingresos[mesIdx]; // array posicional desde el corte
+        return mesIngreso?.liquido ?? '';
+      }
+    };
     onCrearAnalisis({
       numero_manchas: credidData?.numero_manchas || 0,
       numero_juicios: credidData?.numero_juicios || 0,
@@ -343,19 +391,24 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const minSalarioMeses = useMemo(() => {
     if (!todosLlenos) return 0;
     const vals = periodos.map(i => parseFloat(i.liquido) || 0);
-    if (esMicro) {
+    if (colillasPorQuincena) {
       const totalesMes = Array.from({ length: totalMeses }, (_, mi) =>
         (vals[mi * 2] || 0) + (vals[mi * 2 + 1] || 0)
       );
       return Math.min(...totalesMes);
     }
+    // Modo por mes: cada valor ya es el total mensual
     return Math.min(...vals);
-  }, [periodos, todosLlenos, esMicro, totalMeses]);
+  }, [periodos, todosLlenos, totalMeses, colillasPorQuincena]);
 
   const otroEmbargoNum = parseFloat(otroEmbargo) || 0;
-  const embargoPorNuevoCredito = otroEmbargoNum > 0
-    ? Math.max(0, totalEmbargo - otroEmbargoNum)  // embargada: solo la diferencia
-    : totalEmbargo;                                 // libre: restar todo el máximo embargable
+  const embargoActualNum = parseFloat(embargoActual) || 0;
+  // embargoActual resta del máx embargable → solo la diferencia castiga el salario
+  const embargoPorNuevoCredito = embargoActualNum > 0
+    ? Math.max(0, totalEmbargo - embargoActualNum)
+    : otroEmbargoNum > 0
+      ? Math.max(0, totalEmbargo - otroEmbargoNum)
+      : totalEmbargo;
   const salarioCastigado = Math.max(0, minSalarioMeses - embargoPorNuevoCredito);
   const capacidadReal = Math.round(salarioCastigado * 0.25);
   const cuotaSuperaCapacidad = cuotaCalculada > 0 && minSalarioMeses > 0 && cuotaCalculada > capacidadReal;
@@ -739,48 +792,85 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
           <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">2</span>
             <CardTitle className="text-sm font-semibold">
-              {esMicro ? `Colillas / Ingresos (3 meses × 2 quincenas)` : `Colillas / Ingresos (6 meses × 2 quincenas)`}
+              {esMicro
+                ? `Colillas / Ingresos (3 meses${colillasPorQuincena ? ' × 2 quincenas' : ''})`
+                : `Colillas / Ingresos (6 meses${colillasPorQuincena ? ' × 2 quincenas' : ''})`}
             </CardTitle>
-            {promedioLiquido > 0 && (
-              <Badge variant="outline" className="ml-auto text-blue-700 border-blue-300 text-xs">
-                Prom. mensual: {fmt(promedioLiquido)}
-              </Badge>
-            )}
+            <div className="ml-auto flex items-center gap-2">
+              {promedioLiquido > 0 && (
+                <Badge variant="outline" className="text-blue-700 border-blue-300 text-xs">
+                  Prom. mensual: {fmt(promedioLiquido)}
+                </Badge>
+              )}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground">Por mes</span>
+                <Switch
+                  checked={colillasPorQuincena}
+                  onCheckedChange={v => {
+                    setColillasPorQuincena(v);
+                    // Limpiar quincenas pares al desactivar
+                    if (!v) {
+                      setIngresos(prev => prev.map((ing, i) => i % 2 === 1 ? { ...ing, liquido: '' } : ing));
+                    }
+                  }}
+                  className="h-4 w-7"
+                />
+                <span className="text-[10px] text-muted-foreground">Por quincena</span>
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-4">
-          {/* 3 meses × 2 quincenas (micro y regular) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
             {mesesNombres.map((nombreMes, mi) => {
               const q1 = ingresos[mi * 2];
               const q2 = ingresos[mi * 2 + 1];
-              const totalMes = (parseFloat(q1?.liquido) || 0) + (parseFloat(q2?.liquido) || 0);
+              // Modo por mes: el ingreso mensual está en q1
+              const mensual = colillasPorQuincena ? undefined : ingresos[mi];
+              const totalMes = colillasPorQuincena
+                ? (parseFloat(q1?.liquido ?? '') || 0) + (parseFloat(q2?.liquido ?? '') || 0)
+                : (parseFloat(mensual?.liquido ?? '') || 0);
               return (
                 <div key={mi} className="border rounded-md p-3 bg-slate-50">
                   <p className="text-xs font-semibold text-slate-700 mb-2">{nombreMes}</p>
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-medium text-slate-500 w-5">1Q</span>
-                      <Input
-                        value={withCommas(q1?.liquido || '')}
-                        onChange={e => updateIngreso(q1.num, e.target.value)}
-                        placeholder="0"
-                        className="h-7 text-xs px-2 flex-1"
-                        inputMode="numeric"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-medium text-slate-500 w-5">2Q</span>
-                      <Input
-                        value={withCommas(q2?.liquido || '')}
-                        onChange={e => updateIngreso(q2.num, e.target.value)}
-                        placeholder="0"
-                        className="h-7 text-xs px-2 flex-1"
-                        inputMode="numeric"
-                      />
-                    </div>
+                    {colillasPorQuincena ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-medium text-slate-500 w-5">1Q</span>
+                          <Input
+                            value={withCommas(q1?.liquido || '')}
+                            onChange={e => updateIngreso(q1.num, e.target.value)}
+                            placeholder="0"
+                            className="h-7 text-xs px-2 flex-1"
+                            inputMode="numeric"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-medium text-slate-500 w-5">2Q</span>
+                          <Input
+                            value={withCommas(q2?.liquido || '')}
+                            onChange={e => updateIngreso(q2.num, e.target.value)}
+                            placeholder="0"
+                            className="h-7 text-xs px-2 flex-1"
+                            inputMode="numeric"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-medium text-slate-500 w-9">Neto</span>
+                        <Input
+                          value={withCommas(mensual?.liquido || '')}
+                          onChange={e => updateIngreso(mensual!.num, e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-xs px-2 flex-1"
+                          inputMode="numeric"
+                        />
+                      </div>
+                    )}
                     <div className="flex justify-between items-center pt-1 border-t border-slate-200">
-                      <span className="text-[10px] text-slate-500">Total</span>
+                      <span className="text-[10px] text-slate-500">{colillasPorQuincena ? 'Total' : 'Mensual'}</span>
                       <span className={`text-xs font-semibold tabular-nums ${totalMes > 0 ? 'text-green-700' : 'text-slate-400'}`}>
                         {totalMes > 0 ? fmt(totalMes) : '—'}
                       </span>
@@ -838,7 +928,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                       inputMode="numeric"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label className="text-xs">Pensión Alimentaria (₡)</Label>
                       <Input value={withCommas(pensionAlimenticia)} onChange={e => setPensionAlimenticia(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
@@ -846,6 +936,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                     <div>
                       <Label className="text-xs">Otro Embargo (₡)</Label>
                       <Input value={withCommas(otroEmbargo)} onChange={e => setOtroEmbargo(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Embargo Actual (₡)</Label>
+                      <Input value={withCommasDecimal(embargoActual)} onChange={e => setEmbargoActual(stripCommasDecimal(e.target.value))} placeholder="0.00" className="h-8 text-xs mt-1" inputMode="decimal" />
                     </div>
                   </div>
 
@@ -961,7 +1055,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                       <span>{fmt(minSalarioMeses)}</span>
                     </div>
                     <div className="flex justify-between text-orange-600">
-                      <span>− {otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
+                      <span>− {embargoActualNum > 0 ? 'Disponible nuevo crédito' : otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
                       <span>{fmt(embargoPorNuevoCredito)}</span>
                     </div>
                     <div className="flex justify-between font-semibold border-t pt-1 text-slate-700">

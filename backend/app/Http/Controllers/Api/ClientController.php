@@ -133,6 +133,10 @@ class ClientController extends Controller
 
         $validated['is_active'] = $validated['is_active'] ?? true;
 
+        if (empty($validated['assigned_to_id'])) {
+            $validated['assigned_to_id'] = app(\App\Services\AssignmentService::class)->getNextAssignee('crm');
+        }
+
         $client = Client::create($validated);
 
         $this->logActivity('create', 'Clientes', $client, $client->cedula ?? $client->name, [], $request);
@@ -204,6 +208,9 @@ class ClientController extends Controller
             'whatsapp' => 'sometimes|nullable|string|max:50',
             'tel_casa' => 'sometimes|nullable|string|max:50',
             'tel_amigo' => 'sometimes|nullable|string|max:50',
+            'tel_amigo_2' => 'sometimes|nullable|string|max:50',
+            'relacionado_a_2' => 'sometimes|nullable|string|max:255',
+            'tipo_relacion_2' => 'sometimes|nullable|string|max:255',
             'ocupacion' => 'sometimes|nullable|string|max:255',
             'estado_civil' => 'sometimes|nullable|string|max:255',
             'fecha_nacimiento' => 'sometimes|nullable|date',

@@ -923,11 +923,21 @@ export default function CobrosPage() {
   const [previewData, setPreviewData] = useState<any>(null);
   const [showingPreview, setShowingPreview] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [ajustesCedulasSeleccionadas, setAjustesCedulasSeleccionadas] = useState<string[]>([]);
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 
   // Resultado de planilla con sobrantes
   const [planillaResult, setPlanillaResult] = useState<any>(null);
+
+  // Ajuste de Decimales
+  const [ajusteDecimalesData, setAjusteDecimalesData] = useState<{
+    planillaId: number;
+    candidatos: Array<{ credito_referencia: string; nombre: string | null; cedula: string; monto_planilla: number; cuota_esperada: number; diferencia: number }>;
+  } | null>(null);
+  const [ajusteDecimalesOpen, setAjusteDecimalesOpen] = useState(false);
+  const [procesandoAjuste, setProcesandoAjuste] = useState(false);
+  const [ajusteResultado, setAjusteResultado] = useState<any>(null);
 
 
   // Historial de Planillas
@@ -1196,6 +1206,7 @@ export default function CobrosPage() {
     setFechaTestPlanilla('');
     setPreviewData(null);
     setShowingPreview(false);
+    setAjustesCedulasSeleccionadas([]);
     if (fileRef.current) fileRef.current.value = '';
   }, []);
 
@@ -1468,6 +1479,14 @@ export default function CobrosPage() {
     if (fechaTestPlanilla) {
       form.append('fecha_test', fechaTestPlanilla);
     }
+    // Detectar automáticamente cédulas con diferencia decimal ≤ ₡1 y enviarlas para ajuste
+    if (previewData?.preview) {
+      const cedulasAjuste = (previewData.preview as any[])
+        .filter(item => item.monto_planilla != null && item.diferencia < -0.005 && item.diferencia >= -1.00)
+        .map(item => item.cedula?.replace(/[^0-9]/g, '') ?? '')
+        .filter(Boolean);
+      cedulasAjuste.forEach((c: string) => form.append('ajustes_decimales[]', c));
+    }
 
     try {
       setUploading(true);
@@ -1493,6 +1512,18 @@ export default function CobrosPage() {
 
       setPlanRefreshKey(k => k + 1);
       closePlanillaModal();
+
+      // Verificar si hay cuotas con diferencia decimal ajustable
+      const planillaId = uploadRes.data?.planilla_id;
+      if (planillaId) {
+        try {
+          const resAjuste = await api.get(`/api/planilla-uploads/${planillaId}/preview-ajuste-decimales`);
+          if (resAjuste.data?.total > 0) {
+            setAjusteDecimalesData({ planillaId, candidatos: resAjuste.data.candidatos });
+            setAjusteDecimalesOpen(true);
+          }
+        } catch { /* silencioso */ }
+      }
     } catch (err: any) {
       const data = err.response?.data;
       let msg = data?.message || 'Error al procesar planilla.';
@@ -1510,6 +1541,21 @@ export default function CobrosPage() {
       setUploading(false);
     }
   }, [selectedFile, selectedDeductora, fechaTestPlanilla, showingPreview, handleGetPreview, toast, closePlanillaModal]);
+
+  const handleProcesarAjusteDecimales = useCallback(async () => {
+    if (!ajusteDecimalesData) return;
+    try {
+      setProcesandoAjuste(true);
+      const res = await api.post(`/api/planilla-uploads/${ajusteDecimalesData.planillaId}/ajustar-decimales`);
+      setAjusteResultado(res.data);
+      setPlanRefreshKey(k => k + 1);
+      toast({ title: 'Ajuste completado', description: `${res.data.total_ajustados} cuota(s) ajustadas correctamente.` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Error al procesar ajuste.', variant: 'destructive' });
+    } finally {
+      setProcesandoAjuste(false);
+    }
+  }, [ajusteDecimalesData, toast]);
 
   const triggerFile = useCallback(() => fileRef.current?.click(), []);
 
@@ -1585,7 +1631,7 @@ export default function CobrosPage() {
       setAnularDialogOpen(false);
       setPlanillaToAnular(null);
       setMotivoAnulacion('');
-      await fetchPlanillas();
+      setPlanRefreshKey(k => k + 1);
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -1903,8 +1949,13 @@ export default function CobrosPage() {
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {previewData.preview.map((item: any, idx: number) => (
-                                      <tr key={idx} className={`border-t hover:bg-gray-50 ${item.es_cascada ? 'bg-blue-50/50' : ''}`}>
+                                    {[...previewData.preview].sort((a: any, b: any) => {
+                                      const order: Record<string, number> = { 'Completo': 0, 'Parcial': 1, 'Sobrepago': 2, 'Sin cuotas pendientes': 3, 'No encontrado': 4 };
+                                      return (order[a.estado] ?? 5) - (order[b.estado] ?? 5);
+                                    }).map((item: any, idx: number) => {
+                                      const esAjusteDecimal = item.monto_planilla != null && item.diferencia < -0.005 && item.diferencia >= -1.00;
+                                      return (
+                                      <tr key={idx} className={`border-t hover:bg-gray-50 ${item.es_cascada ? 'bg-blue-50/50' : esAjusteDecimal ? 'bg-amber-50' : ''}`}>
                                         <td className="px-2 py-2">{item.es_cascada ? '' : item.cedula}</td>
                                         <td className="px-2 py-2">{item.es_cascada ? '' : item.nombre}</td>
                                         <td className="px-2 py-2">
@@ -1931,9 +1982,13 @@ export default function CobrosPage() {
                                           }`}>
                                             {item.estado}
                                           </span>
+                                          {esAjusteDecimal && (
+                                            <span className="ml-1 text-[10px] text-amber-600 font-medium" title="Se ajustará automáticamente al valor exacto">⚙️ ajuste</span>
+                                          )}
                                         </td>
                                       </tr>
-                                    ))}
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>
@@ -1998,6 +2053,17 @@ export default function CobrosPage() {
                         )}
                       </div>
                       <DialogFooter className="gap-2">
+                        {/* Nota de ajuste automático de decimales */}
+                        {showingPreview && previewData?.preview && (() => {
+                          const count = (previewData.preview as any[]).filter(
+                            (item: any) => item.monto_planilla != null && item.diferencia < -0.005 && item.diferencia >= -1.00
+                          ).length;
+                          return count > 0 ? (
+                            <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                              ⚙️ {count} pago(s) se ajustarán automáticamente al valor exacto de la cuota
+                            </span>
+                          ) : null;
+                        })()}
                         <Button variant="outline" onClick={closePlanillaModal}>Cancelar</Button>
                         {showingPreview && (
                           <Button
@@ -2854,7 +2920,7 @@ export default function CobrosPage() {
                               )}
 
                               {/* Botón anular (solo Admin, procesada y última de la deductora) */}
-                              {planilla.estado === 'procesada' && user?.role?.name === 'Administrador' && esUltima && (
+                              {planilla.estado === 'procesada' && canAnularDirecto && esUltima && (
                                 <Button
                                   variant="destructive"
                                   size="sm"
@@ -3103,6 +3169,93 @@ export default function CobrosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Dialog: Ajuste de Decimales */}
+      <Dialog open={ajusteDecimalesOpen} onOpenChange={(open) => {
+        setAjusteDecimalesOpen(open);
+        if (!open) { setAjusteResultado(null); setAjusteDecimalesData(null); }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Ajuste de Decimales Disponible
+            </DialogTitle>
+            <DialogDescription>
+              Los siguientes créditos quedaron con diferencia mínima por redondeo (máx. ₡1.00). Puede aplicar el ajuste automático.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!ajusteResultado ? (
+            <>
+              <div className="max-h-64 overflow-auto rounded border text-sm">
+                <table className="w-full">
+                  <thead className="bg-muted sticky top-0">
+                    <tr>
+                      <th className="text-left p-2">Crédito</th>
+                      <th className="text-left p-2">Nombre</th>
+                      <th className="text-right p-2">Monto Pagado</th>
+                      <th className="text-right p-2">Cuota Real</th>
+                      <th className="text-right p-2 text-amber-600">Diferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ajusteDecimalesData?.candidatos.map((c, i) => (
+                      <tr key={i} className="border-b hover:bg-muted/50">
+                        <td className="p-2 font-mono text-xs">{c.credito_referencia}</td>
+                        <td className="p-2">{c.nombre || c.cedula}</td>
+                        <td className="p-2 text-right">₡{c.monto_planilla.toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2 text-right">₡{c.cuota_esperada.toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2 text-right text-amber-600 font-medium">+₡{c.diferencia.toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded p-2">
+                Se crearán pagos complementarios por las diferencias indicadas. Las cuotas pasarán de <strong>Parcial</strong> a <strong>Pagado</strong>.
+              </p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAjusteDecimalesOpen(false)}>Omitir</Button>
+                <Button onClick={handleProcesarAjusteDecimales} disabled={procesandoAjuste} className="bg-amber-600 hover:bg-amber-700 text-white">
+                  {procesandoAjuste ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Procesando...</> : 'Procesar Ajuste de Decimales'}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <p className="text-green-600 font-medium">{ajusteResultado.total_ajustados} cuota(s) ajustadas exitosamente</p>
+                <div className="max-h-48 overflow-auto rounded border text-sm">
+                  <table className="w-full">
+                    <thead className="bg-muted sticky top-0">
+                      <tr>
+                        <th className="text-left p-2">Crédito</th>
+                        <th className="text-left p-2">Nombre</th>
+                        <th className="text-right p-2">Ajuste</th>
+                        <th className="text-right p-2">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ajusteResultado.ajustados?.map((a: any, i: number) => (
+                        <tr key={i} className="border-b">
+                          <td className="p-2 font-mono text-xs">{a.credito_referencia}</td>
+                          <td className="p-2">{a.nombre}</td>
+                          <td className="p-2 text-right text-green-600 font-medium">+₡{a.diferencia_ajustada.toLocaleString('es-CR', { minimumFractionDigits: 2 })}</td>
+                          <td className="p-2 text-right"><span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{a.nuevo_estado}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => { setAjusteDecimalesOpen(false); setAjusteResultado(null); setAjusteDecimalesData(null); }}>Cerrar</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog para pedir fecha de corte antes de generar Certificación de Deuda */}
       <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
         <DialogContent className="max-w-sm">

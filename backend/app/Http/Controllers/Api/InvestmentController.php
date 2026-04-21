@@ -47,7 +47,7 @@ class InvestmentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'investor_id' => 'required|exists:investors,id',
+            'investor_id' => 'nullable|exists:investors,id',
             'monto_capital' => 'required|numeric|min:0.01',
             'plazo_meses' => 'required|integer|min:1',
             'fecha_inicio' => 'required|date',
@@ -65,7 +65,12 @@ class InvestmentController extends Controller
             $validated['numero_desembolso'] = 'TMP';
             $investment = Investment::create($validated);
             $suffix = $investment->moneda === 'USD' ? 'D' : 'C';
-            $investment->update(['numero_desembolso' => $investment->id . '-' . $suffix]);
+            $num = $investment->id;
+            // Si el número está ocupado, avanzar hasta encontrar uno libre
+            while (Investment::where('numero_desembolso', $num . '-' . $suffix)->where('id', '!=', $investment->id)->exists()) {
+                $num++;
+            }
+            $investment->update(['numero_desembolso' => $num . '-' . $suffix]);
             $this->service->generateCoupons($investment);
             return $investment;
         });

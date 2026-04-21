@@ -79,6 +79,8 @@ export function SaldosPorAsignar({
   const { user } = useAuth();
   const { hasPermission } = usePermissions();
   const canReintegrarDirecto = hasPermission('cobros', 'assign');
+  const canAplicarParcial = hasPermission('cobros', 'formalizar');
+  const canAplicarCapital = hasPermission('cobros', 'formalizar_admin');
 
   // Determinar modo: compacto (para crédito) o completo (para cobros)
   const isCompact = !!cedula;
@@ -180,10 +182,13 @@ export function SaldosPorAsignar({
     creditId?: number,
     monto?: number
   ) => {
-    if (user?.role?.name !== "Administrador" && !user?.role?.full_access) {
+    const permisoRequerido = accion === "capital" ? canAplicarCapital : canAplicarParcial;
+    if (!permisoRequerido) {
       toast({
         title: "Acceso denegado",
-        description: "Solo administradores pueden aplicar saldos",
+        description: accion === "capital"
+          ? "No tienes permiso para aplicar abonos a capital"
+          : "No tienes permiso para aplicar saldos parciales",
         variant: "destructive",
       });
       return;
@@ -489,6 +494,7 @@ export function SaldosPorAsignar({
                       Monto Sobrante
                     </TableHead>
                     <TableHead>Deductora</TableHead>
+                    <TableHead>Planilla</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead>Distribución Posible</TableHead>
                   </TableRow>
@@ -537,6 +543,15 @@ export function SaldosPorAsignar({
                       </TableCell>
                       <TableCell className="text-sm">
                         {saldo.deductora}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {saldo.planilla_id ? (
+                          <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                            #{saldo.planilla_id}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm">
                         {saldo.fecha_origen

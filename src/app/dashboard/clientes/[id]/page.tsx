@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, User as UserIcon, Save, Loader2, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Paperclip, Send, Smile, Pencil, Sparkles, Archive, FileText, Plus, CreditCard, Banknote, Calendar, CheckCircle2, Clock, AlertCircle, ExternalLink, ChevronsUpDown, Check, FileSpreadsheet, DollarSign, TrendingUp, Activity, PieChart, Target, Eye, Building2, Car, Home, Shield, Users, Search, RefreshCw } from "lucide-react";
 import { generateEstadoCuenta } from "@/lib/pdf/estadoCuenta";
+import { ReassignButton } from "@/components/ReassignButton";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -170,6 +171,18 @@ export default function ClientDetailPage() {
   const [institucionOpen, setInstitucionOpen] = useState(false);
   const [profesionSearch, setProfesionSearch] = useState("");
   const [profesionOpen, setProfesionOpen] = useState(false);
+  const [provinciaOpen, setProvinciaOpen] = useState(false);
+  const [provinciaSearch, setProvinciaSearch] = useState("");
+  const [cantonOpen, setCantonOpen] = useState(false);
+  const [cantonSearch, setCantonSearch] = useState("");
+  const [distritoOpen, setDistritoOpen] = useState(false);
+  const [distritoSearch, setDistritoSearch] = useState("");
+  const [workProvinciaOpen, setWorkProvinciaOpen] = useState(false);
+  const [workProvinciaSearch, setWorkProvinciaSearch] = useState("");
+  const [workCantonOpen, setWorkCantonOpen] = useState(false);
+  const [workCantonSearch, setWorkCantonSearch] = useState("");
+  const [workDistritoOpen, setWorkDistritoOpen] = useState(false);
+  const [workDistritoSearch, setWorkDistritoSearch] = useState("");
   const [fieldStatus, setFieldStatus] = useState<Record<string, "editing" | "success" | "error">>({});
   const [focusedValue, setFocusedValue] = useState<Record<string, string>>({});
 
@@ -338,7 +351,7 @@ export default function ClientDetailPage() {
       setLoadingOpportunities(true);
       try {
         const response = await api.get('/api/opportunities', {
-          params: { lead_cedula: client.cedula, per_page: 100 }
+          params: { lead_cedula: client.cedula, per_page: 100, with_documents: true }
         });
         const data = Array.isArray(response.data) ? response.data : (response.data?.data || []);
         setOpportunities(data);
@@ -722,6 +735,17 @@ export default function ClientDetailPage() {
                         {leadName || client.relacionado_a || "Cliente"}
                     </Badge>
 
+                    <ReassignButton
+                      currentAssigneeId={formData.assigned_to_id ?? null}
+                      currentAssigneeName={agents.find(a => a.id === formData.assigned_to_id)?.name ?? null}
+                      agents={agents}
+                      endpoint={`/api/clients/${client.id}`}
+                      onReassigned={(id) => {
+                        setClient(prev => prev ? { ...prev, assigned_to_id: id } : prev);
+                        handleInputChange('assigned_to_id', id);
+                      }}
+                    />
+
                     {!isEditMode && (
                         <div className="flex items-center gap-2 ml-1">
                             <TooltipProvider>
@@ -980,70 +1004,71 @@ export default function ClientDetailPage() {
               <div className="space-y-2">
                 <Label>Provincia {isFieldMissing('province') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select
-                    value={formData.province || ""}
-                    onValueChange={handleProvinceChange}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar provincia" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROVINCES.map((p) => (
-                        <SelectItem key={p.id} value={p.name}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={formData.province || ""} disabled />
-                )}
+                  <Popover open={provinciaOpen} onOpenChange={setProvinciaOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                        {formData.province || "Seleccionar provincia"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[250px] p-0" align="start">
+                      <div className="p-2 border-b"><Input placeholder="Buscar provincia..." value={provinciaSearch} onChange={e => setProvinciaSearch(e.target.value)} className="h-8" autoFocus /></div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {PROVINCES.filter(p => p.name.toLowerCase().includes(provinciaSearch.toLowerCase())).map(p => (
+                          <div key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleProvinceChange(p.name); setProvinciaOpen(false); setProvinciaSearch(""); }}>
+                            {formData.province === p.name && <Check className="h-4 w-4 text-primary" />}{p.name}
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (<Input value={formData.province || ""} disabled />)}
               </div>
               <div className="space-y-2">
                 <Label>Cantón {isFieldMissing('canton') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select
-                    value={formData.canton || ""}
-                    onValueChange={handleCantonChange}
-                    disabled={!selectedProvince}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cantón" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cantons.map((c) => (
-                        <SelectItem key={c.id} value={c.name}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={formData.canton || ""} disabled />
-                )}
+                  <Popover open={cantonOpen} onOpenChange={setCantonOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between font-normal" disabled={!selectedProvince}>
+                        {formData.canton || "Seleccionar cantón"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[250px] p-0" align="start">
+                      <div className="p-2 border-b"><Input placeholder="Buscar cantón..." value={cantonSearch} onChange={e => setCantonSearch(e.target.value)} className="h-8" autoFocus /></div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {cantons.filter(c => c.name.toLowerCase().includes(cantonSearch.toLowerCase())).map(c => (
+                          <div key={c.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleCantonChange(c.name); setCantonOpen(false); setCantonSearch(""); }}>
+                            {formData.canton === c.name && <Check className="h-4 w-4 text-primary" />}{c.name}
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (<Input value={formData.canton || ""} disabled />)}
               </div>
               <div className="space-y-2">
                 <Label>Distrito {isFieldMissing('distrito') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select
-                    value={formData.distrito || ""}
-                    onValueChange={handleDistrictChange}
-                    disabled={!selectedCanton}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar distrito" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {districts.map((d) => (
-                        <SelectItem key={d.id} value={d.name}>
-                          {d.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={formData.distrito || ""} disabled />
-                )}
+                  <Popover open={distritoOpen} onOpenChange={setDistritoOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between font-normal" disabled={!selectedCanton}>
+                        {formData.distrito || "Seleccionar distrito"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[250px] p-0" align="start">
+                      <div className="p-2 border-b"><Input placeholder="Buscar distrito..." value={distritoSearch} onChange={e => setDistritoSearch(e.target.value)} className="h-8" autoFocus /></div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {districts.filter(d => d.name.toLowerCase().includes(distritoSearch.toLowerCase())).map(d => (
+                          <div key={d.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleDistrictChange(d.name); setDistritoOpen(false); setDistritoSearch(""); }}>
+                            {formData.distrito === d.name && <Check className="h-4 w-4 text-primary" />}{d.name}
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (<Input value={formData.distrito || ""} disabled />)}
               </div>
               <div className="col-span-3 md:col-span-2 space-y-2">
                 <Label>Dirección Exacta {isFieldMissing('direccion1') && <span className="text-red-500">*</span>}</Label>
@@ -1235,70 +1260,71 @@ export default function ClientDetailPage() {
                <div className="space-y-2">
                 <Label>Provincia {isFieldMissing('trabajo_provincia') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select
-                    value={formData.trabajo_provincia || ""}
-                    onValueChange={handleWorkProvinceChange}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar provincia" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROVINCES.map((p) => (
-                        <SelectItem key={p.id} value={p.name}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={formData.trabajo_provincia || ""} disabled />
-                )}
+                  <Popover open={workProvinciaOpen} onOpenChange={setWorkProvinciaOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                        {formData.trabajo_provincia || "Seleccionar provincia"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[250px] p-0" align="start">
+                      <div className="p-2 border-b"><Input placeholder="Buscar provincia..." value={workProvinciaSearch} onChange={e => setWorkProvinciaSearch(e.target.value)} className="h-8" autoFocus /></div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {PROVINCES.filter(p => p.name.toLowerCase().includes(workProvinciaSearch.toLowerCase())).map(p => (
+                          <div key={p.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleWorkProvinceChange(p.name); setWorkProvinciaOpen(false); setWorkProvinciaSearch(""); }}>
+                            {formData.trabajo_provincia === p.name && <Check className="h-4 w-4 text-primary" />}{p.name}
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (<Input value={formData.trabajo_provincia || ""} disabled />)}
               </div>
               <div className="space-y-2">
                 <Label>Cantón {isFieldMissing('trabajo_canton') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select
-                    value={formData.trabajo_canton || ""}
-                    onValueChange={handleWorkCantonChange}
-                    disabled={!selectedWorkProvince}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cantón" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {workCantons.map((c) => (
-                        <SelectItem key={c.id} value={c.name}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={formData.trabajo_canton || ""} disabled />
-                )}
+                  <Popover open={workCantonOpen} onOpenChange={setWorkCantonOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between font-normal" disabled={!selectedWorkProvince}>
+                        {formData.trabajo_canton || "Seleccionar cantón"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[250px] p-0" align="start">
+                      <div className="p-2 border-b"><Input placeholder="Buscar cantón..." value={workCantonSearch} onChange={e => setWorkCantonSearch(e.target.value)} className="h-8" autoFocus /></div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {workCantons.filter(c => c.name.toLowerCase().includes(workCantonSearch.toLowerCase())).map(c => (
+                          <div key={c.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleWorkCantonChange(c.name); setWorkCantonOpen(false); setWorkCantonSearch(""); }}>
+                            {formData.trabajo_canton === c.name && <Check className="h-4 w-4 text-primary" />}{c.name}
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (<Input value={formData.trabajo_canton || ""} disabled />)}
               </div>
               <div className="space-y-2">
                 <Label>Distrito {isFieldMissing('trabajo_distrito') && <span className="text-red-500">*</span>}</Label>
                 {isEditMode ? (
-                  <Select
-                    value={formData.trabajo_distrito || ""}
-                    onValueChange={handleWorkDistrictChange}
-                    disabled={!selectedWorkCanton}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar distrito" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {workDistricts.map((d) => (
-                        <SelectItem key={d.id} value={d.name}>
-                          {d.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={formData.trabajo_distrito || ""} disabled />
-                )}
+                  <Popover open={workDistritoOpen} onOpenChange={setWorkDistritoOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between font-normal" disabled={!selectedWorkCanton}>
+                        {formData.trabajo_distrito || "Seleccionar distrito"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[250px] p-0" align="start">
+                      <div className="p-2 border-b"><Input placeholder="Buscar distrito..." value={workDistritoSearch} onChange={e => setWorkDistritoSearch(e.target.value)} className="h-8" autoFocus /></div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {workDistricts.filter(d => d.name.toLowerCase().includes(workDistritoSearch.toLowerCase())).map(d => (
+                          <div key={d.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent" onClick={() => { handleWorkDistrictChange(d.name); setWorkDistritoOpen(false); setWorkDistritoSearch(""); }}>
+                            {formData.trabajo_distrito === d.name && <Check className="h-4 w-4 text-primary" />}{d.name}
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (<Input value={formData.trabajo_distrito || ""} disabled />)}
               </div>
               <div className="col-span-3 space-y-2">
                 <Label>Dirección Exacta (Trabajo) {isFieldMissing('trabajo_direccion') && <span className="text-red-500">*</span>}</Label>
@@ -1374,12 +1400,12 @@ export default function ClientDetailPage() {
                     {datosAdicionales.filiacion?.indice_desarrollo_social != null && (
                       <div>
                         <Label className="text-muted-foreground text-xs">Índice Desarrollo Social</Label>
-                        <p className="text-sm">
+                        <div className="flex items-center gap-1 text-sm">
                           {datosAdicionales.filiacion.indice_desarrollo_social}
                           {datosAdicionales.filiacion.nivel_desarrollo_social && (
                             <Badge variant="outline" className="ml-2 text-xs">{datosAdicionales.filiacion.nivel_desarrollo_social}</Badge>
                           )}
-                        </p>
+                        </div>
                       </div>
                     )}
                     {datosAdicionales.filiacion?.domicilio_electoral?.provincia && (

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Opportunity;
+use App\Traits\DisparaAutoTareas;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -17,6 +18,7 @@ use App\Events\BusinessActionPerformed;
 
 class OpportunityController extends Controller
 {
+    use DisparaAutoTareas;
     use LogsActivity;
 
     /**
@@ -112,50 +114,41 @@ class OpportunityController extends Controller
         $perPage = min((int) $request->input('per_page', 10), 100);
         $opportunities = $query->latest()->paginate($perPage);
 
-        // Agregar información de documentos faltantes
-        $opportunities->getCollection()->transform(function ($opportunity) {
-            $missingDocs = [];
-            $strippedCedula = $this->getCleanCedulaFromOpportunity($opportunity);
+        // Agregar información de documentos faltantes (solo si se solicita explícitamente)
+        if ($request->boolean('with_documents')) {
+            $opportunities->getCollection()->transform(function ($opportunity) {
+                $missingDocs = [];
+                $strippedCedula = $this->getCleanCedulaFromOpportunity($opportunity);
 
-            if ($strippedCedula) {
-                $heredadosPath = "documentos/{$strippedCedula}/{$opportunity->id}/heredados";
-                $especificosPath = "documentos/{$strippedCedula}/{$opportunity->id}/especificos";
+                if ($strippedCedula) {
+                    $heredadosPath = "documentos/{$strippedCedula}/{$opportunity->id}/heredados";
+                    $especificosPath = "documentos/{$strippedCedula}/{$opportunity->id}/especificos";
 
-                // Verificar documentos heredados (cédula y recibo)
-                if (Storage::disk('public')->exists($heredadosPath)) {
-                    $files = Storage::disk('public')->files($heredadosPath);
-                    $fileNames = array_map('basename', $files);
+                    if (Storage::disk('public')->exists($heredadosPath)) {
+                        $files = Storage::disk('public')->files($heredadosPath);
+                        $fileNames = array_map('basename', $files);
 
-                    $hasCedula = collect($fileNames)->contains(function ($name) {
-                        return stripos(strtolower($name), 'cedula') === 0;
-                    });
+                        $hasCedula = collect($fileNames)->contains(fn($name) => stripos(strtolower($name), 'cedula') === 0);
+                        $hasRecibo = collect($fileNames)->contains(fn($name) => stripos(strtolower($name), 'recibo') === 0);
 
-                    $hasRecibo = collect($fileNames)->contains(function ($name) {
-                        return stripos(strtolower($name), 'recibo') === 0;
-                    });
-
-                    if (!$hasCedula) {
-                        $missingDocs[] = 'Cédula';
+                        if (!$hasCedula) $missingDocs[] = 'Cédula';
+                        if (!$hasRecibo) $missingDocs[] = 'Recibo';
+                    } else {
+                        $missingDocs = ['Cédula', 'Recibo'];
                     }
-                    if (!$hasRecibo) {
-                        $missingDocs[] = 'Recibo';
+
+                    $hasEspecificos = Storage::disk('public')->exists($especificosPath)
+                        && count(Storage::disk('public')->files($especificosPath)) > 0;
+
+                    if (!$hasEspecificos) {
+                        $missingDocs[] = 'Documentos de oportunidad';
                     }
-                } else {
-                    $missingDocs = ['Cédula', 'Recibo'];
                 }
 
-                // Verificar documentos específicos de la oportunidad
-                $hasEspecificos = Storage::disk('public')->exists($especificosPath)
-                    && count(Storage::disk('public')->files($especificosPath)) > 0;
-
-                if (!$hasEspecificos) {
-                    $missingDocs[] = 'Documentos de oportunidad';
-                }
-            }
-
-            $opportunity->missing_documents = $missingDocs;
-            return $opportunity;
-        });
+                $opportunity->missing_documents = $missingDocs;
+                return $opportunity;
+            });
+        }
 
         return response()->json($opportunities, 200);
     }
@@ -214,6 +207,10 @@ class OpportunityController extends Controller
             $validated['amount'] = $this->extractAmountFromRange($lead->monto);
         }
 
+        if (empty($validated['assigned_to_id'])) {
+            $validated['assigned_to_id'] = app(\App\Services\AssignmentService::class)->getNextAssignee('analysis');
+        }
+
         // Crear la oportunidad
         $opportunity = Opportunity::create($validated);
 
@@ -223,21 +220,7 @@ class OpportunityController extends Controller
             $opportunity->id
         );
 
-        // Crear tarea automática si está configurada
-        try {
-            $automation = TaskAutomation::where('event_type', 'opportunity_created')
-                ->where('is_active', true)
-                ->first();
-
-            if ($automation) {
-                $tasks = Task::createFromAutomation($automation, 'OPP-' . $opportunity->id);
-                if (!empty($tasks)) {
-                    Log::info('Tareas automáticas creadas para oportunidad', ['opportunity_id' => $opportunity->id, 'count' => count($tasks)]);
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('Error creando tarea automática para oportunidad', ['opportunity_id' => $opportunity->id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-        }
+        $this->dispararAutoTarea('opportunity_created', 'OPP-' . $opportunity->id);
 
         $this->logActivity('create', 'Oportunidades', $opportunity, '#' . $opportunity->id . ' - ' . ($opportunity->lead_cedula ?? ''), [], $request);
 
@@ -352,11 +335,20 @@ class OpportunityController extends Controller
                 ]);
             }
 
-            // Auto-tarea: opportunity_status_changed
-            $automation = TaskAutomation::where('event_type', 'opportunity_status_changed')
-                ->where('is_active', true)->first();
-            if ($automation) {
-                Task::createFromAutomation($automation, 'OPP-' . $opportunity->id,
+            // Auto-tarea: específica por estado, con fallback a genérica
+            if (strtolower($newStatus) === 'ganada') {
+                $eventType = 'opportunity_won';
+                $details   = "Oportunidad marcada como Ganada.";
+            } else {
+                $eventType = 'opportunity_status_advanced';
+                $details   = "Estado de oportunidad avanzó a: {$newStatus}";
+            }
+
+            $fired = $this->dispararAutoTarea($eventType, 'OPP-' . $opportunity->id, $details);
+
+            if (empty($fired)) {
+                // Fallback: genérica solo si no hay específica activa
+                $this->dispararAutoTarea('opportunity_status_changed', 'OPP-' . $opportunity->id,
                     "Estado de oportunidad cambió a: {$newStatus}");
             }
 
@@ -646,7 +638,7 @@ class OpportunityController extends Controller
     public function uploadFile(Request $request, string $id)
     {
         $request->validate([
-            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png,gif,webp|max:10240',
+            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png,gif,webp,html,htm|max:10240',
         ]);
 
         $opportunity = Opportunity::findOrFail($id);
