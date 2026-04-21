@@ -73,6 +73,21 @@ function stripCommas(value: string): string {
   return value.replace(/[^0-9]/g, '');
 }
 
+/** Versión de stripCommas que permite un punto decimal */
+function stripCommasDecimal(value: string): string {
+  const clean = value.replace(/[^0-9.]/g, '');
+  const parts = clean.split('.');
+  return parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : clean;
+}
+
+/** withCommas con soporte de decimales */
+function withCommasDecimal(raw: string): string {
+  if (!raw) return '';
+  const [integer, decimal] = raw.split('.');
+  const formatted = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decimal !== undefined ? `${formatted},${decimal}` : formatted;
+}
+
 /** Elige negro o blanco según luminosidad del fondo para que el texto siempre sea legible */
 function contrastColor(hex: string): string {
   const h = hex.replace('#', '');
@@ -922,7 +937,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                     </div>
                     <div>
                       <Label className="text-xs">Embargo Actual (₡)</Label>
-                      <Input value={withCommas(embargoActual)} onChange={e => setEmbargoActual(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
+                      <Input value={withCommasDecimal(embargoActual)} onChange={e => setEmbargoActual(stripCommasDecimal(e.target.value))} placeholder="0.00" className="h-8 text-xs mt-1" inputMode="decimal" />
                     </div>
                   </div>
 
