@@ -146,7 +146,12 @@ if (!$autoYes) {
 
 // ─── Ejecución ────────────────────────────────────────────────────────────────
 
-$trigger = new class { use \App\Traits\AccountingTrigger; };
+$trigger = new class {
+    use \App\Traits\AccountingTrigger;
+    public function disparar(string $type, float $amount, string $ref, array $ctx): array {
+        return $this->triggerAccountingEntry($type, $amount, $ref, $ctx);
+    }
+};
 
 DB::beginTransaction();
 try {
@@ -215,7 +220,7 @@ try {
         $payment->save();
 
         // Asiento contable
-        $trigger->triggerAccountingEntry(
+        $trigger->disparar(
             'ANULACION_SALDO_APLICADO',
             (float) $payment->monto,
             "ANULA-SALDO-{$payment->id}-{$credit->reference}",
@@ -247,7 +252,7 @@ try {
         $saldo->save();
 
         $credit = $saldo->credit;
-        $trigger->triggerAccountingEntry(
+        $trigger->disparar(
             'ANULACION_SALDO_APLICADO',
             (float) $saldo->monto,
             "CORR-SALDO-{$saldo->id}-" . ($credit->reference ?? $credit->id),
