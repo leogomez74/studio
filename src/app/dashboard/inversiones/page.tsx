@@ -1050,11 +1050,11 @@ export default function InversionesPage() {
       setInvestors(invRes.data);
       setInvestments(investRes.data);
       setPayments(payRes.data);
-      // Users requiere middleware admin — cargar por separado para no bloquear datos principales
+      // Cargar agentes (accesible para todos los usuarios autenticados)
       try {
-        const usersRes = await api.get('/api/users?all=true');
+        const usersRes = await api.get('/api/agents');
         setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.data ?? []);
-      } catch { /* usuario sin acceso admin — lista de usuarios vacía */ }
+      } catch { /* silencioso */ }
     } catch {
       toastError('Error al cargar los datos de inversiones. Recarga la página.');
     } finally {

@@ -184,10 +184,14 @@ class SaldoPendienteController extends Controller
             'capital_strategy' => 'nullable|in:reduce_amount,reduce_term',
         ]);
 
-        // Solo administradores pueden aplicar saldos
         $user = $request->user();
-        if (!$user->role || (!$user->role->full_access && $user->role->name !== 'Administrador')) {
-            return response()->json(['message' => 'Solo administradores pueden aplicar saldos'], 403);
+        $perms = $user->role?->getFormattedPermissions() ?? [];
+        $esCapital = ($validated['accion'] === 'capital');
+        $permKey  = $esCapital ? 'formalizar_admin' : 'formalizar';
+        $puedeAplicar = $user->role?->full_access || ($perms['cobros'][$permKey] ?? false);
+        if (!$puedeAplicar) {
+            $label = $esCapital ? 'aplicar abonos a capital' : 'aplicar saldos parciales';
+            return response()->json(['message' => "No tienes permiso para {$label}"], 403);
         }
 
         $saldo = SaldoPendiente::where('estado', 'pendiente')->find($id);
@@ -366,11 +370,7 @@ class SaldoPendienteController extends Controller
      */
     public function asignar(Request $request, int $id)
     {
-        // Solo administradores pueden aplicar saldos
         $user = $request->user();
-        if (!$user->role || (!$user->role->full_access && $user->role->name !== 'Administrador')) {
-            return response()->json(['message' => 'Solo administradores pueden aplicar saldos'], 403);
-        }
 
         $validated = $request->validate([
             'accion' => 'required|in:cuota,capital',
@@ -379,6 +379,15 @@ class SaldoPendienteController extends Controller
             'notas' => 'nullable|string|max:500',
             'capital_strategy' => 'nullable|required_if:accion,capital|in:reduce_amount,reduce_term',
         ]);
+
+        $perms    = $user->role?->getFormattedPermissions() ?? [];
+        $esCapital = ($validated['accion'] === 'capital');
+        $permKey  = $esCapital ? 'formalizar_admin' : 'formalizar';
+        $puedeAplicar = $user->role?->full_access || ($perms['cobros'][$permKey] ?? false);
+        if (!$puedeAplicar) {
+            $label = $esCapital ? 'aplicar abonos a capital' : 'aplicar saldos parciales';
+            return response()->json(['message' => "No tienes permiso para {$label}"], 403);
+        }
 
         $saldo = SaldoPendiente::where('estado', 'pendiente')->find($id);
         if (!$saldo) {
@@ -409,6 +418,11 @@ class SaldoPendienteController extends Controller
                     'Saldo Pendiente',
                     $saldo->cedula
                 );
+
+                // Guardar link bidireccional SaldoPendiente → CreditPayment
+                if ($payment) {
+                    $payment->update(['saldo_pendiente_id' => $saldo->id]);
+                }
 
                 // Calcular restante del saldo
                 $restante = (float) $saldo->monto - $montoAplicar;

@@ -322,8 +322,14 @@ class PaymentProcessingService
                 $context['reference'],
                 $context
             );
+        } elseif ($source === 'Saldo Pendiente') {
+            $this->triggerAccountingEntry(
+                'PAGO_SALDO_PENDIENTE',
+                $montoEntrante,
+                $context['reference'],
+                $context
+            );
         } else {
-            // Para otros tipos (Adelanto, Saldo Pendiente, etc.) usar ventanilla
             $this->triggerAccountingEntry(
                 'PAGO_VENTANILLA',
                 $montoEntrante,

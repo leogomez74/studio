@@ -115,13 +115,15 @@ const MODULE_GROUPS: ModuleGroup[] = [
       {
         // Acciones específicas de cobros, cada permiso tiene función propia
         key: 'cobros', label: 'Cobros',
-        permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign'],
+        permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign', 'formalizar', 'formalizar_admin'],
         customPermissionLabels: {
           create: 'Registrar Abono',
           edit: 'Cargar Planilla',
           delete: 'Exportar',
           archive: 'Anular Abono',
           assign: 'Reintegro de Saldo',
+          formalizar: 'Aplicar Parcial',
+          formalizar_admin: 'Aplicar Capital',
         },
       },
       {

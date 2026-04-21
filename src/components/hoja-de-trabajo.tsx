@@ -237,6 +237,9 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const [otroEmbargo, setOtroEmbargo] = useState(() => {
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').otroEmbargo || ''; } catch { return ''; }
   });
+  const [embargoActual, setEmbargoActual] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').embargoActual || ''; } catch { return ''; }
+  });
   const [embargableResult, setEmbargableResult] = useState<any>(null);
   const [loadingEmbargo, setLoadingEmbargo] = useState(false);
 
@@ -302,10 +305,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   useEffect(() => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo, credidData,
+        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData,
       }));
     } catch {}
-  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo, credidData]);
+  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData]);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleCrearAnalisis = () => {
@@ -382,9 +385,13 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   }, [periodos, todosLlenos, totalMeses, colillasPorQuincena]);
 
   const otroEmbargoNum = parseFloat(otroEmbargo) || 0;
-  const embargoPorNuevoCredito = otroEmbargoNum > 0
-    ? Math.max(0, totalEmbargo - otroEmbargoNum)  // embargada: solo la diferencia
-    : totalEmbargo;                                 // libre: restar todo el máximo embargable
+  const embargoActualNum = parseFloat(embargoActual) || 0;
+  // embargoActual resta del máx embargable → solo la diferencia castiga el salario
+  const embargoPorNuevoCredito = embargoActualNum > 0
+    ? Math.max(0, totalEmbargo - embargoActualNum)
+    : otroEmbargoNum > 0
+      ? Math.max(0, totalEmbargo - otroEmbargoNum)
+      : totalEmbargo;
   const salarioCastigado = Math.max(0, minSalarioMeses - embargoPorNuevoCredito);
   const capacidadReal = Math.round(salarioCastigado * 0.25);
   const cuotaSuperaCapacidad = cuotaCalculada > 0 && minSalarioMeses > 0 && cuotaCalculada > capacidadReal;
@@ -904,7 +911,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                       inputMode="numeric"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label className="text-xs">Pensión Alimentaria (₡)</Label>
                       <Input value={withCommas(pensionAlimenticia)} onChange={e => setPensionAlimenticia(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
@@ -912,6 +919,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                     <div>
                       <Label className="text-xs">Otro Embargo (₡)</Label>
                       <Input value={withCommas(otroEmbargo)} onChange={e => setOtroEmbargo(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Embargo Actual (₡)</Label>
+                      <Input value={withCommas(embargoActual)} onChange={e => setEmbargoActual(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
                     </div>
                   </div>
 
@@ -1027,7 +1038,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                       <span>{fmt(minSalarioMeses)}</span>
                     </div>
                     <div className="flex justify-between text-orange-600">
-                      <span>− {otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
+                      <span>− {embargoActualNum > 0 ? 'Disponible nuevo crédito' : otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
                       <span>{fmt(embargoPorNuevoCredito)}</span>
                     </div>
                     <div className="flex justify-between font-semibold border-t pt-1 text-slate-700">

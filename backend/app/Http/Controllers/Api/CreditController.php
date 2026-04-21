@@ -790,7 +790,7 @@ class CreditController extends Controller
     public function storeDocument(Request $request, $id) {
         $credit = Credit::findOrFail($id);
         $request->validate([
-            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png,gif,webp|max:10240',
+            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png,gif,webp,html,htm|max:10240',
             'name' => 'required|string|max:255',
         ]);
         $path = $request->file('file')->store('credit-docs/' . $id, 'public');

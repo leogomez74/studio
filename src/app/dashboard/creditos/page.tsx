@@ -595,10 +595,12 @@ export default function CreditsPage() {
         );
       }
       if (filters.leadName) {
-        filtered = filtered.filter(c =>
-          (c.lead?.name?.toLowerCase().includes(filters.leadName.toLowerCase())) ||
-          (c.client?.name?.toLowerCase().includes(filters.leadName.toLowerCase()))
-        );
+        const q = filters.leadName.toLowerCase();
+        filtered = filtered.filter(c => {
+          const leadFull = [c.lead?.name, c.lead?.apellido1, c.lead?.apellido2].filter(Boolean).join(' ').toLowerCase();
+          const clientFull = [c.client?.name, c.client?.apellido1, c.client?.apellido2].filter(Boolean).join(' ').toLowerCase();
+          return leadFull.includes(q) || clientFull.includes(q);
+        });
       }
       if (filters.documentoId) {
         filtered = filtered.filter(c => c.documento_id?.toLowerCase().includes(filters.documentoId.toLowerCase()));

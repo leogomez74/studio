@@ -42,16 +42,10 @@ class PlanillaService
         // VALIDACIÓN: Solo 1 planilla por deductora por mes (excluir anuladas)
         $fechaProcesoCarbon = Carbon::parse($fechaProceso);
         $mesInicio = $fechaProcesoCarbon->copy()->startOfMonth();
-        $mesFin = $fechaProcesoCarbon->copy()->endOfMonth();
-        $yaExiste = CreditPayment::where('source', 'Planilla')
-            ->where(function ($q) {
-                $q->whereNull('estado_reverso')
-                  ->orWhere('estado_reverso', '!=', 'Anulado');
-            })
-            ->whereBetween('fecha_pago', [$mesInicio, $mesFin])
-            ->whereHas('credit', function ($q) use ($deductoraId) {
-                $q->where('deductora_id', $deductoraId);
-            })
+        $mesFin    = $fechaProcesoCarbon->copy()->endOfMonth();
+        $yaExiste  = \App\Models\PlanillaUpload::where('deductora_id', $deductoraId)
+            ->where('estado', '!=', 'anulada')
+            ->whereBetween('fecha_planilla', [$mesInicio, $mesFin])
             ->exists();
 
         if ($yaExiste) {
@@ -578,17 +572,12 @@ class PlanillaService
         $fechaPago = $fechaTest ? Carbon::parse($fechaTest) : now();
 
         // VALIDACIÓN: Solo 1 planilla por deductora por mes (excluir anuladas)
+        // Usar fecha_planilla de planilla_uploads en lugar de fecha_pago de credit_payments
         $mesInicio = $fechaPago->copy()->startOfMonth();
-        $mesFin = $fechaPago->copy()->endOfMonth();
-        $yaExiste = CreditPayment::where('source', 'Planilla')
-            ->where(function ($q) {
-                $q->whereNull('estado_reverso')
-                  ->orWhere('estado_reverso', '!=', 'Anulado');
-            })
-            ->whereBetween('fecha_pago', [$mesInicio, $mesFin])
-            ->whereHas('credit', function ($q) use ($deductoraId) {
-                $q->where('deductora_id', $deductoraId);
-            })
+        $mesFin    = $fechaPago->copy()->endOfMonth();
+        $yaExiste  = \App\Models\PlanillaUpload::where('deductora_id', $deductoraId)
+            ->where('estado', '!=', 'anulada')
+            ->whereBetween('fecha_planilla', [$mesInicio, $mesFin])
             ->exists();
 
         if ($yaExiste) {

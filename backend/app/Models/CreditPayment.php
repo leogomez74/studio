@@ -12,6 +12,7 @@ class CreditPayment extends Model
     protected $fillable = [
         'credit_id',
         'planilla_upload_id',
+        'saldo_pendiente_id',
         'numero_cuota',
         'proceso',
         'fecha_cuota',
