@@ -60,7 +60,12 @@ if (!$autoYes) {
 }
 
 // Re-disparar cada asiento usando el contexto guardado en el log
-$trigger = new class { use AccountingTrigger; };
+$trigger = new class {
+    use AccountingTrigger;
+    public function disparar(string $type, float $amount, string $ref, array $ctx): array {
+        return $this->triggerAccountingEntry($type, $amount, $ref, $ctx);
+    }
+};
 
 foreach ($omitidos as $log) {
     $context = is_array($log->context) ? $log->context : json_decode($log->context, true);
@@ -81,14 +86,14 @@ foreach ($omitidos as $log) {
     }
 
     // Marcar el log viejo como error para que no interfiera
-    $log->update([
+    AccountingEntryLog::where('id', $log->id)->update([
         'status'        => 'error',
         'error_message' => 'Reemplazado por re-disparo manual',
     ]);
 
     // Re-disparar con nueva referencia para evitar cualquier bloqueo
     $nuevaRef = $log->reference . '-RETRY';
-    $result = $trigger->triggerAccountingEntry(
+    $result = $trigger->disparar(
         'ANULACION_SALDO_APLICADO',
         $amount,
         $nuevaRef,
