@@ -203,8 +203,26 @@ class PlanillaUploadController extends Controller
                                 $creditSaldo->save();
                             }
 
-                            // Revertir movimientos en plan_de_pagos
-                            if ($pagoSaldo->numero_cuota > 0) {
+                            // Revertir plan de pagos
+                            if ($pagoSaldo->numero_cuota === 0 && $pagoSaldo->reversal_snapshot) {
+                                // Abono a Capital: restaurar plan original desde snapshot
+                                $snap = is_array($pagoSaldo->reversal_snapshot)
+                                    ? $pagoSaldo->reversal_snapshot
+                                    : json_decode($pagoSaldo->reversal_snapshot, true);
+                                if (!empty($snap['plan_rows']) && isset($snap['start_cuota_num'])) {
+                                    PlanDePago::where('credit_id', $creditSaldo->id)
+                                        ->where('numero_cuota', '>=', $snap['start_cuota_num'])
+                                        ->delete();
+                                    foreach ($snap['plan_rows'] as $row) {
+                                        unset($row['id'], $row['created_at'], $row['updated_at']);
+                                        PlanDePago::create($row);
+                                    }
+                                    if (isset($snap['original_cuota']))  $creditSaldo->cuota  = $snap['original_cuota'];
+                                    if (isset($snap['original_plazo']))  $creditSaldo->plazo  = $snap['original_plazo'];
+                                    $creditSaldo->save();
+                                }
+                            } elseif ($pagoSaldo->numero_cuota > 0) {
+                                // Pago a cuota: revertir movimientos
                                 $cuotaSaldo = PlanDePago::where('credit_id', $pagoSaldo->credit_id)
                                     ->where('numero_cuota', $pagoSaldo->numero_cuota)
                                     ->first();
