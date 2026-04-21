@@ -73,14 +73,16 @@ function stripCommas(value: string): string {
   return value.replace(/[^0-9]/g, '');
 }
 
-/** Versión de stripCommas que permite un punto decimal */
+/** Normaliza input con formato CR (punto=miles, coma=decimal) → guarda internamente con punto decimal */
 function stripCommasDecimal(value: string): string {
-  const clean = value.replace(/[^0-9.]/g, '');
+  // Quitar puntos de miles, convertir coma decimal a punto
+  const normalized = value.replace(/\./g, '').replace(',', '.');
+  const clean = normalized.replace(/[^0-9.]/g, '');
   const parts = clean.split('.');
   return parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : clean;
 }
 
-/** withCommas con soporte de decimales */
+/** Formatea número interno (punto decimal) → display CR (punto=miles, coma=decimal) */
 function withCommasDecimal(raw: string): string {
   if (!raw) return '';
   const [integer, decimal] = raw.split('.');
