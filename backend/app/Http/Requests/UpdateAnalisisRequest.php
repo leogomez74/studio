@@ -68,7 +68,7 @@ class UpdateAnalisisRequest extends FormRequest
             'juicios_detalle.*.monto' => 'nullable|numeric|min:0|max:999999999.99',
             // Embargos detalle
             'embargos_detalle' => 'nullable|array|max:50',
-            'embargos_detalle.*.fecha_inicio' => 'required|date',
+            'embargos_detalle.*.fecha_inicio' => 'nullable|date',
             'embargos_detalle.*.motivo' => 'nullable|string|max:500',
             'embargos_detalle.*.monto' => 'nullable|numeric|min:0|max:999999999.99',
             'salarios_anteriores' => 'nullable|array|max:10',
