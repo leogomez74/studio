@@ -494,6 +494,7 @@ export function SaldosPorAsignar({
                       Monto Sobrante
                     </TableHead>
                     <TableHead>Deductora</TableHead>
+                    <TableHead>Planilla</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead>Distribución Posible</TableHead>
                   </TableRow>
@@ -542,6 +543,15 @@ export function SaldosPorAsignar({
                       </TableCell>
                       <TableCell className="text-sm">
                         {saldo.deductora}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {saldo.planilla_id ? (
+                          <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                            #{saldo.planilla_id}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm">
                         {saldo.fecha_origen
