@@ -237,6 +237,9 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   const [otroEmbargo, setOtroEmbargo] = useState(() => {
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').otroEmbargo || ''; } catch { return ''; }
   });
+  const [embargoActual, setEmbargoActual] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').embargoActual || ''; } catch { return ''; }
+  });
   const [embargableResult, setEmbargableResult] = useState<any>(null);
   const [loadingEmbargo, setLoadingEmbargo] = useState(false);
 
@@ -302,10 +305,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   useEffect(() => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo, credidData,
+        ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData,
       }));
     } catch {}
-  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, montoSugerido, plazo, credidData]);
+  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData]);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleCrearAnalisis = () => {
@@ -382,10 +385,11 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   }, [periodos, todosLlenos, totalMeses, colillasPorQuincena]);
 
   const otroEmbargoNum = parseFloat(otroEmbargo) || 0;
+  const embargoActualNum = parseFloat(embargoActual) || 0;
   const embargoPorNuevoCredito = otroEmbargoNum > 0
     ? Math.max(0, totalEmbargo - otroEmbargoNum)  // embargada: solo la diferencia
     : totalEmbargo;                                 // libre: restar todo el máximo embargable
-  const salarioCastigado = Math.max(0, minSalarioMeses - embargoPorNuevoCredito);
+  const salarioCastigado = Math.max(0, minSalarioMeses - embargoPorNuevoCredito - embargoActualNum);
   const capacidadReal = Math.round(salarioCastigado * 0.25);
   const cuotaSuperaCapacidad = cuotaCalculada > 0 && minSalarioMeses > 0 && cuotaCalculada > capacidadReal;
 
@@ -904,7 +908,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                       inputMode="numeric"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label className="text-xs">Pensión Alimentaria (₡)</Label>
                       <Input value={withCommas(pensionAlimenticia)} onChange={e => setPensionAlimenticia(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
@@ -912,6 +916,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                     <div>
                       <Label className="text-xs">Otro Embargo (₡)</Label>
                       <Input value={withCommas(otroEmbargo)} onChange={e => setOtroEmbargo(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Embargo Actual (₡)</Label>
+                      <Input value={withCommas(embargoActual)} onChange={e => setEmbargoActual(stripCommas(e.target.value))} placeholder="0" className="h-8 text-xs mt-1" inputMode="numeric" />
                     </div>
                   </div>
 
@@ -1030,6 +1038,12 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                       <span>− {otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
                       <span>{fmt(embargoPorNuevoCredito)}</span>
                     </div>
+                    {embargoActualNum > 0 && (
+                      <div className="flex justify-between text-orange-600">
+                        <span>− Embargo Actual</span>
+                        <span>{fmt(embargoActualNum)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between font-semibold border-t pt-1 text-slate-700">
                       <span>= Sal. Castigado</span>
                       <span>{fmt(salarioCastigado)}</span>
