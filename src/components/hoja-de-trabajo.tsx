@@ -653,7 +653,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                     <div>
                       <Label className="text-[10px]">Fecha</Label>
                       <Input
-                        type="date" value={e.fecha_inicio}
+                        type="date" value={e.fecha_inicio ?? ''}
                         onChange={e2 => setManualEmbargos(prev => prev.map((x, i) => i === idx ? { ...x, fecha_inicio: e2.target.value } : x))}
                         className="h-7 text-xs mt-0.5"
                       />
