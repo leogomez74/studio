@@ -237,9 +237,13 @@ try {
         $payment->fecha_anulacion  = now();
         $payment->save();
 
-        // Asiento contable
+        // Asiento contable — tipo según source del pago
+        $tipoAsiento = str_contains(strtolower($payment->source ?? ''), 'abono a capital')
+            ? 'ANULACION_ABONO_CAPITAL'
+            : 'ANULACION_SALDO_APLICADO';
+
         $trigger->disparar(
-            'ANULACION_SALDO_APLICADO',
+            $tipoAsiento,
             (float) $payment->monto,
             "ANULA-SALDO-{$payment->id}-{$credit->reference}",
             [
