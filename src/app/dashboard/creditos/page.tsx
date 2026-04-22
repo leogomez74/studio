@@ -1116,7 +1116,8 @@ export default function CreditsPage() {
     doc.setLanguage("es");
 
     const debtor = credit.client || credit.lead || null;
-    const nombre = (debtor?.name || '').toUpperCase();
+    const nombre = [debtor?.name, (debtor as any)?.apellido1, (debtor as any)?.apellido2]
+      .filter(Boolean).join(' ').toUpperCase();
     const cedula = debtor?.cedula || '';
     const estadoCivil = (debtor?.estado_civil || '').toUpperCase();
     const profesion = (debtor?.ocupacion || '').toUpperCase();
