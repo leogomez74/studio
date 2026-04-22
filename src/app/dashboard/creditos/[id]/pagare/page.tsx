@@ -144,7 +144,7 @@ export default function PagarePage() {
     .filter(Boolean).join(' ').toUpperCase();
   const cedula = debtor?.cedula || '';
   const estadoCivil = (debtor?.estado_civil || '').toUpperCase();
-  const profesion = (debtor?.ocupacion || '').toUpperCase();
+  const profesion = ((debtor as any)?.profesion || debtor?.ocupacion || '').toUpperCase();
   const direccion = [
     debtor?.direccion1,
     debtor?.direccion2,
