@@ -48,6 +48,57 @@ import {
 } from '@/components/ui/table';
 
 // Helper functions for currency
+function InlineSelect({ value, options, onSave }: {
+  value: string;
+  options: string[];
+  onSave: (val: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+
+  const handleSelect = async (val: string) => {
+    setSaving(true);
+    try {
+      await onSave(val);
+    } finally {
+      setSaving(false);
+      setEditing(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex flex-wrap gap-1 mt-0.5">
+        {options.map(opt => (
+          <button
+            key={opt}
+            disabled={saving}
+            onClick={() => handleSelect(opt)}
+            className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+              opt === value
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-white text-slate-700 border-slate-300 hover:border-primary hover:text-primary'
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
+        <button onClick={() => setEditing(false)} className="text-xs px-2 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-slate-600">✕</button>
+      </div>
+    );
+  }
+
+  return (
+    <p
+      className="text-sm cursor-pointer hover:text-primary hover:underline decoration-dashed"
+      onDoubleClick={() => setEditing(true)}
+      title="Doble clic para editar"
+    >
+      {value || 'N/A'}
+    </p>
+  );
+}
+
 const parseCurrencyToNumber = (value: string): string => {
   let cleaned = value.replace(/[₡$]/g, '');
   cleaned = cleaned.replace(/\s/g, '');
@@ -962,7 +1013,14 @@ export default function AnalisisDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Estado Civil</p>
-                  <p className="text-sm">{lead?.estado_civil || 'N/A'}</p>
+                  <InlineSelect
+                    value={lead?.estado_civil || ''}
+                    options={['Soltero(a)', 'Casado(a)', 'Divorciado(a)', 'Viudo(a)']}
+                    onSave={async (val) => {
+                      await api.patch(`/api/leads/${lead!.id}`, { estado_civil: val });
+                      setAnalisis(prev => prev ? { ...prev, lead: { ...prev.lead, estado_civil: val } } : prev);
+                    }}
+                  />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Institución</p>
@@ -974,7 +1032,14 @@ export default function AnalisisDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Nombramiento</p>
-                  <p className="text-sm">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</p>
+                  <InlineSelect
+                    value={analisis.nombramiento || lead?.estado_puesto || ''}
+                    options={['Interino', 'Propiedad']}
+                    onSave={async (val) => {
+                      await api.put(`/api/analisis/${analisisId}`, { nombramiento: val });
+                      setAnalisis(prev => prev ? { ...prev, nombramiento: val } : prev);
+                    }}
+                  />
                 </div>
               </div>
             </div>
