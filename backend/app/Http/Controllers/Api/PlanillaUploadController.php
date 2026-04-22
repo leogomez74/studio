@@ -250,9 +250,13 @@ class PlanillaUploadController extends Controller
                             $pagoSaldo->fecha_anulacion = now();
                             $pagoSaldo->save();
 
-                            // Asiento contable de reversión del saldo aplicado
+                            // Asiento contable según el tipo de aplicación del saldo
+                            $tipoAsientoSaldo = $saldo->estado === 'asignado_capital'
+                                ? 'ANULACION_ABONO_CAPITAL'
+                                : 'ANULACION_SALDO_APLICADO';
+
                             $this->triggerAccountingEntry(
-                                'ANULACION_SALDO_APLICADO',
+                                $tipoAsientoSaldo,
                                 (float) $pagoSaldo->monto,
                                 "ANULA-SALDO-{$pagoSaldo->id}-{$credit->reference}",
                                 [
@@ -275,6 +279,34 @@ class PlanillaUploadController extends Controller
                                 ]
                             );
                         }
+                    }
+
+                    // Si el saldo fue reintegrado al cliente, disparar asiento solitario de anulación
+                    if ($saldo->estado === 'reintegrado') {
+                        $creditSaldo = Credit::find($saldo->credit_id);
+                        $this->triggerAccountingEntry(
+                            'ANULACION_REINTEGRO_SALDO',
+                            (float) $saldo->monto,
+                            "ANULA-REINT-{$saldo->id}-" . ($creditSaldo->reference ?? $saldo->credit_id),
+                            [
+                                'reference'      => "ANULA-REINT-{$saldo->id}-" . ($creditSaldo->reference ?? $saldo->credit_id),
+                                'credit_id'      => $creditSaldo->reference ?? $saldo->credit_id,
+                                'cedula'         => $saldo->cedula,
+                                'clienteNombre'  => $creditSaldo->lead->name ?? null,
+                                'deductora_id'   => $planilla->deductora_id,
+                                'saldo_id'       => $saldo->id,
+                                'amount_breakdown' => [
+                                    'total'                    => (float) $saldo->monto,
+                                    'capital'                  => (float) $saldo->monto,
+                                    'interes_corriente'        => 0,
+                                    'interes_moratorio'        => 0,
+                                    'poliza'                   => 0,
+                                    'sobrante'                 => 0,
+                                    'cargos_adicionales_total' => 0,
+                                    'cargos_adicionales'       => [],
+                                ],
+                            ]
+                        );
                     }
 
                     $saldo->delete();

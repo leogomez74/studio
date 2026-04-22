@@ -156,13 +156,31 @@ trait AccountingTrigger
                 breakdown: array_merge($context, ['trigger_type' => 'PAGO_SALDO_PENDIENTE', 'source' => 'Saldo Pendiente'])
             ),
 
-            // Reverso de un saldo pendiente aplicado (cuando se anula la planilla origen)
+            // Reverso de un saldo pendiente aplicado a cuota
             'ANULACION_SALDO_APLICADO' => $this->triggerAccountingDevolucion(
                 creditId: $creditId,
                 paymentId: $paymentId,
                 amount: $amount,
-                reason: 'Anulación de saldo pendiente aplicado',
+                reason: 'Anulación de saldo pendiente aplicado a cuota',
                 additionalData: array_merge($context, ['trigger_type' => 'ANULACION_SALDO_APLICADO'])
+            ),
+
+            // Reverso de un saldo aplicado como abono a capital
+            'ANULACION_ABONO_CAPITAL' => $this->triggerAccountingDevolucion(
+                creditId: $creditId,
+                paymentId: $paymentId,
+                amount: $amount,
+                reason: 'Anulación de abono a capital desde saldo pendiente',
+                additionalData: array_merge($context, ['trigger_type' => 'ANULACION_ABONO_CAPITAL'])
+            ),
+
+            // Reverso de un reintegro de saldo al cliente
+            'ANULACION_REINTEGRO_SALDO' => $this->triggerAccountingDevolucion(
+                creditId: $creditId,
+                paymentId: $paymentId,
+                amount: $amount,
+                reason: 'Anulación de reintegro de saldo',
+                additionalData: array_merge($context, ['trigger_type' => 'ANULACION_REINTEGRO_SALDO'])
             ),
 
             'ABONO_EXTRAORDINARIO' => $this->triggerAccountingAbonoExtraordinario(
