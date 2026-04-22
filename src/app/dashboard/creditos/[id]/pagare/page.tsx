@@ -140,7 +140,7 @@ export default function PagarePage() {
   }
 
   const debtor = credit.client || credit.lead || null;
-  const nombre = [debtor?.name, debtor?.apellido1, debtor?.apellido2]
+  const nombre = [debtor?.name, (debtor as any)?.apellido1, (debtor as any)?.apellido2]
     .filter(Boolean).join(' ').toUpperCase();
   const cedula = debtor?.cedula || '';
   const estadoCivil = (debtor?.estado_civil || '').toUpperCase();
