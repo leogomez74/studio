@@ -1843,11 +1843,11 @@ export default function LeadDetailPage() {
                                             <Button
                                                 variant="default"
                                                 onClick={handleOpenOpportunitiesModal}
-                                                disabled={
-                                                    opportunities.length === 0 ||
-                                                    !checkIsComplete() ||
-                                                    getMissingDocuments().length > 0
-                                                }
+                                                // disabled={
+                                                //     opportunities.length === 0 ||
+                                                //     !checkIsComplete() ||
+                                                //     getMissingDocuments().length > 0
+                                                // }
                                                 className="gap-2"
                                             >
                                                 <Handshake className="h-4 w-4" />
