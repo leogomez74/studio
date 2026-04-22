@@ -53,8 +53,8 @@ function InlineSelect({ value, options, onSave }: {
   options: string[];
   onSave: (val: string) => Promise<void>;
 }) {
-  const [editing, setEditing] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const handleSelect = async (val: string) => {
     setSaving(true);
