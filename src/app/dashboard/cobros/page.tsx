@@ -2010,10 +2010,24 @@ export default function CobrosPage() {
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {[...previewData.preview].sort((a: any, b: any) => {
+                                    {(() => {
                                       const order: Record<string, number> = { 'Completo': 0, 'Parcial': 1, 'Sobrepago': 2, 'Sin cuotas pendientes': 3, 'No encontrado': 4 };
-                                      return (order[a.estado] ?? 5) - (order[b.estado] ?? 5);
-                                    }).map((item: any, idx: number) => {
+                                      // Agrupar cada fila principal con sus filas cascada
+                                      const groups: any[][] = [];
+                                      let currentGroup: any[] = [];
+                                      for (const item of previewData.preview) {
+                                        if (!item.es_cascada) {
+                                          if (currentGroup.length > 0) groups.push(currentGroup);
+                                          currentGroup = [item];
+                                        } else {
+                                          currentGroup.push(item);
+                                        }
+                                      }
+                                      if (currentGroup.length > 0) groups.push(currentGroup);
+                                      // Ordenar grupos por el estado de la fila principal
+                                      groups.sort((a, b) => (order[a[0].estado] ?? 5) - (order[b[0].estado] ?? 5));
+                                      return groups.flat();
+                                    })().map((item: any, idx: number) => {
                                       const esAjusteDecimal = item.monto_planilla != null && item.diferencia < -0.005 && item.diferencia >= -1.00;
                                       return (
                                       <tr key={idx} className={`border-t hover:bg-gray-50 ${item.es_cascada ? 'bg-blue-50/50' : esAjusteDecimal ? 'bg-amber-50' : ''}`}>
