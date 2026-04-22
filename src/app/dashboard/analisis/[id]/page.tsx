@@ -1018,7 +1018,7 @@ export default function AnalisisDetailPage() {
                     options={['Soltero(a)', 'Casado(a)', 'Divorciado(a)', 'Viudo(a)']}
                     onSave={async (val) => {
                       await api.patch(`/api/leads/${lead!.id}`, { estado_civil: val });
-                      setAnalisis(prev => prev ? { ...prev, lead: { ...prev.lead, estado_civil: val } } : prev);
+                      setAnalisis(prev => prev ? { ...prev, lead: { ...prev.lead, estado_civil: val } } as typeof prev : prev);
                     }}
                   />
                 </div>
