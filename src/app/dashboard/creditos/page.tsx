@@ -1024,7 +1024,7 @@ export default function CreditsPage() {
     // cuando el crédito está 'En Mora' (calcularMoraAusentes no cambia el estado de la cuota)
     const plan_pagos = credit.plan_de_pagos || [];
     const creditEnMora = credit.status === 'En Mora';
-    const cuotaVencida = plan_pagos.find((p: any) =>
+    const cuotaVencida: any = plan_pagos.find((p: any) =>
       p.estado === 'Mora' ||
       (p.dias_mora && Number(p.dias_mora) > 0) ||
       (creditEnMora && p.estado === 'Pendiente' && Number(p.interes_moratorio || 0) > 0)
