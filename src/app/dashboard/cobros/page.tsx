@@ -1733,21 +1733,32 @@ export default function CobrosPage() {
                           />
                         </div>
                       </div>
-                        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+                        {!cobrosSearch.trim() && (
+                          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                             <TabsTrigger value="al-dia">Al día ({alDiaCredits.length})</TabsTrigger>
                             <TabsTrigger value="30-dias">30 días ({mora30.length})</TabsTrigger>
                             <TabsTrigger value="60-dias">60 días ({mora60.length})</TabsTrigger>
                             <TabsTrigger value="90-dias">90 días ({mora90.length})</TabsTrigger>
                             <TabsTrigger value="180-dias">180 días ({mora180.length})</TabsTrigger>
                             <TabsTrigger value="mas-180-dias">+180 días ({mas180.length})</TabsTrigger>
-                        </TabsList>
+                          </TabsList>
+                        )}
                     </CardHeader>
+                    {cobrosSearch.trim() ? (
+                      <CardContent className="pt-0">
+                        <p className="text-xs text-muted-foreground mb-2">{cobrosFiltered.length} resultado(s) en todas las categorías</p>
+                        <CobrosTable credits={cobrosFiltered} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} />
+                      </CardContent>
+                    ) : (
+                      <>
                     <TabsContent value="al-dia"><CardContent className="pt-0"><CobrosTable credits={alDiaCredits} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
                     <TabsContent value="30-dias"><CardContent className="pt-0"><CobrosTable credits={mora30} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
                     <TabsContent value="60-dias"><CardContent className="pt-0"><CobrosTable credits={mora60} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
                     <TabsContent value="90-dias"><CardContent className="pt-0"><CobrosTable credits={mora90} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
                     <TabsContent value="180-dias"><CardContent className="pt-0"><CobrosTable credits={mora180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
                     <TabsContent value="mas-180-dias"><CardContent className="pt-0"><CobrosTable credits={mas180} isLoading={isLoadingCredits} currentPage={cobrosPage} perPage={cobrosPerPage} onPageChange={setCobrosPage} onPerPageChange={setCobrosPerPage} onCertificacion={(id) => { setCertCreditId(id); setCertFechaCorte(''); setCertDialogOpen(true); }} onSelectCredit={(id) => { setPanelCreditId(id); setPanelTab('credito'); }} selectedCreditId={panelCreditId} /></CardContent></TabsContent>
+                      </>
+                    )}
                 </Card>
              </Tabs>
             </div>
