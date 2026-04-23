@@ -129,6 +129,13 @@ export const generateEstadoCuenta = async (creditId: number) => {
   doc.setTextColor(0, 0, 0);
 
   const tasaValue = credit.tasa_anual ?? credit.tasa?.tasa ?? '0.00';
+
+  // Morosidad = suma de intereses moratorios + corrientes vencidos de cuotas no pagadas
+  const montoMora = (credit.plan_de_pagos || [])
+    .filter((p: any) => !['Pagado', 'Pagada'].includes(p.estado || '') && p.numero_cuota > 0)
+    .reduce((s: number, p: any) =>
+      s + Number(p.interes_moratorio || 0) + Number(p.int_corriente_vencido || 0), 0);
+
   autoTable(doc, {
     startY: finalY + 4,
     head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'TASA', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO']],
@@ -140,7 +147,7 @@ export const generateEstadoCuenta = async (creditId: number) => {
       fmtNum(credit.cuota),
       fmtNum(credit.saldo),
       `${Number(tasaValue).toFixed(2)}%`,
-      '0.00',
+      montoMora > 0 ? fmtNum(montoMora) : '0.00',
       credit.primera_deduccion || '-',
       new Date().toISOString().split('T')[0],
       (credit.fecha_culminacion_credito || '-').split('T')[0].split(' ')[0],
@@ -171,9 +178,12 @@ export const generateEstadoCuenta = async (creditId: number) => {
   }
 
   // ── PLAN DE PAGOS ──
-  const cuotasPagadas = (credit.plan_de_pagos || []).filter(
-    (p: any) => ['Pagado', 'Pagada'].includes(p.estado || ''),
-  );
+  const plan = credit.plan_de_pagos || [];
+  const creditEnMora = credit.status === 'En Mora';
+  const pagadas = plan.filter((p: any) => ['Pagado', 'Pagada', 'Parcial'].includes(p.estado || '') && p.numero_cuota > 0);
+  const cuotasPagadas = creditEnMora
+    ? plan.filter((p: any) => p.numero_cuota > 0).slice(0, pagadas.length + 2)
+    : pagadas;
   finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
     ? (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14
     : finalY + 14;
@@ -189,16 +199,25 @@ export const generateEstadoCuenta = async (creditId: number) => {
     doc.setTextColor(0, 0, 0);
 
     if (cuotasPagadas.length > 0) {
-      const paymentRows = cuotasPagadas.map((p: any) => [
-        p.numero_cuota,
-        formatDatePDF(p.fecha_corte),
-        formatDatePDF(p.fecha_pago),
-        fmtNum(p.cuota),
-        fmtNum(p.interes_corriente),
-        fmtNum(p.amortizacion),
-        fmtNum(p.nuevo_saldo),
-        p.estado,
-      ]);
+      const paymentRows = cuotasPagadas.map((p: any) => {
+        const saldo = Number(p.saldo_nuevo || 0) > 0
+          ? Number(p.saldo_nuevo)
+          : Math.max(0, Number(p.saldo_anterior || 0) - Number(p.amortizacion || 0));
+        // Interés total = corriente + vencido + moratorio
+        const intTotal = Number(p.interes_corriente || 0)
+          + Number(p.int_corriente_vencido || 0)
+          + Number(p.interes_moratorio || 0);
+        return [
+          p.numero_cuota,
+          formatDatePDF(p.fecha_corte),
+          formatDatePDF(p.fecha_pago),
+          fmtNum(p.cuota),
+          fmtNum(intTotal),
+          fmtNum(p.amortizacion),
+          fmtNum(saldo),
+          p.estado,
+        ];
+      });
       autoTable(doc, {
         startY: finalY + 4,
         margin: { bottom: FOOTER_H + 4 },
@@ -217,6 +236,19 @@ export const generateEstadoCuenta = async (creditId: number) => {
       doc.setTextColor(0, 0, 0);
     }
   }
+
+  // Texto informativo al pie
+  const textoFinalY = (doc as any).lastAutoTable?.finalY
+    ? Math.min((doc as any).lastAutoTable.finalY + 10, CONTENT_BOTTOM)
+    : CONTENT_BOTTOM - 10;
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(80, 80, 80);
+  doc.text(
+    'El saldo reflejado en el presente documento es solo informativo y no debe ser utilizado para fines de cancelación.',
+    margin, textoFinalY
+  );
+  doc.setTextColor(0, 0, 0);
 
   doc.save(`estado_cuenta_${credit.reference || credit.id}.pdf`);
 };

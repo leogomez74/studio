@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
@@ -72,6 +72,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast, toastSuccess, toastError, toastWarning } from "@/hooks/use-toast";
 
 import api from "@/lib/axios";
+import { generateEstadoCuenta } from "@/lib/pdf/estadoCuenta";
 import { getAuthUser } from "@/lib/auth";
 import React from "react";
 
@@ -94,7 +95,7 @@ const parseCurrencyToNumber = (value: string): number => {
 
 const creditSchema = z.object({
   reference: z.string().min(1, "La referencia es requerida"),
-  title: z.string().min(1, "El título es requerido"),
+  title: z.string().min(1, "El tÃ­tulo es requerido"),
   status: z.string(),
   category: z.string(),
   tipo_credito: z.string().default("regular"),
@@ -105,7 +106,7 @@ const creditSchema = z.object({
   openedAt: z.string(),
   description: z.string().optional(),
   divisa: z.string(),
-  plazo: z.coerce.number().min(1, "El plazo mínimo es 1 mes").max(120, "El plazo máximo es 120 meses"),
+  plazo: z.coerce.number().min(1, "El plazo mÃ­nimo es 1 mes").max(120, "El plazo mÃ¡ximo es 120 meses"),
   poliza: z.boolean().default(false),
 });
 
@@ -266,7 +267,7 @@ const CREDIT_STATUS_OPTIONS = [
   "Formalizado"
 ] as const;
 const CURRENCY_OPTIONS = [
-  { value: "CRC", label: "Colón Costarricense (CRC)" },
+  { value: "CRC", label: "ColÃ³n Costarricense (CRC)" },
 ] as const;
 
 const CREDIT_STATUS_TAB_CONFIG = [
@@ -317,7 +318,7 @@ const getStatusBadgeStyle = (status?: string | null): { variant: "default" | "se
     case "formalizado":
       return { variant: "default", className: "bg-emerald-600 hover:bg-emerald-700 text-white" };
     case "activo":
-    case "al día":
+    case "al dÃ­a":
       return { variant: "default", className: "bg-blue-600 hover:bg-blue-700 text-white" };
     case "mora":
     case "en mora":
@@ -363,14 +364,14 @@ export default function CreditsPage() {
     numeroOperacion: "",
     leadName: "",
     documentoId: "",
-    deductora: "", // "" = todas, "sin" = sin deductora, número = id específico
+    deductora: "", // "" = todas, "sin" = sin deductora, nÃºmero = id especÃ­fico
   });
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Selección de créditos sin deductora
+  // SelecciÃ³n de crÃ©ditos sin deductora
   const [selectedCreditIds, setSelectedCreditIds] = useState<Set<number>>(new Set());
   const [loadingMora, setLoadingMora] = useState(false);
   const [showMoraDialog, setShowMoraDialog] = useState(false);
@@ -427,14 +428,14 @@ export default function CreditsPage() {
   const filteredClients = useMemo(() => {
     if (!searchQuery) return clients;
     const lowerQuery = searchQuery.toLowerCase();
-    // Normalizar query removiendo símbolos para búsqueda por cédula
+    // Normalizar query removiendo sÃ­mbolos para bÃºsqueda por cÃ©dula
     const normalizedQuery = searchQuery.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
     return clients.filter(client => {
       // Buscar por nombre
       const matchesName = client.name.toLowerCase().includes(lowerQuery);
 
-      // Buscar por cédula (ignorando símbolos)
+      // Buscar por cÃ©dula (ignorando sÃ­mbolos)
       const normalizedCedula = client.cedula ? client.cedula.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
       const matchesCedula = normalizedCedula.includes(normalizedQuery);
 
@@ -481,7 +482,7 @@ export default function CreditsPage() {
       setCredits(apiData);
     } catch (error) {
       console.error("Error fetching credits:", error);
-      toastError("Error", "No se pudieron cargar los créditos. Intente nuevamente.");
+      toastError("Error", "No se pudieron cargar los crÃ©ditos. Intente nuevamente.");
       setCredits([]);
     }
   }, [toast]);
@@ -618,7 +619,7 @@ export default function CreditsPage() {
     [credits, filters]
   );
 
-  // Agrupar créditos por cliente (lead_id)
+  // Agrupar crÃ©ditos por cliente (lead_id)
   const groupCreditsByClient = useCallback((credits: CreditItem[]): Map<number, CreditItem[]> => {
     const grouped = new Map<number, CreditItem[]>();
 
@@ -630,19 +631,19 @@ export default function CreditsPage() {
       grouped.get(leadId)!.push(credit);
     });
 
-    // Ordenar créditos dentro de cada grupo por fecha (más reciente primero)
+    // Ordenar crÃ©ditos dentro de cada grupo por fecha (mÃ¡s reciente primero)
     grouped.forEach((creditsArray, leadId) => {
       creditsArray.sort((a, b) => {
         const dateA = new Date(a.created_at || a.opened_at || 0).getTime();
         const dateB = new Date(b.created_at || b.opened_at || 0).getTime();
-        return dateB - dateA; // Descendente: más reciente primero
+        return dateB - dateA; // Descendente: mÃ¡s reciente primero
       });
     });
 
     return grouped;
   }, []);
 
-  // Toggle de expansión de grupos de clientes
+  // Toggle de expansiÃ³n de grupos de clientes
   const toggleClientExpansion = useCallback((leadId: number) => {
     setExpandedClientIds(prev => {
       const newSet = new Set(prev);
@@ -664,7 +665,7 @@ export default function CreditsPage() {
       // Convertir Map a Array para paginar por grupos
       const groupsArray = Array.from(grouped.entries());
       const totalGroups = groupsArray.length;
-      const totalItems = filtered.length; // Total de créditos individuales
+      const totalItems = filtered.length; // Total de crÃ©ditos individuales
       const totalPages = Math.ceil(totalGroups / itemsPerPage);
 
       const startIndex = (currentPage - 1) * itemsPerPage;
@@ -672,8 +673,8 @@ export default function CreditsPage() {
       const paginatedGroups = groupsArray.slice(startIndex, endIndex);
 
       return {
-        groups: new Map(paginatedGroups),  // Map de grupos para página actual
-        totalItems,                         // Total de créditos (para info)
+        groups: new Map(paginatedGroups),  // Map de grupos para pÃ¡gina actual
+        totalItems,                         // Total de crÃ©ditos (para info)
         totalGroups,                        // Total de clientes
         totalPages,
         currentPage,
@@ -694,12 +695,12 @@ export default function CreditsPage() {
         formalized_at: format(formalizacionDate, 'yyyy-MM-dd')
       });
 
-      toastSuccess("Crédito formalizado", "El plan de pagos se ha generado correctamente.");
+      toastSuccess("CrÃ©dito formalizado", "El plan de pagos se ha generado correctamente.");
       setFormalizarDialogOpen(false);
       fetchCredits();
     } catch (error: any) {
-      console.error('Error formalizando crédito:', error);
-      const message = error.response?.data?.message || "No se pudo formalizar el crédito.";
+      console.error('Error formalizando crÃ©dito:', error);
+      const message = error.response?.data?.message || "No se pudo formalizar el crÃ©dito.";
       toastError("Error", message);
     }
   };
@@ -712,7 +713,7 @@ export default function CreditsPage() {
         deductora_id: deductoraValue,
       });
       const nombre = deductoras.find(d => String(d.id) === nuevaDeductoraId)?.nombre || 'Sin asignar';
-      toastSuccess("Cooperativa actualizada", `Se cambió a ${nombre}.`);
+      toastSuccess("Cooperativa actualizada", `Se cambiÃ³ a ${nombre}.`);
       setCambiarDeductoraOpen(false);
       fetchCredits();
     } catch (error: any) {
@@ -757,7 +758,7 @@ export default function CreditsPage() {
       // Validar que el cliente tenga deductora asignada
       const selectedClient = clients.find(c => String(c.id) === values.clientId);
       if (!selectedClient?.deductora_id) {
-        toastError("Error de validación", "El cliente seleccionado no tiene deductora asignada. Por favor, asigna una deductora al cliente antes de crear el crédito.");
+        toastError("Error de validaciÃ³n", "El cliente seleccionado no tiene deductora asignada. Por favor, asigna una deductora al cliente antes de crear el crÃ©dito.");
         setIsSaving(false);
         return;
       }
@@ -786,7 +787,7 @@ export default function CreditsPage() {
         await api.put(`/api/credits/${dialogCredit?.id}`, body);
       }
 
-      toastSuccess("Éxito", "Crédito guardado correctamente.");
+      toastSuccess("Ã‰xito", "CrÃ©dito guardado correctamente.");
       setDialogState(null);
       fetchCredits();
     } catch (error: any) {
@@ -809,7 +810,7 @@ export default function CreditsPage() {
     };
 
     const headers = [
-      "Referencia", "Título", "Estado", "Categoría", "Cliente", "Cédula", "Monto", "Saldo", "Cuota", "Divisa"
+      "Referencia", "TÃ­tulo", "Estado", "CategorÃ­a", "Cliente", "CÃ©dula", "Monto", "Saldo", "Cuota", "Divisa"
     ];
     const person = credit.client || credit.lead;
     const nombreCompleto = person
@@ -848,7 +849,7 @@ export default function CreditsPage() {
         const res = await api.get(`/api/credits/${credit.id}`);
         fullCredit = res.data;
       } catch (error) {
-        console.error('Error fetching full credit for pagaré, using list data', error);
+        console.error('Error fetching full credit for pagarÃ©, using list data', error);
       }
 
       const doc = new jsPDF();
@@ -868,8 +869,8 @@ export default function CreditsPage() {
         generatePagareDocument(doc, fullCredit, today);
       };
     } catch (error) {
-      console.error('Error generating pagaré PDF', error);
-      toastError("Error", "No se pudo generar el pagaré.");
+      console.error('Error generating pagarÃ© PDF', error);
+      toastError("Error", "No se pudo generar el pagarÃ©.");
     }
   };
 
@@ -901,268 +902,8 @@ export default function CreditsPage() {
   };
 
   const handleExportPDF = async (credit: CreditItem) => {
-    const doc = new jsPDF({ orientation: 'landscape' });
-    const currentDate = new Date().toLocaleDateString('es-CR');
-
-    let fullCredit = credit;
-    try {
-      // Fetch full credit details including payments
-      const res = await api.get(`/api/credits/${credit.id}`);
-      fullCredit = res.data;
-    } catch (e) {
-      console.error("Error fetching full credit details for PDF", e);
-    }
-
-    // Logo (Placeholder or load image)
-    const img = new Image();
-    img.src = '/logopepweb.png';
-    img.onload = () => {
-      doc.addImage(img, 'PNG', 14, 10, 40, 15);
-      generatePDFContent(doc, fullCredit, currentDate);
-    };
-    img.onerror = () => {
-      doc.setFontSize(16);
-      doc.text("CREDIPEP", 14, 20);
-      generatePDFContent(doc, fullCredit, currentDate);
-    };
-  };
-
-  const generatePDFContent = (doc: jsPDF, credit: CreditItem, date: string) => {
-    // ── Header ──
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    const pageW = 297; // landscape width
-    const margin = 14;
-    const centerX = pageW / 2;
-    const lineEnd = pageW - margin;
-
-    doc.text("ESTADO DE CUENTA", centerX, 15, { align: "center" });
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text(`REPORTE AL ${date}`, centerX, 21, { align: "center" });
-
-    // Línea separadora del header
-    doc.setDrawColor(0, 0, 128);
-    doc.setLineWidth(0.5);
-    doc.line(margin, 25, lineEnd, 25);
-
-    // ── Información del Cliente (lado izquierdo) ──
-    const infoY = 33;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("N° Cuenta:", margin, infoY);
-    doc.setFont("helvetica", "normal");
-    doc.text(`${credit.lead_id || "-"}`, 42, infoY);
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Cliente:", margin, infoY + 6);
-    doc.setFont("helvetica", "normal");
-    const person = credit.lead || credit.client;
-    const clientName = person ? [person.name, person.apellido1, person.apellido2].filter(Boolean).join(' ') : "CLIENTE DESCONOCIDO";
-    doc.text(clientName.toUpperCase(), 42, infoY + 6);
-
-    // ── Información laboral (lado derecho) ──
-    const rightCol = 160;
-    const labelW = 30;
-    doc.setFont("helvetica", "bold");
-    doc.text("Inst./Empresa:", rightCol, infoY);
-    doc.setFont("helvetica", "normal");
-    doc.text(`${credit.lead?.institucion_labora || credit.lead?.ocupacion || credit.client?.institucion_labora || credit.client?.ocupacion || "-"}`, rightCol + labelW, infoY);
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Sección:", rightCol, infoY + 6);
-    doc.setFont("helvetica", "normal");
-    doc.text(`${credit.lead?.puesto || credit.client?.puesto || "-"}`, rightCol + labelW, infoY + 6);
-
-    // Planes de Ahorros
-    const seccionesY = infoY + 18;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 128);
-    doc.text("Planes de Ahorros", 14, seccionesY);
-    doc.setTextColor(0, 0, 0);
-    doc.setDrawColor(0, 0, 128);
-    doc.setLineWidth(0.3);
-    doc.line(margin, seccionesY + 2, lineEnd, seccionesY + 2);
-
-    // Mock Savings Data
-    autoTable(doc, {
-      startY: seccionesY + 5,
-      head: [['N.CON', 'PLAN', 'MENSUALIDAD', 'INICIO', 'REND.CORTE', 'APORTES', 'RENDIMIENTO', 'ACUMULADO']],
-      body: [
-        ['621', 'SOBRANTES POR APLICAR', '0.00', '27/09/2022', '', '0.64', '0.00', '0.64']
-      ],
-      theme: 'plain',
-      styles: { fontSize: 8, cellPadding: 1 },
-      headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
-      columnStyles: {
-        0: { cellWidth: 15 },
-        1: { cellWidth: 50 },
-      }
-    });
-
-    // Créditos / Otras deducciones
-    let finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 128);
-    doc.text("Créditos / Otras deducciones", 14, finalY);
-    doc.setTextColor(0, 0, 0);
-    doc.setDrawColor(0, 0, 128);
-    doc.setLineWidth(0.3);
-    doc.line(margin, finalY + 2, lineEnd, finalY + 2);
-
-    // Credit Data - Solo usar tasa dinámica si está en estado editable (Aprobado/Activo)
-    const estadosEditables = ['Aprobado', 'Por firmar'];
-    const esEditable = credit.status && estadosEditables.includes(credit.status);
-    const tasaValue = esEditable
-      ? (credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00')
-      : (credit.tasa_anual ?? credit.tasa?.tasa ?? '0.00');
-
-    const plan_pagos = credit.plan_de_pagos || [];
-    const creditEnMora = credit.status === 'En Mora';
-    console.log('[EDC] status:', credit.status, '| creditEnMora:', creditEnMora, '| plan_pagos count:', plan_pagos.length, '| cuotas:', plan_pagos.map((p: any) => `#${p.numero_cuota}:${p.estado}:int_mora=${p.interes_moratorio}`));
-
-    // Morosidad = suma de intereses moratorios de TODAS las cuotas no pagadas
-    const primeraNoPageada: any = plan_pagos.find((p: any) =>
-      p.estado !== 'Pagado' && p.numero_cuota > 0
-    );
-    const montoMorosidad = creditEnMora
-      ? plan_pagos
-          .filter((p: any) => p.estado !== 'Pagado' && p.numero_cuota > 0)
-          .reduce((sum: number, p: any) => sum + Number(p.interes_moratorio || 0), 0)
-      : 0;
-
-    // Última fecha de movimiento (último pago)
-    const pagadas = (credit.plan_de_pagos || []).filter((p: any) => p.fecha_movimiento);
-    const ultMovFecha = pagadas.length > 0
-      ? pagadas.sort((a: any, b: any) => new Date(b.fecha_movimiento).getTime() - new Date(a.fecha_movimiento).getTime())[0].fecha_movimiento?.split('T')[0]
-      : new Date().toISOString().split('T')[0];
-
-    const creditRow: string[] = [
-      credit.numero_operacion || credit.reference || '-',
-      credit.linea || credit.category || "-",
-      new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.monto_credito || 0),
-      String(credit.plazo || 120),
-      new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.cuota || 0),
-      new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.saldo || 0),
-      `${tasaValue}%`,
-      montoMorosidad > 0 ? new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(montoMorosidad) : "0.00",
-      credit.primera_deduccion || "-",
-      ultMovFecha ?? new Date().toISOString().split('T')[0],
-      (credit.fecha_culminacion_credito || "2032-01-01").split('T')[0].split(' ')[0],
-      credit.status || "NORMAL"
-    ];
-
-    autoTable(doc, {
-      startY: finalY + 5,
-      head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'TASA', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO']],
-      body: [creditRow],
-      theme: 'plain',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fontStyle: 'bold', textColor: [0, 0, 0] },
-      columnStyles: {
-        0: { cellWidth: 30 },  // OPERACIÓN
-        1: { cellWidth: 28 },  // LINEA
-        2: { cellWidth: 25 },  // MONTO
-        3: { cellWidth: 15 },  // PLAZO
-        4: { cellWidth: 22 },  // CUOTA
-        5: { cellWidth: 25 },  // SALDO
-        6: { cellWidth: 18 },  // TASA
-        7: { cellWidth: 22 },  // MOROSIDAD
-        8: { cellWidth: 22 },  // PRI.DED
-        9: { cellWidth: 22 },  // ULT.MOV
-        10: { cellWidth: 22 }, // TERMINA
-        11: { cellWidth: 22 }, // PROCESO
-      },
-    });
-
-    // Fianzas
-    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 128);
-    doc.text("Fianzas", 14, finalY);
-    doc.setTextColor(0, 0, 0);
-
-    doc.setDrawColor(0, 0, 128);
-    doc.setLineWidth(0.3);
-    doc.line(margin, finalY + 2, lineEnd, finalY + 2);
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-
-
-    // Plan de Pagos (Detailed Installments)
-    if (credit.plan_de_pagos && credit.plan_de_pagos.length > 0) {
-      finalY = finalY + 20;
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(0, 0, 128);
-      doc.text("Plan de Pagos", 14, finalY);
-      doc.setTextColor(0, 0, 0);
-      doc.setDrawColor(0, 0, 128);
-      doc.setLineWidth(0.3);
-      doc.line(margin, finalY + 2, lineEnd, finalY + 2);
-
-      // Mostrar: pagadas + primera no pagada si crédito en mora
-      const plan = credit.plan_de_pagos ?? [];
-      const cuotasFiltradas = creditEnMora
-        ? plan.filter((p: any) => p.numero_cuota > 0 && (p.estado === 'Pagado' || p.estado === 'Parcial' || p.estado === 'Mora' || p.estado === 'Pendiente'))
-            .slice(0, plan.filter((p: any) => p.estado === 'Pagado' || p.estado === 'Parcial').length + 2)
-        : plan.filter((p: any) => p.estado === 'Pagado' || p.estado === 'Parcial');
-
-      const fmt = (v: any) => new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(Number(v) || 0);
-      const paymentRows = cuotasFiltradas.map((p: any) => {
-        // Calcular saldo: usar saldo_nuevo si está, si no: saldo_anterior - amortizacion
-        const saldoCalc = Number(p.saldo_nuevo || 0) > 0
-          ? Number(p.saldo_nuevo)
-          : Math.max(0, Number(p.saldo_anterior || 0) - Number(p.amortizacion || 0));
-        return [
-          p.numero_cuota,
-          formatDate(p.fecha_corte),
-          formatDate(p.fecha_pago),
-          fmt(p.cuota),
-          fmt(p.interes_corriente),
-          fmt(p.amortizacion),
-          fmt(saldoCalc),
-          p.estado
-        ];
-      });
-
-      autoTable(doc, {
-        startY: finalY + 5,
-        head: [['#', 'FECHA CUOTA', 'FECHA PAGO', 'CUOTA', 'INTERÉS', 'AMORTIZACIÓN', 'SALDO', 'ESTADO']],
-        body: paymentRows,
-        theme: 'striped',
-        styles: { fontSize: 7, cellPadding: 1 },
-        headStyles: { fontStyle: 'bold', textColor: [0, 0, 0], fillColor: [220, 220, 220] },
-        bodyStyles: { textColor: [0, 0, 0] },
-        didParseCell: (data: any) => {
-          if (data.section === 'body' && data.row.raw[7] === 'Mora') {
-            data.cell.styles.textColor = [180, 0, 0];
-            data.cell.styles.fontStyle = 'bold';
-          }
-        },
-      });
-    } else {
-      doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
-    }
-
-    // Texto informativo al pie
-    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY ?? finalY + 30;
-    finalY += 12;
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(80, 80, 80);
-    doc.text(
-      'El saldo reflejado en el presente documento es solo informativo y no debe ser utilizado para fines de cancelación.',
-      margin, finalY
-    );
-    doc.setTextColor(0, 0, 0);
-
-    doc.save(`estado_cuenta_${credit.lead_id}.pdf`);
+    if (!credit.id) return;
+    await generateEstadoCuenta(credit.id);
   };
 
   const generatePagareDocument = (doc: jsPDF, credit: CreditItem, prettyDate: string) => {
@@ -1182,13 +923,13 @@ export default function CreditsPage() {
 
     let y = 35;
 
-    // Encabezado operación (esquina superior derecha)
+    // Encabezado operaciÃ³n (esquina superior derecha)
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('OPERACIÓN N°', 160, 15);
+    doc.text('OPERACIÃ“N NÂ°', 160, 15);
     doc.text(credit.numero_operacion || credit.reference || '', 188, 15);
 
-    // Título principal
+    // TÃ­tulo principal
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
     doc.text('PAGARE', 105, 25, { align: 'center' });
@@ -1196,10 +937,10 @@ export default function CreditsPage() {
     // Lugar y fecha
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text(`San José, Costa Rica, el día ${prettyDate.toUpperCase()}`, 20, y);
+    doc.text(`San JosÃ©, Costa Rica, el dÃ­a ${prettyDate.toUpperCase()}`, 20, y);
     y += 8;
 
-    // Sección DEUDOR
+    // SecciÃ³n DEUDOR
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.text('DEUDOR', 20, y);
@@ -1213,8 +954,8 @@ export default function CreditsPage() {
     doc.text(nombre, 90, y);
     y += 4;
 
-    // Cédula
-    doc.text('Número de cédula de identidad:', 30, y);
+    // CÃ©dula
+    doc.text('NÃºmero de cÃ©dula de identidad:', 30, y);
     doc.text(cedula, 90, y);
     y += 4;
 
@@ -1223,13 +964,13 @@ export default function CreditsPage() {
     doc.text(estadoCivil, 90, y);
     y += 4;
 
-    // Profesión
-    doc.text('Profesión/Oficio:', 30, y);
+    // ProfesiÃ³n
+    doc.text('ProfesiÃ³n/Oficio:', 30, y);
     doc.text(profesion, 90, y);
     y += 4;
 
-    // Dirección
-    doc.text('Dirección de domicilio:', 30, y);
+    // DirecciÃ³n
+    doc.text('DirecciÃ³n de domicilio:', 30, y);
     if (direccion) {
       const direccionLines = doc.splitTextToSize(direccion, 105);
       doc.text(direccionLines, 90, y);
@@ -1239,7 +980,7 @@ export default function CreditsPage() {
     }
     y += 5;
 
-    // Monto en números
+    // Monto en nÃºmeros
     const monto = Number(credit.monto_credito ?? 0);
     const plazo = Number(credit.plazo ?? 0);
     const estadosEditablesPagare = ['Aprobado', 'Por firmar'];
@@ -1251,7 +992,7 @@ export default function CreditsPage() {
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('Monto en números:', 30, y);
+    doc.text('Monto en nÃºmeros:', 30, y);
     doc.setFont('helvetica', 'normal');
     const divisaCode = credit.divisa || 'CRC';
     doc.text(`${divisaCode}  ${formatAmount(monto)}`, 85, y);
@@ -1264,16 +1005,16 @@ export default function CreditsPage() {
     doc.text('____________________________________________ DE COLONES EXACTOS', 85, y);
     y += 5;
 
-    // Tasas de interés
+    // Tasas de interÃ©s
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.text('Tasa de interés corriente:', 30, y);
+    doc.text('Tasa de interÃ©s corriente:', 30, y);
     doc.setFont('helvetica', 'normal');
     doc.text(`Tasa fija mensual del ${tasaMensual}%`, 85, y);
     y += 4;
 
     doc.setFont('helvetica', 'bold');
-    doc.text('Tasa de interés moratoria:', 30, y);
+    doc.text('Tasa de interÃ©s moratoria:', 30, y);
     doc.setFont('helvetica', 'normal');
     const tasaMoratoria = ((tasaNumber / 12) * 1.3).toFixed(2);
     doc.text(`Tasa mensual del ${tasaMoratoria}%`, 85, y);
@@ -1286,17 +1027,17 @@ export default function CreditsPage() {
     y += 4;
 
     doc.setFont('helvetica', 'normal');
-    const formaPago = `Cuotas mensuales, en número igual al número de meses indicados como "plazo en variables y meses". Yo, la persona indicada como "deudor" en este documento, PROMETO pagar INCONDICIONALMENTE este PAGARE a la orden de CREDIPEP, S.A. cédula jurídica 3-101-515511 entidad domiciliada en San José, San José, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en Números". La tasa de interés corriente es la indicada como "tasa de interés corriente". El pago se llevará a cabo en San José, en el domicilio de la acreedora, en dinero corriente y en colones costarricenses. Los intereses se calcularán sobre la base del saldo de principal en un momento determinado y en porcentajes señalados como "tasa de interés corriente" Los pagos incluyen el capital más intereses y pagaré con la periodicidad de pago indicada. Renuncio a mi domicilio y requerimientos de pago y acepto la concesión de prórrogas sin que se me consulte ni notifique. Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas dará derecho al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este título se rige por las normas del Código de Comercio vigentes acerca del "Pagaré" como título a la orden para representación de un compromiso incondicional de pago de sumas de dinero.`;
+    const formaPago = `Cuotas mensuales, en nÃºmero igual al nÃºmero de meses indicados como "plazo en variables y meses". Yo, la persona indicada como "deudor" en este documento, PROMETO pagar INCONDICIONALMENTE este PAGARE a la orden de CREDIPEP, S.A. cÃ©dula jurÃ­dica 3-101-515511 entidad domiciliada en San JosÃ©, San JosÃ©, Sabana Norte, del ICE, 100 m oeste, 400 m norte y 50 oeste, mano izquierda casa blanca de dos pisos, # 5635. El monto de la deuda es la suma indicada como "Monto en Letras" y "Monto en NÃºmeros". La tasa de interÃ©s corriente es la indicada como "tasa de interÃ©s corriente". El pago se llevarÃ¡ a cabo en San JosÃ©, en el domicilio de la acreedora, en dinero corriente y en colones costarricenses. Los intereses se calcularÃ¡n sobre la base del saldo de principal en un momento determinado y en porcentajes seÃ±alados como "tasa de interÃ©s corriente" Los pagos incluyen el capital mÃ¡s intereses y pagarÃ© con la periodicidad de pago indicada. Renuncio a mi domicilio y requerimientos de pago y acepto la concesiÃ³n de prÃ³rrogas sin que se me consulte ni notifique. Asimismo la falta de pago de una sola de las cuotas de capital e intereses indicadas darÃ¡ derecho al acreedor a tener por vencida y exigible ejecutiva y judicialmente toda la deuda. Este tÃ­tulo se rige por las normas del CÃ³digo de Comercio vigentes acerca del "PagarÃ©" como tÃ­tulo a la orden para representaciÃ³n de un compromiso incondicional de pago de sumas de dinero.`;
     const formaPagoLines = doc.splitTextToSize(formaPago, 175);
     doc.text(formaPagoLines, 30, y);
     y += formaPagoLines.length * 3.5 + 5;
 
     // Abonos extraordinarios
     doc.setFont('helvetica', 'bold');
-    doc.text('SOBRE LOS ABONOS EXTRAORDINARIOS Y CANCELACIÓN ANTICIPADA:', 30, y);
+    doc.text('SOBRE LOS ABONOS EXTRAORDINARIOS Y CANCELACIÃ“N ANTICIPADA:', 30, y);
     y += 4;
     doc.setFont('helvetica', 'normal');
-    const abonosTexto = `Se indica y aclara al deudor de este pagaré, que, por los abonos extraordinarios y cancelación anticipada antes de los primeros doce meses naturales a partir del primer día siguiente a la firma de este crédito se penalizará con tres meses de intereses corrientes, (los cuales tendrá como base de cálculo el mes en el que se realizará la cancelación y los dos meses siguientes a este).`;
+    const abonosTexto = `Se indica y aclara al deudor de este pagarÃ©, que, por los abonos extraordinarios y cancelaciÃ³n anticipada antes de los primeros doce meses naturales a partir del primer dÃ­a siguiente a la firma de este crÃ©dito se penalizarÃ¡ con tres meses de intereses corrientes, (los cuales tendrÃ¡ como base de cÃ¡lculo el mes en el que se realizarÃ¡ la cancelaciÃ³n y los dos meses siguientes a este).`;
     const abonosLines = doc.splitTextToSize(abonosTexto, 175);
     doc.text(abonosLines, 30, y);
 
@@ -1308,8 +1049,8 @@ export default function CreditsPage() {
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Créditos</h2>
-            <p className="text-muted-foreground">Gestiona los créditos y sus documentos.</p>
+            <h2 className="text-2xl font-bold tracking-tight">CrÃ©ditos</h2>
+            <p className="text-muted-foreground">Gestiona los crÃ©ditos y sus documentos.</p>
           </div>
         </div>
 
@@ -1441,7 +1182,7 @@ export default function CreditsPage() {
                       <Table className="min-w-[1800px] border-separate border-spacing-0">
                         <TableHeader>
                           <TableRow>
-                            {/* Checkbox de selección (solo "Sin deductora") */}
+                            {/* Checkbox de selecciÃ³n (solo "Sin deductora") */}
                             {filters.deductora === "sin" && (
                               <TableHead className="w-[40px] text-center">
                                 <Checkbox
@@ -1465,17 +1206,17 @@ export default function CreditsPage() {
                             <TableHead className="sticky left-0 z-20 w-[220px]" style={{ backgroundColor: 'hsl(var(--background))', borderRight: '1px solid rgba(0,0,0,0.1)' }}>Acciones</TableHead>
                             <TableHead className="w-[130px]">Estado</TableHead>
                             <TableHead className="min-w-[200px]">Nombre</TableHead>
-                            <TableHead className="w-[120px]">Cédula</TableHead>
-                            <TableHead>No. Operación</TableHead>
+                            <TableHead className="w-[120px]">CÃ©dula</TableHead>
+                            <TableHead>No. OperaciÃ³n</TableHead>
                             <TableHead>Divisa</TableHead>
                             <TableHead>Monto</TableHead>
                             <TableHead>Plazo</TableHead>
                             <TableHead>Saldo</TableHead>
                             <TableHead>Cuota</TableHead>
-                            <TableHead>Línea</TableHead>
-                            <TableHead>1ª Deducción</TableHead>
-                            <TableHead>Formalización</TableHead>
-                            <TableHead>Garantía</TableHead>
+                            <TableHead>LÃ­nea</TableHead>
+                            <TableHead>1Âª DeducciÃ³n</TableHead>
+                            <TableHead>FormalizaciÃ³n</TableHead>
+                            <TableHead>GarantÃ­a</TableHead>
                             <TableHead>Vencimiento</TableHead>
                             <TableHead>Proceso</TableHead>
                             <TableHead>Tasa</TableHead>
@@ -1485,13 +1226,13 @@ export default function CreditsPage() {
                         </TableHeader>
                         <TableBody>
                           {Array.from(paginationData.groups.entries()).map(([leadId, credits]) => {
-                            const primaryCredit = credits[0]; // Crédito más reciente (ya ordenado)
-                            const additionalCredits = credits.slice(1); // Resto de créditos
+                            const primaryCredit = credits[0]; // CrÃ©dito mÃ¡s reciente (ya ordenado)
+                            const additionalCredits = credits.slice(1); // Resto de crÃ©ditos
                             const hasMultipleCredits = additionalCredits.length > 0;
                             const isExpanded = expandedClientIds.has(leadId);
 
-                            const credit = primaryCredit; // Renombrar para mantener compatibilidad con código existente
-                            // --- LÓGICA CALCULADA EN FRONTEND ---
+                            const credit = primaryCredit; // Renombrar para mantener compatibilidad con cÃ³digo existente
+                            // --- LÃ“GICA CALCULADA EN FRONTEND ---
                             // Helper: Nombre completo
                             const getFullName = () => {
                               const person = credit.client || credit.lead;
@@ -1505,26 +1246,26 @@ export default function CreditsPage() {
                             };
                             const nombreCompleto = getFullName();
 
-                            // --- LÓGICA CALCULADA EN FRONTEND ---
+                            // --- LÃ“GICA CALCULADA EN FRONTEND ---
                             const pagosOrdenados = credit.plan_de_pagos?.length
                               ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
                               : [];
 
 
-                            // 1. Primera Deducción: Tomar siempre la primera cuota del plan_de_pagos
+                            // 1. Primera DeducciÃ³n: Tomar siempre la primera cuota del plan_de_pagos
                             const fechaInicio = pagosOrdenados.length > 0 ? pagosOrdenados[0].fecha_corte : null;
 
-                            // 2. Vencimiento: De cabecera o la última cuota
+                            // 2. Vencimiento: De cabecera o la Ãºltima cuota
                             const fechaFin = credit.fecha_culminacion_credito;
 
-                            // 3. Tasa: Solo usar tasa dinámica si está en estado editable
+                            // 3. Tasa: Solo usar tasa dinÃ¡mica si estÃ¡ en estado editable
                             const estadosEditablesTabla = ['Aprobado', 'Por firmar'];
                             const esEditableTabla = credit.status && estadosEditablesTabla.includes(credit.status);
                             const tasa = esEditableTabla
                               ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null))
                               : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null));
 
-                            // 4. Fallbacks para Línea y Proceso
+                            // 4. Fallbacks para LÃ­nea y Proceso
                             const linea = credit.linea || credit.category || "-";
                             const proceso = credit.proceso || credit.status || "-";
 
@@ -1559,7 +1300,7 @@ export default function CreditsPage() {
                                                 size="icon"
                                                 onClick={() => toggleClientExpansion(leadId)}
                                                 className="h-8 w-8 shrink-0"
-                                                aria-label={isExpanded ? "Colapsar créditos" : "Expandir créditos"}
+                                                aria-label={isExpanded ? "Colapsar crÃ©ditos" : "Expandir crÃ©ditos"}
                                               >
                                                 {isExpanded ? (
                                                   <ChevronDown className="h-4 w-4" />
@@ -1570,8 +1311,8 @@ export default function CreditsPage() {
                                             </TooltipTrigger>
                                             <TooltipContent side="top" sideOffset={30} className="z-[9999] relative">
                                               {isExpanded
-                                                ? "Ocultar créditos adicionales"
-                                                : `Mostrar ${additionalCredits.length} crédito${additionalCredits.length > 1 ? 's' : ''} adicional${additionalCredits.length > 1 ? 'es' : ''}`
+                                                ? "Ocultar crÃ©ditos adicionales"
+                                                : `Mostrar ${additionalCredits.length} crÃ©dito${additionalCredits.length > 1 ? 's' : ''} adicional${additionalCredits.length > 1 ? 'es' : ''}`
                                               }
                                             </TooltipContent>
                                           </Tooltip>
@@ -1597,10 +1338,10 @@ export default function CreditsPage() {
                                           disabled
                                           title={
                                             credit.status === 'En Mora'
-                                              ? "No se puede editar un crédito en mora"
+                                              ? "No se puede editar un crÃ©dito en mora"
                                               : credit.status === 'Cerrado'
-                                                ? "No se puede editar un crédito cerrado"
-                                                : "No se puede editar un crédito formalizado"
+                                                ? "No se puede editar un crÃ©dito cerrado"
+                                                : "No se puede editar un crÃ©dito formalizado"
                                           }
                                           className="border-gray-300 text-gray-400 cursor-not-allowed"
                                         >
@@ -1611,7 +1352,7 @@ export default function CreditsPage() {
                                           variant="outline"
                                           size="icon"
                                           asChild
-                                          title="Editar crédito"
+                                          title="Editar crÃ©dito"
                                           className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
                                         >
                                           <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
@@ -1624,7 +1365,7 @@ export default function CreditsPage() {
                                         <Button
                                           variant="outline"
                                           size="icon"
-                                          title="Formalizar crédito"
+                                          title="Formalizar crÃ©dito"
                                           className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
                                           onClick={() => {
                                             setSelectedCredit(credit);
@@ -1704,9 +1445,9 @@ export default function CreditsPage() {
                                   </TableCell>
                                 </TableRow>
 
-                                {/* ========== FILAS HIJAS (Créditos adicionales) ========== */}
+                                {/* ========== FILAS HIJAS (CrÃ©ditos adicionales) ========== */}
                                 {hasMultipleCredits && isExpanded && additionalCredits.map((credit) => {
-                                  // Calcular datos para este crédito secundario (copiar lógica de arriba)
+                                  // Calcular datos para este crÃ©dito secundario (copiar lÃ³gica de arriba)
                                   const getFullNameSecondary = () => {
                                     const person = credit.client || credit.lead;
                                     if (!person) return '-';
@@ -1754,14 +1495,14 @@ export default function CreditsPage() {
                                           />
                                         </TableCell>
                                       )}
-                                      {/* COLUMNA: Acciones sub-crédito */}
+                                      {/* COLUMNA: Acciones sub-crÃ©dito */}
                                       <TableCell className="sticky left-0 z-10 w-[220px]" style={{ backgroundColor: 'hsl(var(--muted))', borderRight: '1px solid rgba(0,0,0,0.1)' }}>
                                         <div className="flex items-center justify-end gap-1">
-                                          {/* Indentación visual */}
+                                          {/* IndentaciÃ³n visual */}
                                           <div className="w-8 shrink-0" />
                                           <div className="w-4 h-px bg-border mr-1" />
 
-                                          {/* Botones de acción (igual que fila madre) */}
+                                          {/* Botones de acciÃ³n (igual que fila madre) */}
                                           <Button
                                             variant="outline"
                                             size="icon"
@@ -1780,10 +1521,10 @@ export default function CreditsPage() {
                                               disabled
                                               title={
                                                 credit.status === 'En Mora'
-                                                  ? "No se puede editar un crédito en mora"
+                                                  ? "No se puede editar un crÃ©dito en mora"
                                                   : credit.status === 'Cerrado'
-                                                    ? "No se puede editar un crédito cerrado"
-                                                    : "No se puede editar un crédito formalizado"
+                                                    ? "No se puede editar un crÃ©dito cerrado"
+                                                    : "No se puede editar un crÃ©dito formalizado"
                                               }
                                               className="border-gray-300 text-gray-400 cursor-not-allowed"
                                             >
@@ -1794,7 +1535,7 @@ export default function CreditsPage() {
                                               variant="outline"
                                               size="icon"
                                               asChild
-                                              title="Editar crédito"
+                                              title="Editar crÃ©dito"
                                               className="border-yellow-500 text-yellow-500 hover:bg-yellow-50 hover:text-yellow-600"
                                             >
                                               <Link href={`/dashboard/creditos/${credit.id}?edit=true`}>
@@ -1807,7 +1548,7 @@ export default function CreditsPage() {
                                             <Button
                                               variant="outline"
                                               size="icon"
-                                              title="Formalizar crédito"
+                                              title="Formalizar crÃ©dito"
                                               className="border-green-500 text-green-500 hover:bg-green-50 hover:text-green-600"
                                               onClick={() => {
                                                 setSelectedCredit(credit);
@@ -1850,7 +1591,7 @@ export default function CreditsPage() {
                                         </div>
                                       </TableCell>
 
-                                      {/* COLUMNAS 3-19: Datos del crédito secundario */}
+                                      {/* COLUMNAS 3-19: Datos del crÃ©dito secundario */}
                                       <TableCell className="w-[130px] bg-muted/30">
                                         {(() => {
                                           const badgeStyle = getStatusBadgeStyle(credit.status);
@@ -1900,7 +1641,7 @@ export default function CreditsPage() {
                         <div className="text-sm text-muted-foreground">
                           Mostrando {paginationData.startIndex} a {paginationData.endIndex} de{" "}
                           <strong>{paginationData.totalGroups}</strong> clientes
-                          {" "}({paginationData.totalItems} créditos totales)
+                          {" "}({paginationData.totalItems} crÃ©ditos totales)
                         </div>
                         <div className="flex items-center gap-2">
                           <Button
@@ -1961,7 +1702,7 @@ export default function CreditsPage() {
                             onClick={() => setCurrentPage(paginationData.totalPages)}
                             disabled={currentPage === paginationData.totalPages}
                           >
-                            Última
+                            Ãšltima
                           </Button>
                         </div>
                       </div>
@@ -1977,8 +1718,8 @@ export default function CreditsPage() {
         <Dialog open={!!dialogState} onOpenChange={(open) => !open && setDialogState(null)}>
           <DialogContent className="max-w-3xl">
             <DialogHeader>
-              <DialogTitle>{dialogState === 'create' ? 'Nuevo Crédito' : 'Editar Crédito'}</DialogTitle>
-              <DialogDescription>Completa la información del crédito.</DialogDescription>
+              <DialogTitle>{dialogState === 'create' ? 'Nuevo CrÃ©dito' : 'Editar CrÃ©dito'}</DialogTitle>
+              <DialogDescription>Completa la informaciÃ³n del crÃ©dito.</DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -1994,7 +1735,7 @@ export default function CreditsPage() {
                           name="title"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Título</FormLabel>
+                              <FormLabel>TÃ­tulo</FormLabel>
                               <FormControl>
                                 <Input {...field} disabled />
                               </FormControl>
@@ -2009,7 +1750,7 @@ export default function CreditsPage() {
                             <FormItem>
                               <FormLabel>Referencia</FormLabel>
                               <FormControl>
-                                <Input placeholder="Se genera automáticamente" {...field} disabled />
+                                <Input placeholder="Se genera automÃ¡ticamente" {...field} disabled />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -2040,7 +1781,7 @@ export default function CreditsPage() {
                                 <PopoverContent className="p-0 w-[400px]" align="start">
                                   <div className="p-2 border-b">
                                     <Input
-                                      placeholder="Buscar por nombre o cédula..."
+                                      placeholder="Buscar por nombre o cÃ©dula..."
                                       value={searchQuery}
                                       onChange={(e) => setSearchQuery(e.target.value)}
                                       className="h-8"
@@ -2149,16 +1890,16 @@ export default function CreditsPage() {
                           name="tipo_credito"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Tipo de Crédito</FormLabel>
+                              <FormLabel>Tipo de CrÃ©dito</FormLabel>
                               <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl>
                                   <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona el tipo de crédito" />
+                                    <SelectValue placeholder="Selecciona el tipo de crÃ©dito" />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  <SelectItem value="regular">Crédito Regular</SelectItem>
-                                  <SelectItem value="microcredito">Micro-crédito</SelectItem>
+                                  <SelectItem value="regular">CrÃ©dito Regular</SelectItem>
+                                  <SelectItem value="microcredito">Micro-crÃ©dito</SelectItem>
                                 </SelectContent>
                               </Select>
                               <FormMessage />
@@ -2172,7 +1913,7 @@ export default function CreditsPage() {
                             <FormItem>
                               <FormLabel>Monto Solicitado</FormLabel>
                               <FormControl>
-                                <Input value={field.value ? formatCurrency(field.value) : '₡0.00'} disabled />
+                                <Input value={field.value ? formatCurrency(field.value) : 'â‚¡0.00'} disabled />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -2198,7 +1939,7 @@ export default function CreditsPage() {
                             <FormItem>
                               <FormLabel>Divisa</FormLabel>
                               <FormControl>
-                                <Input value="CRC - Colón Costarricense" disabled />
+                                <Input value="CRC - ColÃ³n Costarricense" disabled />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -2220,9 +1961,9 @@ export default function CreditsPage() {
                       </div>
                     </div>
 
-                    {/* 3. Configuración Adicional */}
+                    {/* 3. ConfiguraciÃ³n Adicional */}
                     <div>
-                      <h3 className="text-lg font-medium">Configuración Adicional</h3>
+                      <h3 className="text-lg font-medium">ConfiguraciÃ³n Adicional</h3>
                       <Separator className="my-2" />
                       <div className="grid gap-4 sm:grid-cols-2">
                         <FormField
@@ -2230,7 +1971,7 @@ export default function CreditsPage() {
                           name="category"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Categoría</FormLabel>
+                              <FormLabel>CategorÃ­a</FormLabel>
                               <FormControl>
                                 <Input value={field.value} disabled />
                               </FormControl>
@@ -2243,7 +1984,7 @@ export default function CreditsPage() {
                           name="poliza"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>¿Tiene póliza?</FormLabel>
+                              <FormLabel>Â¿Tiene pÃ³liza?</FormLabel>
                               <FormControl>
                                 <div className="flex items-center space-x-2 h-10 px-3 border rounded-md">
                                   <Switch
@@ -2251,7 +1992,7 @@ export default function CreditsPage() {
                                     onCheckedChange={field.onChange}
                                   />
                                   <span className="text-sm text-muted-foreground">
-                                    {field.value ? "Sí posee póliza" : "No posee póliza"}
+                                    {field.value ? "SÃ­ posee pÃ³liza" : "No posee pÃ³liza"}
                                   </span>
                                 </div>
                               </FormControl>
@@ -2277,11 +2018,11 @@ export default function CreditsPage() {
                           name="description"
                           render={({ field }) => (
                             <FormItem className="sm:col-span-2">
-                              <FormLabel>Descripción</FormLabel>
+                              <FormLabel>DescripciÃ³n</FormLabel>
                               <FormControl>
                                 <Textarea
                                   className="min-h-[120px]"
-                                  placeholder="Describe el contexto del crédito..."
+                                  placeholder="Describe el contexto del crÃ©dito..."
                                   {...field}
                                 />
                               </FormControl>
@@ -2295,8 +2036,8 @@ export default function CreditsPage() {
                     {currentClient ? (
                       <Card>
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-base">Información del cliente</CardTitle>
-                          <CardDescription>Resumen del cliente relacionado con este crédito.</CardDescription>
+                          <CardTitle className="text-base">InformaciÃ³n del cliente</CardTitle>
+                          <CardDescription>Resumen del cliente relacionado con este crÃ©dito.</CardDescription>
                         </CardHeader>
                         <CardContent className="text-sm">
                           <div className="grid gap-2 sm:grid-cols-2">
@@ -2326,16 +2067,16 @@ export default function CreditsPage() {
         <Dialog open={formalizarDialogOpen} onOpenChange={setFormalizarDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Formalizar Crédito</DialogTitle>
+              <DialogTitle>Formalizar CrÃ©dito</DialogTitle>
               <DialogDescription>
-                Seleccione la fecha de formalización del crédito {selectedCredit?.numero_operacion}
+                Seleccione la fecha de formalizaciÃ³n del crÃ©dito {selectedCredit?.numero_operacion}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
               {getAuthUser()?.role?.id === 1 ? (
                 <div className="space-y-2">
-                  <Label htmlFor="formalizacion-date">Fecha de Formalización</Label>
+                  <Label htmlFor="formalizacion-date">Fecha de FormalizaciÃ³n</Label>
                   <DatePicker
                     value={formalizacionDate}
                     onChange={(date) => setFormalizacionDate(date || new Date())}
@@ -2343,7 +2084,7 @@ export default function CreditsPage() {
                 </div>
               ) : (
                 <div className="p-4 bg-muted/50 rounded-md text-sm text-muted-foreground border">
-                  El crédito se formalizará con la fecha de hoy: <strong>{new Date().toLocaleDateString('es-CR')}</strong>
+                  El crÃ©dito se formalizarÃ¡ con la fecha de hoy: <strong>{new Date().toLocaleDateString('es-CR')}</strong>
                 </div>
               )}
             </div>
@@ -2368,13 +2109,13 @@ export default function CreditsPage() {
           deductoras={deductoras}
         />
 
-        {/* Diálogo para Cambiar Cooperativa */}
+        {/* DiÃ¡logo para Cambiar Cooperativa */}
         <Dialog open={cambiarDeductoraOpen} onOpenChange={setCambiarDeductoraOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Cambiar Cooperativa</DialogTitle>
               <DialogDescription>
-                Crédito: <strong>{cambiarDeductoraCredit?.numero_operacion || cambiarDeductoraCredit?.reference || ''}</strong>
+                CrÃ©dito: <strong>{cambiarDeductoraCredit?.numero_operacion || cambiarDeductoraCredit?.reference || ''}</strong>
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
@@ -2398,7 +2139,7 @@ export default function CreditsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Diálogo de confirmación para Calcular Mora */}
+        {/* DiÃ¡logo de confirmaciÃ³n para Calcular Mora */}
         <Dialog open={showMoraDialog} onOpenChange={setShowMoraDialog}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -2406,9 +2147,9 @@ export default function CreditsPage() {
                 Calcular Mora
               </DialogTitle>
               <DialogDescription>
-                Se aplicará el cálculo de intereses corrientes vencidos y mora a{" "}
-                <strong>{selectedCreditIds.size} crédito{selectedCreditIds.size !== 1 ? "s" : ""}</strong> sin deductora.
-                Esta acción marcará las cuotas pendientes más antiguas como &quot;Mora&quot; y agregará cuotas desplazadas al final del plan.
+                Se aplicarÃ¡ el cÃ¡lculo de intereses corrientes vencidos y mora a{" "}
+                <strong>{selectedCreditIds.size} crÃ©dito{selectedCreditIds.size !== 1 ? "s" : ""}</strong> sin deductora.
+                Esta acciÃ³n marcarÃ¡ las cuotas pendientes mÃ¡s antiguas como &quot;Mora&quot; y agregarÃ¡ cuotas desplazadas al final del plan.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
@@ -2595,7 +2336,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
           <DialogHeader>
             <DialogTitle>Gestionar Documentos</DialogTitle>
             <DialogDescription>
-              {credit ? `Documentos del crédito ${credit.reference || credit.numero_operacion || credit.id}` : "Documentos del crédito"}
+              {credit ? `Documentos del crÃ©dito ${credit.reference || credit.numero_operacion || credit.id}` : "Documentos del crÃ©dito"}
             </DialogDescription>
           </DialogHeader>
 
@@ -2656,7 +2397,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
                 </div>
               ) : documents.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No hay documentos adjuntos a este crédito.
+                  No hay documentos adjuntos a este crÃ©dito.
                 </div>
               ) : (
                 <Table>
@@ -2664,7 +2405,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
                     <TableRow>
                       <TableHead>Nombre</TableHead>
                       <TableHead>Notas</TableHead>
-                      <TableHead>Tamaño</TableHead>
+                      <TableHead>TamaÃ±o</TableHead>
                       <TableHead>Fecha</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
@@ -2777,7 +2518,7 @@ function CreditDocumentsDialog({ isOpen, credit, onClose, canDownloadDocuments }
           <DialogHeader>
             <DialogTitle>Eliminar Documento</DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer.
+              Â¿EstÃ¡s seguro de que deseas eliminar este documento? Esta acciÃ³n no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
