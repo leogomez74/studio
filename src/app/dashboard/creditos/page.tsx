@@ -1099,9 +1099,11 @@ export default function CreditsPage() {
       doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
       // Mostrar todas las cuotas: pagadas, en mora y la próxima pendiente
-      const cuotasAMostrar = credit.plan_de_pagos.filter((p: any) =>
+      const plan = credit.plan_de_pagos ?? [];
+      const hayMora = plan.some((x: any) => x.estado === 'Mora' || x.estado === 'Parcial');
+      const cuotasAMostrar = plan.filter((p: any) =>
         p.estado === 'Pagado' || p.estado === 'Mora' || p.estado === 'Parcial' ||
-        (p.estado === 'Pendiente' && credit.plan_de_pagos.find((x: any) => x.estado === 'Mora' || x.estado === 'Parcial'))
+        (p.estado === 'Pendiente' && hayMora)
       );
 
       const paymentRows = cuotasAMostrar.map((p: any) => [
