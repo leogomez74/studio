@@ -1032,17 +1032,17 @@ export default function CreditsPage() {
       ? pagadas.sort((a: any, b: any) => new Date(b.fecha_movimiento).getTime() - new Date(a.fecha_movimiento).getTime())[0].fecha_movimiento?.split('T')[0]
       : new Date().toISOString().split('T')[0];
 
-    const creditRow = [
-      credit.numero_operacion || credit.reference,
+    const creditRow: string[] = [
+      credit.numero_operacion || credit.reference || '-',
       credit.linea || credit.category || "-",
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.monto_credito || 0),
-      credit.plazo || 120,
+      String(credit.plazo || 120),
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.cuota || 0),
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.saldo || 0),
       `${tasaValue}%`,
       diasMorosidad > 0 ? `${diasMorosidad} días` : "0.00",
       credit.primera_deduccion || "-",
-      ultMovFecha,
+      ultMovFecha ?? new Date().toISOString().split('T')[0],
       (credit.fecha_culminacion_credito || "2032-01-01").split('T')[0].split(' ')[0],
       credit.status || "NORMAL"
     ];
