@@ -184,6 +184,37 @@ class PlanillaUploadController extends Controller
                         }
 
                         $cuota->save();
+
+                        // Restaurar también las cuotas en Mora del mismo crédito
+                        // (créditos que están en la planilla pero tienen cuotas posteriores en Mora)
+                        $tasaMensualMora = ((float) $credit->tasa_anual) / 100 / 12;
+                        $cuotasMora = PlanDePago::where('credit_id', $credit->id)
+                            ->whereIn('estado', ['Mora', 'Parcial'])
+                            ->where('numero_cuota', '>', $cuota->numero_cuota)
+                            ->orderBy('numero_cuota')
+                            ->get();
+
+                        $saldoPrevio = $cuota; // encadenar desde la cuota recién restaurada
+                        foreach ($cuotasMora as $cuotaM) {
+                            $saldoAntM  = max(0, (float) $saldoPrevio->saldo_nuevo);
+                            $intCorrM   = round($saldoAntM * $tasaMensualMora, 2);
+                            $polizaM    = (float) ($cuotaM->poliza ?? 0);
+                            $amortM     = round((float) $cuotaM->cuota - $intCorrM - $polizaM, 2);
+                            $saldoNvoM  = round($saldoAntM - max(0, $amortM), 2);
+
+                            $cuotaM->estado                = 'Pendiente';
+                            $cuotaM->interes_corriente     = $intCorrM;
+                            $cuotaM->amortizacion          = max(0, $amortM);
+                            $cuotaM->saldo_anterior        = $saldoAntM;
+                            $cuotaM->saldo_nuevo           = max(0, $saldoNvoM);
+                            $cuotaM->int_corriente_vencido = 0;
+                            $cuotaM->interes_moratorio     = 0;
+                            $cuotaM->dias_mora             = 0;
+                            $cuotaM->fecha_movimiento      = null;
+                            $cuotaM->fecha_pago            = null;
+                            $cuotaM->save();
+                            $saldoPrevio = $cuotaM;
+                        }
                     }
                 }
 
@@ -486,8 +517,16 @@ class PlanillaUploadController extends Controller
 
                 if (!$cuotaMora) continue;
 
-                // Restaurar cuota: recalcular valores basados en el capital real
-                $saldoAnterior = (float) $credit->saldo;
+                // Restaurar cuota: usar saldo_nuevo de la cuota anterior como base
+                // (no el credit->saldo restaurado, que puede diferir del saldo proyectado)
+                $cuotaPrevia = PlanDePago::where('credit_id', $credit->id)
+                    ->where('numero_cuota', '<', $cuotaMora->numero_cuota)
+                    ->where('numero_cuota', '>', 0)
+                    ->orderBy('numero_cuota', 'desc')
+                    ->first();
+                $saldoAnterior = $cuotaPrevia
+                    ? max(0, (float) $cuotaPrevia->saldo_nuevo)
+                    : (float) $credit->monto_credito;
                 $interesCorriente = round($saldoAnterior * $tasaMensual, 2);
                 $poliza = (float) ($cuotaMora->poliza ?? 0);
                 $cuotaFija = (float) $cuotaMora->cuota;
