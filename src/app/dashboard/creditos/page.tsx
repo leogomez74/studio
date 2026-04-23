@@ -1022,6 +1022,7 @@ export default function CreditsPage() {
 
     const plan_pagos = credit.plan_de_pagos || [];
     const creditEnMora = credit.status === 'En Mora';
+    console.log('[EDC] status:', credit.status, '| creditEnMora:', creditEnMora, '| plan_pagos count:', plan_pagos.length, '| cuotas:', plan_pagos.map((p: any) => `#${p.numero_cuota}:${p.estado}:int_mora=${p.interes_moratorio}`));
 
     // Morosidad = suma de intereses moratorios de TODAS las cuotas no pagadas
     const primeraNoPageada: any = plan_pagos.find((p: any) =>
