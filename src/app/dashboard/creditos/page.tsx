@@ -1023,22 +1023,13 @@ export default function CreditsPage() {
     const plan_pagos = credit.plan_de_pagos || [];
     const creditEnMora = credit.status === 'En Mora';
 
-    // Calcular morosidad — si el crédito está En Mora, buscar la primera cuota no pagada
-    // y calcular días desde su fecha_corte hasta hoy
+    // Morosidad = interés moratorio vencido de la primera cuota no pagada
     const primeraNoPageada: any = plan_pagos.find((p: any) =>
       p.estado !== 'Pagado' && p.numero_cuota > 0
     );
-    let diasMorosidad = 0;
-    if (creditEnMora && primeraNoPageada?.fecha_corte) {
-      diasMorosidad = Number(primeraNoPageada.dias_mora || 0);
-      if (diasMorosidad === 0) {
-        const fechaCorte = new Date(primeraNoPageada.fecha_corte);
-        const hoy = new Date();
-        if (fechaCorte < hoy) {
-          diasMorosidad = Math.floor((hoy.getTime() - fechaCorte.getTime()) / (1000 * 60 * 60 * 24));
-        }
-      }
-    }
+    const montoMorosidad = creditEnMora && primeraNoPageada
+      ? Number(primeraNoPageada.interes_moratorio || 0)
+      : 0;
 
     // Última fecha de movimiento (último pago)
     const pagadas = (credit.plan_de_pagos || []).filter((p: any) => p.fecha_movimiento);
@@ -1054,7 +1045,7 @@ export default function CreditsPage() {
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.cuota || 0),
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.saldo || 0),
       `${tasaValue}%`,
-      diasMorosidad > 0 ? `${diasMorosidad} días` : "0.00",
+      montoMorosidad > 0 ? new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(montoMorosidad) : "0.00",
       credit.primera_deduccion || "-",
       ultMovFecha ?? new Date().toISOString().split('T')[0],
       (credit.fecha_culminacion_credito || "2032-01-01").split('T')[0].split(' ')[0],
