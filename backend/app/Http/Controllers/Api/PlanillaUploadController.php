@@ -151,11 +151,36 @@ class PlanillaUploadController extends Controller
                         $cuota->movimiento_poliza = max(0, ((float) $cuota->movimiento_poliza) - ((float) $pago->poliza));
                         $cuota->movimiento_total = max(0, ((float) $cuota->movimiento_total) - ((float) $pago->monto));
 
-                        // Si todos los movimientos son 0, restaurar estado a Pendiente
+                        // Si todos los movimientos son 0, restaurar estado y campos base del plan
                         if ($cuota->movimiento_total <= 0.01) {
-                            $cuota->estado = 'Pendiente';
+                            $cuota->estado           = 'Pendiente';
                             $cuota->fecha_movimiento = null;
-                            $cuota->fecha_pago = null;
+                            $cuota->fecha_pago       = null;
+
+                            // Restaurar campos base proyectados (interes, amortizacion, saldos)
+                            // que pueden haber sido modificados por mora o regeneraciones previas
+                            $cuotaAnterior = PlanDePago::where('credit_id', $credit->id)
+                                ->where('numero_cuota', '<', $cuota->numero_cuota)
+                                ->where('numero_cuota', '>', 0)
+                                ->orderBy('numero_cuota', 'desc')
+                                ->first();
+
+                            $tasaMensual   = ((float) $credit->tasa_anual) / 100 / 12;
+                            $saldoAnterior = $cuotaAnterior
+                                ? max(0, (float) $cuotaAnterior->saldo_nuevo)
+                                : (float) $credit->monto_credito;
+
+                            $interesCorriente = round($saldoAnterior * $tasaMensual, 2);
+                            $amortizacion     = round((float) $cuota->cuota - $interesCorriente - (float) ($cuota->poliza ?? 0), 2);
+                            $saldoNuevo       = round($saldoAnterior - max(0, $amortizacion), 2);
+
+                            $cuota->interes_corriente     = $interesCorriente;
+                            $cuota->amortizacion          = max(0, $amortizacion);
+                            $cuota->saldo_anterior        = $saldoAnterior;
+                            $cuota->saldo_nuevo           = max(0, $saldoNuevo);
+                            $cuota->int_corriente_vencido = 0;
+                            $cuota->interes_moratorio     = 0;
+                            $cuota->dias_mora             = 0;
                         }
 
                         $cuota->save();
@@ -237,6 +262,29 @@ class PlanillaUploadController extends Controller
                                         $cuotaSaldo->estado          = 'Pendiente';
                                         $cuotaSaldo->fecha_movimiento = null;
                                         $cuotaSaldo->fecha_pago       = null;
+
+                                        // Restaurar campos base proyectados
+                                        $creditSaldoCuota  = Credit::find($pagoSaldo->credit_id);
+                                        $cuotaAntSaldo = PlanDePago::where('credit_id', $pagoSaldo->credit_id)
+                                            ->where('numero_cuota', '<', $cuotaSaldo->numero_cuota)
+                                            ->where('numero_cuota', '>', 0)
+                                            ->orderBy('numero_cuota', 'desc')
+                                            ->first();
+                                        if ($creditSaldoCuota) {
+                                            $tasaMs  = ((float) $creditSaldoCuota->tasa_anual) / 100 / 12;
+                                            $saldoAnt = $cuotaAntSaldo
+                                                ? max(0, (float) $cuotaAntSaldo->saldo_nuevo)
+                                                : (float) $creditSaldoCuota->monto_credito;
+                                            $intCorr = round($saldoAnt * $tasaMs, 2);
+                                            $amort   = round((float) $cuotaSaldo->cuota - $intCorr - (float) ($cuotaSaldo->poliza ?? 0), 2);
+                                            $cuotaSaldo->interes_corriente     = $intCorr;
+                                            $cuotaSaldo->amortizacion          = max(0, $amort);
+                                            $cuotaSaldo->saldo_anterior        = $saldoAnt;
+                                            $cuotaSaldo->saldo_nuevo           = max(0, round($saldoAnt - max(0, $amort), 2));
+                                            $cuotaSaldo->int_corriente_vencido = 0;
+                                            $cuotaSaldo->interes_moratorio     = 0;
+                                            $cuotaSaldo->dias_mora             = 0;
+                                        }
                                     }
                                     $cuotaSaldo->save();
                                 }
