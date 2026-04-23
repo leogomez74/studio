@@ -1023,12 +1023,14 @@ export default function CreditsPage() {
     const plan_pagos = credit.plan_de_pagos || [];
     const creditEnMora = credit.status === 'En Mora';
 
-    // Morosidad = interés moratorio vencido de la primera cuota no pagada
+    // Morosidad = suma de intereses moratorios de TODAS las cuotas no pagadas
     const primeraNoPageada: any = plan_pagos.find((p: any) =>
       p.estado !== 'Pagado' && p.numero_cuota > 0
     );
-    const montoMorosidad = creditEnMora && primeraNoPageada
-      ? Number(primeraNoPageada.interes_moratorio || 0)
+    const montoMorosidad = creditEnMora
+      ? plan_pagos
+          .filter((p: any) => p.estado !== 'Pagado' && p.numero_cuota > 0)
+          .reduce((sum: number, p: any) => sum + Number(p.interes_moratorio || 0), 0)
       : 0;
 
     // Última fecha de movimiento (último pago)
