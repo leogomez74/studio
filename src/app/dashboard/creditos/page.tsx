@@ -1020,11 +1020,24 @@ export default function CreditsPage() {
       ? (credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00')
       : (credit.tasa_anual ?? credit.tasa?.tasa ?? '0.00');
 
-    // Calcular morosidad real desde el plan de pagos
-    const cuotasMora = (credit.plan_de_pagos || []).filter((p: any) => p.estado === 'Mora' || (p.dias_mora && p.dias_mora > 0));
-    const diasMorosidad = cuotasMora.length > 0
-      ? Math.max(...cuotasMora.map((p: any) => Number(p.dias_mora || 0)))
-      : 0;
+    // Calcular morosidad real — la cuota puede estar en estado 'Pendiente' con interes_moratorio > 0
+    // cuando el crédito está 'En Mora' (calcularMoraAusentes no cambia el estado de la cuota)
+    const plan_pagos = credit.plan_de_pagos || [];
+    const creditEnMora = credit.status === 'En Mora';
+    const cuotaVencida = plan_pagos.find((p: any) =>
+      p.estado === 'Mora' ||
+      (p.dias_mora && Number(p.dias_mora) > 0) ||
+      (creditEnMora && p.estado === 'Pendiente' && Number(p.interes_moratorio || 0) > 0)
+    );
+    let diasMorosidad = 0;
+    if (cuotaVencida) {
+      diasMorosidad = Number(cuotaVencida.dias_mora || 0);
+      if (diasMorosidad === 0 && cuotaVencida.fecha_corte) {
+        diasMorosidad = Math.max(0, Math.floor(
+          (new Date().getTime() - new Date(cuotaVencida.fecha_corte).getTime()) / (1000 * 60 * 60 * 24)
+        ));
+      }
+    }
 
     // Última fecha de movimiento (último pago)
     const pagadas = (credit.plan_de_pagos || []).filter((p: any) => p.fecha_movimiento);
@@ -1098,15 +1111,20 @@ export default function CreditsPage() {
       doc.setLineWidth(0.3);
       doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
-      // Mostrar todas las cuotas: pagadas, en mora y la próxima pendiente
+      // Mostrar cuotas pagadas + cuotas con mora (incluye Pendiente con interes_moratorio)
       const plan = credit.plan_de_pagos ?? [];
-      const hayMora = plan.some((x: any) => x.estado === 'Mora' || x.estado === 'Parcial');
+      const hayMora = creditEnMora || plan.some((x: any) =>
+        x.estado === 'Mora' || x.estado === 'Parcial' || Number(x.interes_moratorio || 0) > 0
+      );
       const cuotasAMostrar = plan.filter((p: any) =>
         p.estado === 'Pagado' || p.estado === 'Mora' || p.estado === 'Parcial' ||
-        (p.estado === 'Pendiente' && hayMora)
+        (p.estado === 'Pendiente' && (Number(p.interes_moratorio || 0) > 0 || hayMora))
       );
+      // Si hay mora, mostrar solo las cuotas relevantes (pagadas + la vencida + 1 próxima)
+      // Si no hay mora, mostrar solo las pagadas
+      const cuotasFiltradas = hayMora ? cuotasAMostrar : plan.filter((p: any) => p.estado === 'Pagado');
 
-      const paymentRows = cuotasAMostrar.map((p: any) => [
+      const paymentRows = cuotasFiltradas.map((p: any) => [
         p.numero_cuota,
         formatDate(p.fecha_corte),
         formatDate(p.fecha_pago),
