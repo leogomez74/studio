@@ -180,10 +180,11 @@ export const generateEstadoCuenta = async (creditId: number) => {
   // ── PLAN DE PAGOS ──
   const plan = credit.plan_de_pagos || [];
   const creditEnMora = credit.status === 'En Mora';
-  const pagadas = plan.filter((p: any) => ['Pagado', 'Pagada', 'Parcial'].includes(p.estado || '') && p.numero_cuota > 0);
-  const cuotasPagadas = creditEnMora
-    ? plan.filter((p: any) => p.numero_cuota > 0).slice(0, pagadas.length + 2)
-    : pagadas;
+  // Solo mostrar cuotas Pagado, Mora y Parcial — NO Pendiente
+  const cuotasPagadas = plan.filter((p: any) =>
+    p.numero_cuota > 0 &&
+    ['Pagado', 'Pagada', 'Parcial', 'Mora'].includes(p.estado || '')
+  );
   finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY
     ? (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14
     : finalY + 14;
@@ -207,6 +208,8 @@ export const generateEstadoCuenta = async (creditId: number) => {
         const intTotal = Number(p.interes_corriente || 0)
           + Number(p.int_corriente_vencido || 0)
           + Number(p.interes_moratorio || 0);
+        // Saldo = limpio sin mora ni interés vencido acumulado
+        const saldoLimpio = Math.max(0, Number(p.saldo_anterior || 0) - Math.max(0, Number(p.amortizacion || 0)));
         return [
           p.numero_cuota,
           formatDatePDF(p.fecha_corte),
@@ -214,7 +217,7 @@ export const generateEstadoCuenta = async (creditId: number) => {
           fmtNum(p.cuota),
           fmtNum(intTotal),
           fmtNum(p.amortizacion),
-          fmtNum(saldo),
+          fmtNum(saldoLimpio),
           p.estado,
         ];
       });
