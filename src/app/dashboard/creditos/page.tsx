@@ -1020,22 +1020,23 @@ export default function CreditsPage() {
       ? (credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00')
       : (credit.tasa_anual ?? credit.tasa?.tasa ?? '0.00');
 
-    // Calcular morosidad real — la cuota puede estar en estado 'Pendiente' con interes_moratorio > 0
-    // cuando el crédito está 'En Mora' (calcularMoraAusentes no cambia el estado de la cuota)
     const plan_pagos = credit.plan_de_pagos || [];
     const creditEnMora = credit.status === 'En Mora';
-    const cuotaVencida: any = plan_pagos.find((p: any) =>
-      p.estado === 'Mora' ||
-      (p.dias_mora && Number(p.dias_mora) > 0) ||
-      (creditEnMora && p.estado === 'Pendiente' && Number(p.interes_moratorio || 0) > 0)
+
+    // Calcular morosidad — si el crédito está En Mora, buscar la primera cuota no pagada
+    // y calcular días desde su fecha_corte hasta hoy
+    const primeraNoPageada: any = plan_pagos.find((p: any) =>
+      p.estado !== 'Pagado' && p.numero_cuota > 0
     );
     let diasMorosidad = 0;
-    if (cuotaVencida) {
-      diasMorosidad = Number(cuotaVencida.dias_mora || 0);
-      if (diasMorosidad === 0 && cuotaVencida.fecha_corte) {
-        diasMorosidad = Math.max(0, Math.floor(
-          (new Date().getTime() - new Date(cuotaVencida.fecha_corte).getTime()) / (1000 * 60 * 60 * 24)
-        ));
+    if (creditEnMora && primeraNoPageada?.fecha_corte) {
+      diasMorosidad = Number(primeraNoPageada.dias_mora || 0);
+      if (diasMorosidad === 0) {
+        const fechaCorte = new Date(primeraNoPageada.fecha_corte);
+        const hoy = new Date();
+        if (fechaCorte < hoy) {
+          diasMorosidad = Math.floor((hoy.getTime() - fechaCorte.getTime()) / (1000 * 60 * 60 * 24));
+        }
       }
     }
 
@@ -1111,27 +1112,22 @@ export default function CreditsPage() {
       doc.setLineWidth(0.3);
       doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
-      // Mostrar cuotas pagadas + cuotas con mora (incluye Pendiente con interes_moratorio)
+      // Mostrar: pagadas + primera no pagada si crédito en mora
       const plan = credit.plan_de_pagos ?? [];
-      const hayMora = creditEnMora || plan.some((x: any) =>
-        x.estado === 'Mora' || x.estado === 'Parcial' || Number(x.interes_moratorio || 0) > 0
-      );
-      const cuotasAMostrar = plan.filter((p: any) =>
-        p.estado === 'Pagado' || p.estado === 'Mora' || p.estado === 'Parcial' ||
-        (p.estado === 'Pendiente' && (Number(p.interes_moratorio || 0) > 0 || hayMora))
-      );
-      // Si hay mora, mostrar solo las cuotas relevantes (pagadas + la vencida + 1 próxima)
-      // Si no hay mora, mostrar solo las pagadas
-      const cuotasFiltradas = hayMora ? cuotasAMostrar : plan.filter((p: any) => p.estado === 'Pagado');
+      const cuotasFiltradas = creditEnMora
+        ? plan.filter((p: any) => p.numero_cuota > 0 && (p.estado === 'Pagado' || p.estado === 'Parcial' || p.estado === 'Mora' || p.estado === 'Pendiente'))
+            .slice(0, plan.filter((p: any) => p.estado === 'Pagado' || p.estado === 'Parcial').length + 2)
+        : plan.filter((p: any) => p.estado === 'Pagado' || p.estado === 'Parcial');
 
+      const fmt = (v: any) => new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(Number(v) || 0);
       const paymentRows = cuotasFiltradas.map((p: any) => [
         p.numero_cuota,
         formatDate(p.fecha_corte),
         formatDate(p.fecha_pago),
-        new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.cuota),
-        new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.interes_corriente),
-        new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.amortizacion),
-        new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.saldo_nuevo ?? p.nuevo_saldo ?? 0),
+        fmt(p.cuota),
+        fmt(p.interes_corriente),
+        fmt(p.amortizacion),
+        fmt(p.saldo_nuevo ?? p.nuevo_saldo ?? p.saldo_anterior ?? 0),
         p.estado
       ]);
 
