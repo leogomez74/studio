@@ -1019,6 +1019,19 @@ export default function CreditsPage() {
     const tasaValue = esEditable
       ? (credit.tasa?.tasa ?? credit.tasa_anual ?? '0.00')
       : (credit.tasa_anual ?? credit.tasa?.tasa ?? '0.00');
+
+    // Calcular morosidad real desde el plan de pagos
+    const cuotasMora = (credit.plan_de_pagos || []).filter((p: any) => p.estado === 'Mora' || (p.dias_mora && p.dias_mora > 0));
+    const diasMorosidad = cuotasMora.length > 0
+      ? Math.max(...cuotasMora.map((p: any) => Number(p.dias_mora || 0)))
+      : 0;
+
+    // Última fecha de movimiento (último pago)
+    const pagadas = (credit.plan_de_pagos || []).filter((p: any) => p.fecha_movimiento);
+    const ultMovFecha = pagadas.length > 0
+      ? pagadas.sort((a: any, b: any) => new Date(b.fecha_movimiento).getTime() - new Date(a.fecha_movimiento).getTime())[0].fecha_movimiento?.split('T')[0]
+      : new Date().toISOString().split('T')[0];
+
     const creditRow = [
       credit.numero_operacion || credit.reference,
       credit.linea || credit.category || "-",
@@ -1027,9 +1040,9 @@ export default function CreditsPage() {
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.cuota || 0),
       new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(credit.saldo || 0),
       `${tasaValue}%`,
-      "0.00", // Morosidad
-      credit.primera_deduccion || "-", // PRI.DED (Primera Deducción)
-      new Date().toISOString().split('T')[0], // Ult Mov
+      diasMorosidad > 0 ? `${diasMorosidad} días` : "0.00",
+      credit.primera_deduccion || "-",
+      ultMovFecha,
       (credit.fecha_culminacion_credito || "2032-01-01").split('T')[0].split(' ')[0],
       credit.status || "NORMAL"
     ];
@@ -1085,14 +1098,20 @@ export default function CreditsPage() {
       doc.setLineWidth(0.3);
       doc.line(margin, finalY + 2, lineEnd, finalY + 2);
 
-      const paymentRows = credit.plan_de_pagos.map(p => [
+      // Mostrar todas las cuotas: pagadas, en mora y la próxima pendiente
+      const cuotasAMostrar = credit.plan_de_pagos.filter((p: any) =>
+        p.estado === 'Pagado' || p.estado === 'Mora' || p.estado === 'Parcial' ||
+        (p.estado === 'Pendiente' && credit.plan_de_pagos.find((x: any) => x.estado === 'Mora' || x.estado === 'Parcial'))
+      );
+
+      const paymentRows = cuotasAMostrar.map((p: any) => [
         p.numero_cuota,
         formatDate(p.fecha_corte),
         formatDate(p.fecha_pago),
         new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.cuota),
         new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.interes_corriente),
         new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.amortizacion),
-        new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.nuevo_saldo),
+        new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(p.saldo_nuevo ?? p.nuevo_saldo ?? 0),
         p.estado
       ]);
 
@@ -1103,10 +1122,29 @@ export default function CreditsPage() {
         theme: 'striped',
         styles: { fontSize: 7, cellPadding: 1 },
         headStyles: { fontStyle: 'bold', textColor: [0, 0, 0], fillColor: [220, 220, 220] },
+        bodyStyles: { textColor: [0, 0, 0] },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.row.raw[7] === 'Mora') {
+            data.cell.styles.textColor = [180, 0, 0];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
       });
     } else {
       doc.text("*** NO TIENE FIANZAS ACTIVAS ***", 20, finalY + 10);
     }
+
+    // Texto informativo al pie
+    finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY ?? finalY + 30;
+    finalY += 12;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(80, 80, 80);
+    doc.text(
+      'El saldo reflejado en el presente documento es solo informativo y no debe ser utilizado para fines de cancelación.',
+      margin, finalY
+    );
+    doc.setTextColor(0, 0, 0);
 
     doc.save(`estado_cuenta_${credit.lead_id}.pdf`);
   };
