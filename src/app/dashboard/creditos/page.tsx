@@ -1113,16 +1113,22 @@ export default function CreditsPage() {
         : plan.filter((p: any) => p.estado === 'Pagado' || p.estado === 'Parcial');
 
       const fmt = (v: any) => new Intl.NumberFormat('es-CR', { style: 'decimal', minimumFractionDigits: 2 }).format(Number(v) || 0);
-      const paymentRows = cuotasFiltradas.map((p: any) => [
-        p.numero_cuota,
-        formatDate(p.fecha_corte),
-        formatDate(p.fecha_pago),
-        fmt(p.cuota),
-        fmt(p.interes_corriente),
-        fmt(p.amortizacion),
-        fmt(p.saldo_nuevo ?? p.nuevo_saldo ?? p.saldo_anterior ?? 0),
-        p.estado
-      ]);
+      const paymentRows = cuotasFiltradas.map((p: any) => {
+        // Calcular saldo: usar saldo_nuevo si está, si no: saldo_anterior - amortizacion
+        const saldoCalc = Number(p.saldo_nuevo || 0) > 0
+          ? Number(p.saldo_nuevo)
+          : Math.max(0, Number(p.saldo_anterior || 0) - Number(p.amortizacion || 0));
+        return [
+          p.numero_cuota,
+          formatDate(p.fecha_corte),
+          formatDate(p.fecha_pago),
+          fmt(p.cuota),
+          fmt(p.interes_corriente),
+          fmt(p.amortizacion),
+          fmt(saldoCalc),
+          p.estado
+        ];
+      });
 
       autoTable(doc, {
         startY: finalY + 5,
