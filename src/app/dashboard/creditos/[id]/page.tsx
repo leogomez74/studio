@@ -2261,7 +2261,7 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.amortizacion)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.saldo_anterior)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(['Pagado','Pagada','Parcial'].includes(payment.estado||'') ? Math.max(0, Number(payment.saldo_anterior||0) - Number(payment.amortizacion||0)) : Number(payment.saldo_anterior||0))}</TableCell>
-                            <TableCell className="text-xs text-right font-mono text-blue-700">{formatCurrency(payment.saldo_nuevo)}</TableCell>
+                            <TableCell className="text-xs text-right font-mono text-blue-700">{formatCurrency(['Pagado','Pagada','Parcial'].includes(payment.estado||'') ? Number(payment.saldo_nuevo||0) : Number(payment.saldo_anterior||0))}</TableCell>
                             <TableCell className="text-xs text-center">{payment.dias || "-"}</TableCell>
                             <TableCell className="text-xs">
                               <Badge variant="outline" className={`text-[10px] h-5 ${
