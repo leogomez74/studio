@@ -429,6 +429,7 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                   <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Amortización</th>
                   <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Capital</th>
                   <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Saldo</th>
+                  <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Saldo Total</th>
                   <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">Días</th>
                   <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap">Estado</th>
                   <th className="py-1.5 px-2 font-medium text-muted-foreground whitespace-nowrap text-right">Mora</th>
@@ -493,7 +494,8 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                     <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.interes_moratorio)}</td>
                     <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.amortizacion)}</td>
                     <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.saldo_anterior)}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums font-medium">{fmtMoney(p.saldo_nuevo)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums font-medium">{fmtMoney(Math.max(0, Number(p.saldo_anterior || 0) - Number(p.amortizacion || 0)))}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums font-medium text-blue-700">{fmtMoney(p.saldo_nuevo)}</td>
                     <td className="py-1.5 px-2 tabular-nums">{p.dias || '-'}</td>
                     <td className="py-1.5 px-2">
                       {p.estado ? (
