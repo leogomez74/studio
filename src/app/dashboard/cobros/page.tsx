@@ -452,6 +452,9 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                     ...plan.map((p: any) => ({ type: 'cuota' as const, data: p })),
                     ...abonosCapital.map((p: any) => ({ type: 'abono' as const, data: p })),
                   ].sort((a, b) => {
+                    // cuota #0 (Vigente/Desembolso) siempre primero
+                    if (a.type === 'cuota' && a.data.numero_cuota === 0) return -1;
+                    if (b.type === 'cuota' && b.data.numero_cuota === 0) return 1;
                     const da = a.type === 'cuota' ? a.data.fecha_corte : a.data.fecha_pago;
                     const db = b.type === 'cuota' ? b.data.fecha_corte : b.data.fecha_pago;
                     if (!da) return 1;
@@ -495,8 +498,8 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                     <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.interes_moratorio)}</td>
                     <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.amortizacion)}</td>
                     <td className="py-1.5 px-2 text-right tabular-nums">{fmtMoney(p.saldo_anterior)}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums font-medium">{fmtMoney(['Pagado','Pagada','Parcial'].includes(p.estado||'') ? Math.max(0, Number(p.saldo_anterior||0) - Number(p.amortizacion||0)) : Number(p.saldo_anterior||0))}</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums font-medium text-blue-700">{fmtMoney(['Pagado','Pagada','Parcial'].includes(p.estado||'') ? Number(p.saldo_nuevo||0) : p.estado==='Mora' ? Number(p.saldo_anterior||0) + Number(p.interes_corriente||0) + Number(p.int_corriente_vencido||0) + Number(p.interes_moratorio||0) : Number(p.saldo_anterior||0))}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums font-medium">{fmtMoney(Math.max(0, Number(p.saldo_anterior||0) - Math.max(0, Number(p.amortizacion||0))))}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums font-medium text-blue-700">{fmtMoney(p.estado==='Mora' ? Number(p.saldo_anterior||0) + Number(p.interes_corriente||0) + Number(p.int_corriente_vencido||0) + Number(p.interes_moratorio||0) : Number(p.saldo_nuevo||0) > 0 ? Number(p.saldo_nuevo) : Math.max(0, Number(p.saldo_anterior||0) - Number(p.amortizacion||0)))}</td>
                     <td className="py-1.5 px-2 tabular-nums">{p.dias || '-'}</td>
                     <td className="py-1.5 px-2">
                       {p.estado ? (

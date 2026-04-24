@@ -1699,42 +1699,49 @@ function CreditDetailClient({ id }: { id: string }) {
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2">
                             <Label>Monto Otorgado</Label>
-                              <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
-                                ₡{formatCurrency(credit.monto_credito)}
-                              </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Saldo Actual</Label>
-                              {(() => {
-                                const interesesVencidos = (credit.plan_de_pagos || [])
-                                  .filter(p => p.estado === 'Mora')
-                                  .reduce((sum, p) => sum + (Number(p.int_corriente_vencido) || 0), 0);
-                                const saldoTotal = (Number(credit.saldo) || 0) + interesesVencidos;
-                                return (
-                                  <div>
-                                    <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
-                                      ₡{formatCurrency(saldoTotal)}
-                                    </p>
-                                    {interesesVencidos > 0 && (
-                                      <p className="text-xs text-destructive mt-1">
-                                        Incluye ₡{formatCurrency(interesesVencidos)} en intereses vencidos
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                            <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
+                              ₡{formatCurrency(credit.monto_credito)}
+                            </p>
                           </div>
                           <div className="space-y-2">
                             <Label>Monto de Desembolso</Label>
-                              <p className="text-sm font-semibold text-green-600 bg-green-50 px-3 py-2 rounded-md">
-                                ₡{formatCurrency((credit.monto_credito || 0) - getTotalCargos())}
-                              </p>
+                            <p className="text-sm font-semibold text-green-600 bg-green-50 px-3 py-2 rounded-md">
+                              ₡{formatCurrency((credit.monto_credito || 0) - getTotalCargos())}
+                            </p>
                           </div>
+                          {(() => {
+                            const interesesVencidos = (credit.plan_de_pagos || [])
+                              .filter((p: any) => p.estado === 'Mora')
+                              .reduce((sum: number, p: any) => sum + (Number(p.int_corriente_vencido) || 0) + (Number(p.interes_corriente) || 0) + (Number(p.interes_moratorio) || 0), 0);
+                            const saldoLimpio = Number(credit.saldo) || 0;
+                            const saldoTotal = saldoLimpio + interesesVencidos;
+                            return (
+                              <>
+                                <div className="space-y-2">
+                                  <Label>Saldo</Label>
+                                  <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
+                                    ₡{formatCurrency(saldoLimpio)}
+                                  </p>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Saldo Total</Label>
+                                  <p className="text-sm font-semibold text-primary bg-muted px-3 py-2 rounded-md">
+                                    ₡{formatCurrency(saldoTotal)}
+                                  </p>
+                                  {interesesVencidos > 0 && (
+                                    <p className="text-xs text-destructive mt-1">
+                                      Incluye ₡{formatCurrency(interesesVencidos)} en intereses vencidos
+                                    </p>
+                                  )}
+                                </div>
+                              </>
+                            );
+                          })()}
                           <div className="space-y-2">
                             <Label>Cuota Mensual</Label>
-                              <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                ₡{formatCurrency(credit.cuota)}
-                              </p>
+                            <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+                              ₡{formatCurrency(credit.cuota)}
+                            </p>
                           </div>
                           <div className="space-y-2">
                             <Label>Tasa Anual</Label>
@@ -2207,6 +2214,9 @@ function CreditDetailClient({ id }: { id: string }) {
                           ...credit.plan_de_pagos.map((p: any) => ({ type: 'cuota' as const, data: p })),
                           ...abonosCapital.map((p: any) => ({ type: 'abono' as const, data: p })),
                         ].sort((a, b) => {
+                          // cuota #0 (Vigente/Desembolso) siempre primero
+                          if (a.type === 'cuota' && a.data.numero_cuota === 0) return -1;
+                          if (b.type === 'cuota' && b.data.numero_cuota === 0) return 1;
                           const da = a.type === 'cuota' ? a.data.fecha_corte : a.data.fecha_pago;
                           const db = b.type === 'cuota' ? b.data.fecha_corte : b.data.fecha_pago;
                           if (!da) return 1;
@@ -2261,8 +2271,8 @@ function CreditDetailClient({ id }: { id: string }) {
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.interes_moratorio)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.amortizacion)}</TableCell>
                             <TableCell className="text-xs text-right font-mono">{formatCurrency(payment.saldo_anterior)}</TableCell>
-                            <TableCell className="text-xs text-right font-mono">{formatCurrency(['Pagado','Pagada','Parcial'].includes(payment.estado||'') ? Math.max(0, Number(payment.saldo_anterior||0) - Number(payment.amortizacion||0)) : Number(payment.saldo_anterior||0))}</TableCell>
-                            <TableCell className="text-xs text-right font-mono text-blue-700">{formatCurrency(['Pagado','Pagada','Parcial'].includes(payment.estado||'') ? Number(payment.saldo_nuevo||0) : payment.estado==='Mora' ? Number(payment.saldo_anterior||0) + Number(payment.interes_corriente||0) + Number(payment.int_corriente_vencido||0) + Number(payment.interes_moratorio||0) : Number(payment.saldo_anterior||0))}</TableCell>
+                            <TableCell className="text-xs text-right font-mono">{formatCurrency(Math.max(0, Number(payment.saldo_anterior||0) - Math.max(0, Number(payment.amortizacion||0))))}</TableCell>
+                            <TableCell className="text-xs text-right font-mono text-blue-700">{formatCurrency(payment.estado==='Mora' ? Number(payment.saldo_anterior||0) + Number(payment.interes_corriente||0) + Number(payment.int_corriente_vencido||0) + Number(payment.interes_moratorio||0) : Number(payment.saldo_nuevo||0) > 0 ? Number(payment.saldo_nuevo) : Math.max(0, Number(payment.saldo_anterior||0) - Number(payment.amortizacion||0)))}</TableCell>
                             <TableCell className="text-xs text-center">{payment.dias || "-"}</TableCell>
                             <TableCell className="text-xs">
                               <Badge variant="outline" className={`text-[10px] h-5 ${
