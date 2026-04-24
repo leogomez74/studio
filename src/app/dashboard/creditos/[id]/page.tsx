@@ -2244,9 +2244,10 @@ function CreditDetailClient({ id }: { id: string }) {
                             );
                           }
                           const payment = row.data;
+                          const isVigente = payment.numero_cuota === 0;
                           return (
-                          <TableRow key={payment.id} className="hover:bg-muted/50">
-                            <TableCell className="text-xs text-center">{payment.numero_cuota}</TableCell>
+                          <TableRow key={payment.id} className={`hover:bg-muted/50 ${isVigente ? 'bg-gray-50/60 italic text-muted-foreground' : ''}`}>
+                            <TableCell className="text-xs text-center">{isVigente ? 'D' : payment.numero_cuota}</TableCell>
                             <TableCell className="text-xs">{payment.proceso || "-"}</TableCell>
                             <TableCell className="text-xs">{formatDate(payment.fecha_inicio ? new Date(payment.fecha_inicio).toISOString() : null)}</TableCell>
                             <TableCell className="text-xs">{formatDate(payment.fecha_corte)}</TableCell>

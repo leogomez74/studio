@@ -449,7 +449,7 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                   );
                   type Row = { type: 'cuota'; data: any } | { type: 'abono'; data: any };
                   const rows: Row[] = [
-                    ...plan.filter((p: any) => p.numero_cuota > 0).map((p: any) => ({ type: 'cuota' as const, data: p })),
+                    ...plan.map((p: any) => ({ type: 'cuota' as const, data: p })),
                     ...abonosCapital.map((p: any) => ({ type: 'abono' as const, data: p })),
                   ].sort((a, b) => {
                     const da = a.type === 'cuota' ? a.data.fecha_corte : a.data.fecha_pago;
@@ -478,9 +478,10 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
                       );
                     }
                     const p = row.data;
+                    const isVigente = p.numero_cuota === 0;
                     return (
-                  <tr key={p.numero_cuota} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="py-1.5 px-2 tabular-nums">{p.numero_cuota}</td>
+                  <tr key={p.numero_cuota} className={`border-b last:border-0 hover:bg-muted/30 ${isVigente ? 'bg-gray-50/80 text-muted-foreground italic' : ''}`}>
+                    <td className="py-1.5 px-2 tabular-nums">{isVigente ? 'D' : p.numero_cuota}</td>
                     <td className="py-1.5 px-2 whitespace-nowrap">{p.proceso || '-'}</td>
                     <td className="py-1.5 px-2 whitespace-nowrap">{fmtDate(p.fecha_inicio)}</td>
                     <td className="py-1.5 px-2 whitespace-nowrap">{fmtDate(p.fecha_corte)}</td>

@@ -67,7 +67,14 @@ foreach ($credits as $credit) {
             continue;
         }
 
-        // Cuotas Pendiente / Mora / Parcial: verificar y recalcular
+        // Cuotas en Mora: NO tocar sus campos (tienen int_c_vencido calculado por MoraService)
+        // Solo avanzar el cursor con el capitalReal (saldo_anterior de la mora)
+        if ($cuota->estado === 'Mora') {
+            $saldoAnteriorEsperado = (float) $cuota->saldo_anterior; // capitalReal
+            continue;
+        }
+
+        // Cuotas Pendiente / Parcial: verificar y recalcular
         $intEsperado   = round($saldoAnteriorEsperado * $tasaMensual, 2);
         $poliza        = (float) ($cuota->poliza ?? 0);
         $amortEsperado = round((float) $cuota->cuota - $intEsperado - $poliza, 2);
