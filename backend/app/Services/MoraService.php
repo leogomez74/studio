@@ -131,6 +131,25 @@ class MoraService
             $siguienteCuota->amortizacion = round($siguienteCuota->cuota - $interesVencido - ($siguienteCuota->poliza ?? 0), 2);
             $siguienteCuota->saldo_nuevo = round($capitalReal - $siguienteCuota->amortizacion, 2);
             $siguienteCuota->save();
+
+            // Propagar cadena de saldos a todas las cuotas Pendiente siguientes
+            $saldoPropagado = max(0, (float) $siguienteCuota->saldo_nuevo);
+            $credit->planDePagos()
+                ->where('numero_cuota', '>', $siguienteCuota->numero_cuota)
+                ->where('estado', 'Pendiente')
+                ->orderBy('numero_cuota')
+                ->each(function ($c) use (&$saldoPropagado, $tasaMensual) {
+                    $intC   = round($saldoPropagado * $tasaMensual, 2);
+                    $amortC = round((float) $c->cuota - $intC - (float) ($c->poliza ?? 0), 2);
+                    $nvoSaldo = round($saldoPropagado - max(0, $amortC), 2);
+                    $c->update([
+                        'saldo_anterior'    => $saldoPropagado,
+                        'interes_corriente' => $intC,
+                        'amortizacion'      => max(0, $amortC),
+                        'saldo_nuevo'       => max(0, $nvoSaldo),
+                    ]);
+                    $saldoPropagado = max(0, $nvoSaldo);
+                });
         }
 
         // 8. Agregar cuota desplazada al final del plan (con la amortización original)

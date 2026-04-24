@@ -556,13 +556,34 @@ class PlanillaUploadController extends Controller
                     $sigInteres = round($sigSaldo * $tasaMensual, 2);
                     $sigPoliza = (float) ($siguienteCuota->poliza ?? 0);
                     $sigAmort = round((float) $siguienteCuota->cuota - $sigInteres - $sigPoliza, 2);
+                    $sigNvoSaldo = max(0, round($sigSaldo - $sigAmort, 2));
 
                     $siguienteCuota->update([
-                        'saldo_anterior' => $sigSaldo,
+                        'saldo_anterior'    => $sigSaldo,
                         'interes_corriente' => $sigInteres,
-                        'amortizacion' => $sigAmort,
-                        'saldo_nuevo' => max(0, round($sigSaldo - $sigAmort, 2)),
+                        'amortizacion'      => $sigAmort,
+                        'saldo_nuevo'       => $sigNvoSaldo,
                     ]);
+
+                    // Propagar cadena a todas las cuotas Pendiente siguientes
+                    $saldoProp = $sigNvoSaldo;
+                    PlanDePago::where('credit_id', $credit->id)
+                        ->where('numero_cuota', '>', $siguienteCuota->numero_cuota)
+                        ->where('numero_cuota', '<=', $plazo)
+                        ->where('estado', 'Pendiente')
+                        ->orderBy('numero_cuota')
+                        ->each(function ($c) use (&$saldoProp, $tasaMensual) {
+                            $intP   = round($saldoProp * $tasaMensual, 2);
+                            $amortP = round((float) $c->cuota - $intP - (float) ($c->poliza ?? 0), 2);
+                            $nvoP   = max(0, round($saldoProp - max(0, $amortP), 2));
+                            $c->update([
+                                'saldo_anterior'    => $saldoProp,
+                                'interes_corriente' => $intP,
+                                'amortizacion'      => max(0, $amortP),
+                                'saldo_nuevo'       => $nvoP,
+                            ]);
+                            $saldoProp = $nvoP;
+                        });
                 }
 
                 // Revertir cuota desplazada: reducir saldo_nuevo de cuota[plazo] y regenerar
