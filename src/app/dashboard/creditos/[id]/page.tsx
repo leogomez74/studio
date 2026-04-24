@@ -1687,7 +1687,7 @@ function CreditDetailClient({ id }: { id: string }) {
                           <div className="space-y-2">
                             <Label>Tipo de credito</Label>
                               <p className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                                {credit.category || "-"}
+                                {credit.linea || credit.category || (credit as any).tipo_credito || "-"}
                               </p>
                           </div>
                         </div>
@@ -1939,7 +1939,7 @@ function CreditDetailClient({ id }: { id: string }) {
                           <div className="space-y-2">
                             <Label>Cuotas Atrasadas</Label>
                               <p className="text-sm font-semibold text-destructive bg-muted px-3 py-2 rounded-md">
-                                {credit.cuotas_atrasadas || 0}
+                                {(credit.plan_de_pagos || []).filter((p: any) => p.estado === 'Mora' && p.numero_cuota > 0).length || credit.cuotas_atrasadas || 0}
                               </p>
                           </div>
                         </div>
