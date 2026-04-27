@@ -146,7 +146,12 @@ if (!$autoYes) {
 
 // ─── Ejecución ────────────────────────────────────────────────────────────────
 
-$trigger = new class { use \App\Traits\AccountingTrigger; };
+$trigger = new class {
+    use \App\Traits\AccountingTrigger;
+    public function disparar(string $type, float $amount, string $ref, array $ctx): array {
+        return $this->triggerAccountingEntry($type, $amount, $ref, $ctx);
+    }
+};
 
 DB::beginTransaction();
 try {
@@ -190,9 +195,27 @@ try {
             $capitalRevertido += (float) $detail->pago_principal;
         }
 
-        // Sin detalles: usar amortizacion del CreditPayment directamente
+        // Sin detalles: es un Abono a Capital — restaurar plan via reversal_snapshot
         if ($payment->details->isEmpty()) {
             $capitalRevertido = (float) $payment->amortizacion;
+
+            $snap = is_array($payment->reversal_snapshot)
+                ? $payment->reversal_snapshot
+                : (is_string($payment->reversal_snapshot) ? json_decode($payment->reversal_snapshot, true) : null);
+
+            if ($snap && !empty($snap['plan_rows']) && isset($snap['start_cuota_num'])) {
+                PlanDePago::where('credit_id', $credit->id)
+                    ->where('numero_cuota', '>=', $snap['start_cuota_num'])
+                    ->delete();
+                foreach ($snap['plan_rows'] as $row) {
+                    unset($row['id'], $row['created_at'], $row['updated_at']);
+                    PlanDePago::create($row);
+                }
+                if (isset($snap['original_cuota'])) $credit->cuota = $snap['original_cuota'];
+                if (isset($snap['original_plazo'])) $credit->plazo = $snap['original_plazo'];
+                $credit->save();
+                echo "    → Plan de pagos restaurado desde snapshot (" . count($snap['plan_rows']) . " cuotas)\n";
+            }
         }
 
         // Restaurar saldo crédito
@@ -214,9 +237,13 @@ try {
         $payment->fecha_anulacion  = now();
         $payment->save();
 
-        // Asiento contable
-        $trigger->triggerAccountingEntry(
-            'ANULACION_SALDO_APLICADO',
+        // Asiento contable — tipo según source del pago
+        $tipoAsiento = str_contains(strtolower($payment->source ?? ''), 'abono a capital')
+            ? 'ANULACION_ABONO_CAPITAL'
+            : 'ANULACION_SALDO_APLICADO';
+
+        $trigger->disparar(
+            $tipoAsiento,
             (float) $payment->monto,
             "ANULA-SALDO-{$payment->id}-{$credit->reference}",
             [
@@ -247,7 +274,7 @@ try {
         $saldo->save();
 
         $credit = $saldo->credit;
-        $trigger->triggerAccountingEntry(
+        $trigger->disparar(
             'ANULACION_SALDO_APLICADO',
             (float) $saldo->monto,
             "CORR-SALDO-{$saldo->id}-" . ($credit->reference ?? $credit->id),

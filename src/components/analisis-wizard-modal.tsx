@@ -954,13 +954,12 @@ export function AnalisisWizardModal({
                           <Input
                             id={`embargo_fecha_inicio_${index}`}
                             type="date"
-                            value={embargo.fecha_inicio}
+                            value={embargo.fecha_inicio ?? ''}
                             onChange={(e) => {
                               const newEmbargos = [...formData.embargos_detalle];
                               newEmbargos[index].fecha_inicio = e.target.value;
                               updateFormData('embargos_detalle', newEmbargos);
                             }}
-                            required
                           />
                         </div>
                         <div>
@@ -986,7 +985,7 @@ export function AnalisisWizardModal({
                           <Label htmlFor={`embargo_motivo_${index}`}>Motivo</Label>
                           <Input
                             id={`embargo_motivo_${index}`}
-                            value={embargo.motivo}
+                            value={embargo.motivo ?? ''}
                             onChange={(e) => {
                               const newEmbargos = [...formData.embargos_detalle];
                               newEmbargos[index].motivo = e.target.value;

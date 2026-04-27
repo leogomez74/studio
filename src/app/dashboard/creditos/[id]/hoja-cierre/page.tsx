@@ -25,7 +25,7 @@ interface CreditData {
   reference?: string;
   monto_credito?: number;
   cargos_adicionales?: CargosAdicionales | null;
-  lead?: { name?: string; apellido1?: string; cedula?: string; };
+  lead?: { name?: string; apellido1?: string; apellido2?: string; cedula?: string; };
 }
 
 const fmt = (v?: number | null) =>
@@ -89,7 +89,7 @@ export default function HojaCierrePage() {
   const descuento = ca.descuento_factura ?? 0;
   const totalCargos = comision + transporte + respaldo + manchas + descuento;
   const montoNeto = montoAprobado - totalCargos;
-  const clientName = credit.lead ? `${credit.lead.name ?? ''} ${credit.lead.apellido1 ?? ''}`.trim() : 'N/A';
+  const clientName = credit.lead ? `${credit.lead.name ?? ''} ${credit.lead.apellido1 ?? ''} ${credit.lead.apellido2 ?? ''}`.trim() : 'N/A';
 
   const cargos = [
     { label: 'Comisión', value: comision },

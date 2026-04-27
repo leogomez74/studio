@@ -42,8 +42,8 @@ export interface JuicioDetalle {
 
 export interface EmbargoDetalle {
   id?: number;
-  fecha_inicio: string;
-  motivo?: string;
+  fecha_inicio?: string | null;
+  motivo?: string | null;
   monto?: number;
 }
 

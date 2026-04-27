@@ -151,14 +151,70 @@ class PlanillaUploadController extends Controller
                         $cuota->movimiento_poliza = max(0, ((float) $cuota->movimiento_poliza) - ((float) $pago->poliza));
                         $cuota->movimiento_total = max(0, ((float) $cuota->movimiento_total) - ((float) $pago->monto));
 
-                        // Si todos los movimientos son 0, restaurar estado a Pendiente
+                        // Si todos los movimientos son 0, restaurar estado y campos base del plan
                         if ($cuota->movimiento_total <= 0.01) {
-                            $cuota->estado = 'Pendiente';
+                            $cuota->estado           = 'Pendiente';
                             $cuota->fecha_movimiento = null;
-                            $cuota->fecha_pago = null;
+                            $cuota->fecha_pago       = null;
+
+                            // Restaurar campos base proyectados (interes, amortizacion, saldos)
+                            // que pueden haber sido modificados por mora o regeneraciones previas
+                            $cuotaAnterior = PlanDePago::where('credit_id', $credit->id)
+                                ->where('numero_cuota', '<', $cuota->numero_cuota)
+                                ->where('numero_cuota', '>', 0)
+                                ->orderBy('numero_cuota', 'desc')
+                                ->first();
+
+                            $tasaMensual   = ((float) $credit->tasa_anual) / 100 / 12;
+                            $saldoAnterior = $cuotaAnterior
+                                ? max(0, (float) $cuotaAnterior->saldo_nuevo)
+                                : (float) $credit->monto_credito;
+
+                            $interesCorriente = round($saldoAnterior * $tasaMensual, 2);
+                            $amortizacion     = round((float) $cuota->cuota - $interesCorriente - (float) ($cuota->poliza ?? 0), 2);
+                            $saldoNuevo       = round($saldoAnterior - max(0, $amortizacion), 2);
+
+                            $cuota->interes_corriente     = $interesCorriente;
+                            $cuota->amortizacion          = max(0, $amortizacion);
+                            $cuota->saldo_anterior        = $saldoAnterior;
+                            $cuota->saldo_nuevo           = max(0, $saldoNuevo);
+                            $cuota->int_corriente_vencido = 0;
+                            $cuota->interes_moratorio     = 0;
+                            $cuota->dias_mora             = 0;
                         }
 
                         $cuota->save();
+
+                        // Restaurar también las cuotas en Mora del mismo crédito
+                        // (créditos que están en la planilla pero tienen cuotas posteriores en Mora)
+                        $tasaMensualMora = ((float) $credit->tasa_anual) / 100 / 12;
+                        $cuotasMora = PlanDePago::where('credit_id', $credit->id)
+                            ->whereIn('estado', ['Mora', 'Parcial'])
+                            ->where('numero_cuota', '>', $cuota->numero_cuota)
+                            ->orderBy('numero_cuota')
+                            ->get();
+
+                        $saldoPrevio = $cuota; // encadenar desde la cuota recién restaurada
+                        foreach ($cuotasMora as $cuotaM) {
+                            $saldoAntM  = max(0, (float) $saldoPrevio->saldo_nuevo);
+                            $intCorrM   = round($saldoAntM * $tasaMensualMora, 2);
+                            $polizaM    = (float) ($cuotaM->poliza ?? 0);
+                            $amortM     = round((float) $cuotaM->cuota - $intCorrM - $polizaM, 2);
+                            $saldoNvoM  = round($saldoAntM - max(0, $amortM), 2);
+
+                            $cuotaM->estado                = 'Pendiente';
+                            $cuotaM->interes_corriente     = $intCorrM;
+                            $cuotaM->amortizacion          = max(0, $amortM);
+                            $cuotaM->saldo_anterior        = $saldoAntM;
+                            $cuotaM->saldo_nuevo           = max(0, $saldoNvoM);
+                            $cuotaM->int_corriente_vencido = 0;
+                            $cuotaM->interes_moratorio     = 0;
+                            $cuotaM->dias_mora             = 0;
+                            $cuotaM->fecha_movimiento      = null;
+                            $cuotaM->fecha_pago            = null;
+                            $cuotaM->save();
+                            $saldoPrevio = $cuotaM;
+                        }
                     }
                 }
 
@@ -177,15 +233,16 @@ class PlanillaUploadController extends Controller
                             ->first();
 
                         // Fallback para datos históricos (sin saldo_pendiente_id)
+                        // Busca por monto + source + fecha, sin filtrar por credit_id
+                        // porque el saldo puede haberse aplicado a un crédito diferente al origen
                         if (!$pagoSaldo && $saldo->asignado_at) {
-                            $pagoSaldo = CreditPayment::where('credit_id', $saldo->credit_id)
-                                ->where(function($q) {
-                                    $q->where('source', 'Saldo Pendiente')
-                                      ->orWhere('source', 'like', '%Saldo Pendiente%')
-                                      ->orWhere('source', 'like', '%Capital%Saldo%')
-                                      ->orWhere('source', 'like', '%Abono a Capital%');
+                            $pagoSaldo = CreditPayment::where(function($q) {
+                                    $q->where('source', 'like', '%Abono a Capital%')
+                                      ->orWhere('source', 'Saldo Pendiente')
+                                      ->orWhere('source', 'like', '%Saldo Pendiente%');
                                 })
-                                ->whereNotIn('estado', ['Reversado'])
+                                ->where('monto', $saldo->monto)
+                                ->whereNotIn('estado_reverso', ['Anulado'])
                                 ->whereBetween('created_at', [
                                     \Carbon\Carbon::parse($saldo->asignado_at)->subDays(2),
                                     \Carbon\Carbon::parse($saldo->asignado_at)->addDays(2),
@@ -202,8 +259,26 @@ class PlanillaUploadController extends Controller
                                 $creditSaldo->save();
                             }
 
-                            // Revertir movimientos en plan_de_pagos
-                            if ($pagoSaldo->numero_cuota > 0) {
+                            // Revertir plan de pagos
+                            if ($pagoSaldo->numero_cuota === 0 && $pagoSaldo->reversal_snapshot) {
+                                // Abono a Capital: restaurar plan original desde snapshot
+                                $snap = is_array($pagoSaldo->reversal_snapshot)
+                                    ? $pagoSaldo->reversal_snapshot
+                                    : json_decode($pagoSaldo->reversal_snapshot, true);
+                                if (!empty($snap['plan_rows']) && isset($snap['start_cuota_num'])) {
+                                    PlanDePago::where('credit_id', $creditSaldo->id)
+                                        ->where('numero_cuota', '>=', $snap['start_cuota_num'])
+                                        ->delete();
+                                    foreach ($snap['plan_rows'] as $row) {
+                                        unset($row['id'], $row['created_at'], $row['updated_at']);
+                                        PlanDePago::create($row);
+                                    }
+                                    if (isset($snap['original_cuota']))  $creditSaldo->cuota  = $snap['original_cuota'];
+                                    if (isset($snap['original_plazo']))  $creditSaldo->plazo  = $snap['original_plazo'];
+                                    $creditSaldo->save();
+                                }
+                            } elseif ($pagoSaldo->numero_cuota > 0) {
+                                // Pago a cuota: revertir movimientos
                                 $cuotaSaldo = PlanDePago::where('credit_id', $pagoSaldo->credit_id)
                                     ->where('numero_cuota', $pagoSaldo->numero_cuota)
                                     ->first();
@@ -218,6 +293,29 @@ class PlanillaUploadController extends Controller
                                         $cuotaSaldo->estado          = 'Pendiente';
                                         $cuotaSaldo->fecha_movimiento = null;
                                         $cuotaSaldo->fecha_pago       = null;
+
+                                        // Restaurar campos base proyectados
+                                        $creditSaldoCuota  = Credit::find($pagoSaldo->credit_id);
+                                        $cuotaAntSaldo = PlanDePago::where('credit_id', $pagoSaldo->credit_id)
+                                            ->where('numero_cuota', '<', $cuotaSaldo->numero_cuota)
+                                            ->where('numero_cuota', '>', 0)
+                                            ->orderBy('numero_cuota', 'desc')
+                                            ->first();
+                                        if ($creditSaldoCuota) {
+                                            $tasaMs  = ((float) $creditSaldoCuota->tasa_anual) / 100 / 12;
+                                            $saldoAnt = $cuotaAntSaldo
+                                                ? max(0, (float) $cuotaAntSaldo->saldo_nuevo)
+                                                : (float) $creditSaldoCuota->monto_credito;
+                                            $intCorr = round($saldoAnt * $tasaMs, 2);
+                                            $amort   = round((float) $cuotaSaldo->cuota - $intCorr - (float) ($cuotaSaldo->poliza ?? 0), 2);
+                                            $cuotaSaldo->interes_corriente     = $intCorr;
+                                            $cuotaSaldo->amortizacion          = max(0, $amort);
+                                            $cuotaSaldo->saldo_anterior        = $saldoAnt;
+                                            $cuotaSaldo->saldo_nuevo           = max(0, round($saldoAnt - max(0, $amort), 2));
+                                            $cuotaSaldo->int_corriente_vencido = 0;
+                                            $cuotaSaldo->interes_moratorio     = 0;
+                                            $cuotaSaldo->dias_mora             = 0;
+                                        }
                                     }
                                     $cuotaSaldo->save();
                                 }
@@ -231,9 +329,13 @@ class PlanillaUploadController extends Controller
                             $pagoSaldo->fecha_anulacion = now();
                             $pagoSaldo->save();
 
-                            // Asiento contable de reversión del saldo aplicado
+                            // Asiento contable según el tipo de aplicación del saldo
+                            $tipoAsientoSaldo = $saldo->estado === 'asignado_capital'
+                                ? 'ANULACION_ABONO_CAPITAL'
+                                : 'ANULACION_SALDO_APLICADO';
+
                             $this->triggerAccountingEntry(
-                                'ANULACION_SALDO_APLICADO',
+                                $tipoAsientoSaldo,
                                 (float) $pagoSaldo->monto,
                                 "ANULA-SALDO-{$pagoSaldo->id}-{$credit->reference}",
                                 [
@@ -243,9 +345,47 @@ class PlanillaUploadController extends Controller
                                     'clienteNombre'  => $credit->lead->name ?? null,
                                     'deductora_id'   => $credit->deductora_id,
                                     'saldo_id'       => $saldo->id,
+                                    'amount_breakdown' => [
+                                        'total'                    => (float) $pagoSaldo->monto,
+                                        'capital'                  => (float) $pagoSaldo->monto,
+                                        'interes_corriente'        => 0,
+                                        'interes_moratorio'        => 0,
+                                        'poliza'                   => 0,
+                                        'sobrante'                 => 0,
+                                        'cargos_adicionales_total' => 0,
+                                        'cargos_adicionales'       => [],
+                                    ],
                                 ]
                             );
                         }
+                    }
+
+                    // Si el saldo fue reintegrado al cliente, disparar asiento solitario de anulación
+                    if ($saldo->estado === 'reintegrado') {
+                        $creditSaldo = Credit::find($saldo->credit_id);
+                        $this->triggerAccountingEntry(
+                            'ANULACION_REINTEGRO_SALDO',
+                            (float) $saldo->monto,
+                            "ANULA-REINT-{$saldo->id}-" . ($creditSaldo->reference ?? $saldo->credit_id),
+                            [
+                                'reference'      => "ANULA-REINT-{$saldo->id}-" . ($creditSaldo->reference ?? $saldo->credit_id),
+                                'credit_id'      => $creditSaldo->reference ?? $saldo->credit_id,
+                                'cedula'         => $saldo->cedula,
+                                'clienteNombre'  => $creditSaldo->lead->name ?? null,
+                                'deductora_id'   => $planilla->deductora_id,
+                                'saldo_id'       => $saldo->id,
+                                'amount_breakdown' => [
+                                    'total'                    => (float) $saldo->monto,
+                                    'capital'                  => (float) $saldo->monto,
+                                    'interes_corriente'        => 0,
+                                    'interes_moratorio'        => 0,
+                                    'poliza'                   => 0,
+                                    'sobrante'                 => 0,
+                                    'cargos_adicionales_total' => 0,
+                                    'cargos_adicionales'       => [],
+                                ],
+                            ]
+                        );
                     }
 
                     $saldo->delete();
@@ -377,8 +517,16 @@ class PlanillaUploadController extends Controller
 
                 if (!$cuotaMora) continue;
 
-                // Restaurar cuota: recalcular valores basados en el capital real
-                $saldoAnterior = (float) $credit->saldo;
+                // Restaurar cuota: usar saldo_nuevo de la cuota anterior como base
+                // (no el credit->saldo restaurado, que puede diferir del saldo proyectado)
+                $cuotaPrevia = PlanDePago::where('credit_id', $credit->id)
+                    ->where('numero_cuota', '<', $cuotaMora->numero_cuota)
+                    ->where('numero_cuota', '>', 0)
+                    ->orderBy('numero_cuota', 'desc')
+                    ->first();
+                $saldoAnterior = $cuotaPrevia
+                    ? max(0, (float) $cuotaPrevia->saldo_nuevo)
+                    : (float) $credit->monto_credito;
                 $interesCorriente = round($saldoAnterior * $tasaMensual, 2);
                 $poliza = (float) ($cuotaMora->poliza ?? 0);
                 $cuotaFija = (float) $cuotaMora->cuota;
@@ -408,13 +556,34 @@ class PlanillaUploadController extends Controller
                     $sigInteres = round($sigSaldo * $tasaMensual, 2);
                     $sigPoliza = (float) ($siguienteCuota->poliza ?? 0);
                     $sigAmort = round((float) $siguienteCuota->cuota - $sigInteres - $sigPoliza, 2);
+                    $sigNvoSaldo = max(0, round($sigSaldo - $sigAmort, 2));
 
                     $siguienteCuota->update([
-                        'saldo_anterior' => $sigSaldo,
+                        'saldo_anterior'    => $sigSaldo,
                         'interes_corriente' => $sigInteres,
-                        'amortizacion' => $sigAmort,
-                        'saldo_nuevo' => max(0, round($sigSaldo - $sigAmort, 2)),
+                        'amortizacion'      => $sigAmort,
+                        'saldo_nuevo'       => $sigNvoSaldo,
                     ]);
+
+                    // Propagar cadena a todas las cuotas Pendiente siguientes
+                    $saldoProp = $sigNvoSaldo;
+                    PlanDePago::where('credit_id', $credit->id)
+                        ->where('numero_cuota', '>', $siguienteCuota->numero_cuota)
+                        ->where('numero_cuota', '<=', $plazo)
+                        ->where('estado', 'Pendiente')
+                        ->orderBy('numero_cuota')
+                        ->each(function ($c) use (&$saldoProp, $tasaMensual) {
+                            $intP   = round($saldoProp * $tasaMensual, 2);
+                            $amortP = round((float) $c->cuota - $intP - (float) ($c->poliza ?? 0), 2);
+                            $nvoP   = max(0, round($saldoProp - max(0, $amortP), 2));
+                            $c->update([
+                                'saldo_anterior'    => $saldoProp,
+                                'interes_corriente' => $intP,
+                                'amortizacion'      => max(0, $amortP),
+                                'saldo_nuevo'       => $nvoP,
+                            ]);
+                            $saldoProp = $nvoP;
+                        });
                 }
 
                 // Revertir cuota desplazada: reducir saldo_nuevo de cuota[plazo] y regenerar

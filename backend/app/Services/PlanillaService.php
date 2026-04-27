@@ -175,9 +175,17 @@ class PlanillaService
                         $cuota = $c->planDePagos->first();
                         if (!$cuota) continue;
 
-                        $exigible = (float) $cuota->cuota
-                                  + (float) $cuota->interes_moratorio
-                                  + (float) ($cuota->int_corriente_vencido ?? 0);
+                        $exigibleTotal = (float) $cuota->cuota
+                                       + (float) $cuota->interes_moratorio
+                                       + (float) ($cuota->int_corriente_vencido ?? 0);
+
+                        $esParcialActual = $cuota->estado === 'Parcial';
+
+                        // Para cuotas Parciales: el exigible real es solo lo que queda pendiente
+                        $movimientoActual = (float) $cuota->movimiento_total;
+                        $exigible = $esParcialActual
+                            ? max(0, $exigibleTotal - $movimientoActual)
+                            : $exigibleTotal;
 
                         $alcanzado = $dineroSimulado > 0.005;
                         $asignado = 0;
@@ -194,6 +202,28 @@ class PlanillaService
                             'asignado' => $asignado,
                             'alcanzado' => $alcanzado,
                         ];
+
+                        // Nueva regla: si la cuota era Parcial y sobra dinero,
+                        // simular la siguiente cuota Pendiente del mismo crédito
+                        if ($esParcialActual && $dineroSimulado > 0.005) {
+                            $nextCuota = $c->planDePagos->skip(1)->first();
+                            if ($nextCuota && $nextCuota->estado === 'Pendiente') {
+                                $nextExigible = (float) $nextCuota->cuota
+                                              + (float) $nextCuota->interes_moratorio
+                                              + (float) ($nextCuota->int_corriente_vencido ?? 0);
+                                $nextAsignado = min($dineroSimulado, $nextExigible);
+                                $dineroSimulado -= $nextAsignado;
+
+                                $filasCredito[] = [
+                                    'credit'              => $c,
+                                    'cuota'               => $nextCuota,
+                                    'exigible'            => $nextExigible,
+                                    'asignado'            => $nextAsignado,
+                                    'alcanzado'           => true,
+                                    'monto_aplicado'      => $nextAsignado,
+                                ];
+                            }
+                        }
                     }
 
                     $sobrante = $dineroSimulado;
@@ -249,7 +279,7 @@ class PlanillaService
                                 'nombre' => $nombre,
                                 'credito_referencia' => $fila['credit']->reference,
                                 'numero_cuota' => $fila['cuota']->numero_cuota,
-                                'monto_planilla' => $esPrimero ? $montoPlanilla : null,
+                                'monto_planilla' => $esPrimero ? $montoPlanilla : ($fila['monto_aplicado'] ?? null),
                                 'cuota_esperada' => round($exigible, 2),
                                 'cuota_base' => round((float) $fila['cuota']->cuota, 2),
                                 'interes_mora' => round((float) $fila['cuota']->interes_moratorio, 2),
@@ -738,6 +768,16 @@ class PlanillaService
                     $montoParaCredito = $dineroDisponible;
 
                     $esCascadeMultiple = $credits->count() > 1;
+
+                    // Detectar si la cuota prioritaria del crédito es Parcial (pago incompleto previo)
+                    $primeraCuotaEsParcial = Credit::find($cascadeCreditId)
+                        ?->planDePagos()
+                        ->whereIn('estado', ['Mora', 'Parcial', 'Pendiente'])
+                        ->where('numero_cuota', '>', 0)
+                        ->orderByRaw("FIELD(estado, 'Mora', 'Parcial', 'Pendiente')")
+                        ->orderBy('numero_cuota')
+                        ->value('estado') === 'Parcial';
+
                     $payment = DB::transaction(function () use ($cascadeCreditId, $montoParaCredito, $fechaPago, $rawCedula, $planillaId, $esCascadeMultiple) {
                         $c = Credit::lockForUpdate()->findOrFail($cascadeCreditId);
                         return $this->paymentProcessing->processPaymentTransaction($c, $montoParaCredito, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId, $esCascadeMultiple ? 0.0 : -1);
@@ -746,6 +786,21 @@ class PlanillaService
                     if ($payment) {
                         $payments[] = $payment;
                         $dineroDisponible = (float) $payment->movimiento_total;
+
+                        // Si la primera cuota era Parcial y sobra dinero, aplicar el sobrante
+                        // a la siguiente cuota antes de crear SaldoPendiente
+                        if ($primeraCuotaEsParcial && $dineroDisponible > 0.005) {
+                            $payment->update(['movimiento_total' => 0]);
+                            $payment2 = DB::transaction(function () use ($cascadeCreditId, $dineroDisponible, $fechaPago, $rawCedula, $planillaId) {
+                                $c2 = Credit::lockForUpdate()->findOrFail($cascadeCreditId);
+                                return $this->paymentProcessing->processPaymentTransaction($c2, $dineroDisponible, $fechaPago, 'Planilla', $rawCedula, null, true, $planillaId, 0.0);
+                            });
+                            if ($payment2) {
+                                $payments[] = $payment2;
+                                $dineroDisponible = (float) $payment2->movimiento_total;
+                                $payment = $payment2;
+                            }
+                        }
 
                         // Limpiar movimiento_total de pagos intermedios (sobrante pasa al siguiente crédito)
                         if ($dineroDisponible > 0.005 && $credits->count() > 1) {

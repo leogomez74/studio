@@ -23,7 +23,7 @@ class SaldoPendienteController extends Controller
      */
     public function index(Request $request)
     {
-        $query = SaldoPendiente::with(['credit.lead', 'credit.deductora'])
+        $query = SaldoPendiente::with(['credit.lead', 'credit.deductora', 'creditPayment'])
             ->orderBy('created_at', 'desc');
 
         if ($request->has('estado')) {
@@ -159,6 +159,7 @@ class SaldoPendienteController extends Controller
                 'estado' => $saldo->estado,
                 'notas' => $saldo->notas,
                 'saldo_credito' => (float) $saldo->credit->saldo,
+                'planilla_id' => $saldo->creditPayment?->planilla_upload_id,
                 'distribuciones' => $distribuciones,
             ];
         });
@@ -470,6 +471,11 @@ class SaldoPendienteController extends Controller
                     'Abono a Capital (Saldo Pendiente)',
                     $saldo->cedula
                 );
+
+                // Guardar link bidireccional SaldoPendiente → CreditPayment
+                if ($payment) {
+                    $payment->update(['saldo_pendiente_id' => $saldo->id]);
+                }
 
                 // Calcular restante del saldo
                 $restante = (float) $saldo->monto - $montoCapital;

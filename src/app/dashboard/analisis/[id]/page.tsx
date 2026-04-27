@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -48,6 +48,57 @@ import {
 } from '@/components/ui/table';
 
 // Helper functions for currency
+function InlineSelect({ value, options, onSave }: {
+  value: string;
+  options: string[];
+  onSave: (val: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSelect = async (val: string) => {
+    setSaving(true);
+    try {
+      await onSave(val);
+    } finally {
+      setSaving(false);
+      setEditing(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex flex-wrap gap-1 mt-0.5">
+        {options.map(opt => (
+          <button
+            key={opt}
+            disabled={saving}
+            onClick={() => handleSelect(opt)}
+            className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+              opt === value
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-white text-slate-700 border-slate-300 hover:border-primary hover:text-primary'
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
+        <button onClick={() => setEditing(false)} className="text-xs px-2 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-slate-600">✕</button>
+      </div>
+    );
+  }
+
+  return (
+    <p
+      className="text-sm cursor-pointer hover:text-primary hover:underline decoration-dashed"
+      onDoubleClick={() => setEditing(true)}
+      title="Doble clic para editar"
+    >
+      {value || 'N/A'}
+    </p>
+  );
+}
+
 const parseCurrencyToNumber = (value: string): string => {
   let cleaned = value.replace(/[₡$]/g, '');
   cleaned = cleaned.replace(/\s/g, '');
@@ -157,6 +208,67 @@ export default function AnalisisDetailPage() {
   const [manchasOpen, setManchasOpen] = useState(false);
   const [juiciosOpen, setJuiciosOpen] = useState(false);
   const [embargosOpen, setEmbargosOpen] = useState(false);
+
+  // Estados para agregar embargo manual
+  const [embargoDialogOpen, setEmbargoDialogOpen] = useState(false);
+  const [newEmbargo, setNewEmbargo] = useState({ fecha_inicio: '', motivo: '', monto: '' });
+  const [savingEmbargo, setSavingEmbargo] = useState(false);
+
+  const handleAddEmbargo = async () => {
+    try {
+      setSavingEmbargo(true);
+      const embargoNuevo = {
+        fecha_inicio: newEmbargo.fecha_inicio || '',
+        motivo: newEmbargo.motivo.trim() || '',
+        monto: parseFloat(newEmbargo.monto) || 0,
+      };
+      const detallesActuales = analisis?.embargo_detalles ?? [];
+      const nuevosDetalles = [...detallesActuales, embargoNuevo];
+      await api.put(`/api/analisis/${analisisId}`, {
+        embargos_detalle: nuevosDetalles,
+        numero_embargos: nuevosDetalles.length,
+      });
+      setAnalisis(prev => prev ? {
+        ...prev,
+        embargo_detalles: nuevosDetalles,
+        numero_embargos: nuevosDetalles.length,
+      } : null);
+      setEmbargoDialogOpen(false);
+      setNewEmbargo({ fecha_inicio: '', motivo: '', monto: '' });
+      toast({ title: 'Embargo registrado', description: 'El embargo se agregó correctamente.' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo guardar el embargo.', variant: 'destructive' });
+    } finally {
+      setSavingEmbargo(false);
+    }
+  };
+
+  // Estados para eliminar embargo
+  const [deleteEmbargoIdx, setDeleteEmbargoIdx] = useState<number | null>(null);
+  const [deletingEmbargo, setDeletingEmbargo] = useState(false);
+
+  const handleDeleteEmbargo = async () => {
+    if (deleteEmbargoIdx === null) return;
+    try {
+      setDeletingEmbargo(true);
+      const nuevosDetalles = (analisis?.embargo_detalles ?? []).filter((_: any, i: number) => i !== deleteEmbargoIdx);
+      await api.put(`/api/analisis/${analisisId}`, {
+        embargos_detalle: nuevosDetalles,
+        numero_embargos: nuevosDetalles.length,
+      });
+      setAnalisis(prev => prev ? {
+        ...prev,
+        embargo_detalles: nuevosDetalles,
+        numero_embargos: nuevosDetalles.length,
+      } : null);
+      setDeleteEmbargoIdx(null);
+      toast({ title: 'Embargo eliminado', description: 'El embargo fue eliminado correctamente.' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo eliminar el embargo.', variant: 'destructive' });
+    } finally {
+      setDeletingEmbargo(false);
+    }
+  };
 
   // Estados para consulta Credid
   const [credidLoading, setCredidLoading] = useState(false);
@@ -901,7 +1013,14 @@ export default function AnalisisDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Estado Civil</p>
-                  <p className="text-sm">{lead?.estado_civil || 'N/A'}</p>
+                  <InlineSelect
+                    value={lead?.estado_civil || ''}
+                    options={['Soltero(a)', 'Casado(a)', 'Divorciado(a)', 'Viudo(a)']}
+                    onSave={async (val) => {
+                      await api.patch(`/api/leads/${lead!.id}`, { estado_civil: val });
+                      setAnalisis(prev => prev ? { ...prev, lead: { ...prev.lead, estado_civil: val } } as typeof prev : prev);
+                    }}
+                  />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Institución</p>
@@ -913,7 +1032,14 @@ export default function AnalisisDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Nombramiento</p>
-                  <p className="text-sm">{analisis.nombramiento || lead?.estado_puesto || 'N/A'}</p>
+                  <InlineSelect
+                    value={analisis.nombramiento || lead?.estado_puesto || ''}
+                    options={['Interino', 'Propiedad']}
+                    onSave={async (val) => {
+                      await api.put(`/api/analisis/${analisisId}`, { nombramiento: val });
+                      setAnalisis(prev => prev ? { ...prev, nombramiento: val } : prev);
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -1096,9 +1222,19 @@ export default function AnalisisDetailPage() {
                       Embargos
                       {embargosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </span>
-                    <Badge variant={(analisis.numero_embargos ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
-                      {analisis.numero_embargos || 0}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={(analisis.numero_embargos ?? 0) > 0 ? "destructive" : "secondary"} className="text-base px-3">
+                        {analisis.numero_embargos || 0}
+                      </Badge>
+                      <span
+                        role="button"
+                        onClick={e => { e.stopPropagation(); setEmbargoDialogOpen(true); }}
+                        className="p-1 rounded hover:bg-purple-200 text-purple-700 transition-colors"
+                        title="Agregar embargo manual"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </span>
+                    </div>
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -1106,8 +1242,17 @@ export default function AnalisisDetailPage() {
                     <div className="mt-2 space-y-2 pl-4">
                       {analisis.embargo_detalles.map((embargo: any, idx: number) => (
                         <div key={idx} className="p-3 bg-white rounded border border-purple-100 text-sm space-y-1">
-                          <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
-                          <p className="text-gray-600">Inicio: {new Date(embargo.fecha_inicio).toLocaleDateString('es-CR')}</p>
+                          <div className="flex items-start justify-between">
+                            <p className="font-medium text-gray-700">{embargo.motivo || 'Sin motivo'}</p>
+                            <button
+                              onClick={() => setDeleteEmbargoIdx(idx)}
+                              className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors ml-2 flex-shrink-0"
+                              title="Eliminar embargo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-gray-600">Inicio: {embargo.fecha_inicio ? new Date(embargo.fecha_inicio).toLocaleDateString('es-CR') : 'Sin fecha'}</p>
                           <p className="text-purple-700 font-semibold">
                             Monto: ₡{new Intl.NumberFormat('en-US').format(embargo.monto)}
                           </p>
@@ -1119,6 +1264,75 @@ export default function AnalisisDetailPage() {
                   )}
                 </CollapsibleContent>
               </Collapsible>
+
+              {/* Dialog: confirmar eliminar embargo */}
+              <Dialog open={deleteEmbargoIdx !== null} onOpenChange={open => { if (!open) setDeleteEmbargoIdx(null); }}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Eliminar embargo</DialogTitle>
+                    <DialogDescription>¿Estás seguro de que deseas eliminar este embargo? Esta acción no se puede deshacer.</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteEmbargoIdx(null)} disabled={deletingEmbargo}>
+                      Cancelar
+                    </Button>
+                    <Button variant="destructive" onClick={handleDeleteEmbargo} disabled={deletingEmbargo}>
+                      {deletingEmbargo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Eliminar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Dialog: agregar embargo manual */}
+              <Dialog open={embargoDialogOpen} onOpenChange={open => { setEmbargoDialogOpen(open); if (!open) setNewEmbargo({ fecha_inicio: '', motivo: '', monto: '' }); }}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Agregar embargo</DialogTitle>
+                    <DialogDescription>Registra un embargo que no aparece en CREDID.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 py-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="embargo-fecha">Fecha de inicio</Label>
+                      <Input
+                        id="embargo-fecha"
+                        type="date"
+                        value={newEmbargo.fecha_inicio}
+                        onChange={e => setNewEmbargo(prev => ({ ...prev, fecha_inicio: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="embargo-motivo">Motivo / Acreedor</Label>
+                      <Input
+                        id="embargo-motivo"
+                        placeholder="Ej. Banco Nacional — Cobro judicial"
+                        value={newEmbargo.motivo}
+                        onChange={e => setNewEmbargo(prev => ({ ...prev, motivo: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="embargo-monto">Monto (₡)</Label>
+                      <Input
+                        id="embargo-monto"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={newEmbargo.monto}
+                        onChange={e => setNewEmbargo(prev => ({ ...prev, monto: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setEmbargoDialogOpen(false)} disabled={savingEmbargo}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleAddEmbargo} disabled={savingEmbargo}>
+                      {savingEmbargo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Guardar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
 
