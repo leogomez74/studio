@@ -88,6 +88,8 @@ interface WaMessage {
   body: string;
   direction: 'out' | 'in';
   wa_timestamp: string;
+  message_type?: string;
+  audio_url?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -519,6 +521,61 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
 }
 
 // ---------------------------------------------------------------------------
+// Audio message bubble — carga el audio desde el backend la primera vez
+// ---------------------------------------------------------------------------
+
+// Caché a nivel de módulo: persiste mientras el componente padre se recarga
+// pero NO entre navegaciones de página. Evita refetch y corte de reproducción.
+const waAudioCache = new Map<string, string>();
+
+function WaMessageBubble({
+  msg,
+  onAudioLoaded,
+}: {
+  msg: WaMessage;
+  onAudioLoaded: (waId: string, url: string) => void;
+}) {
+  const isAudio = msg.message_type === 'audio' || msg.body === '🎤 Audio';
+
+  // Resolver URL: prioridad msg.audio_url → caché → null (pendiente de fetch)
+  const audioSrc = msg.audio_url
+    ?? (msg.wa_message_id ? waAudioCache.get(msg.wa_message_id) : undefined)
+    ?? null;
+
+  useEffect(() => {
+    if (!isAudio || audioSrc || !msg.wa_message_id) return;
+    let cancelled = false;
+    api.get(`/api/whatsapp/media/${msg.wa_message_id}`, { responseType: 'blob' })
+      .then(res => {
+        if (cancelled) return;
+        const url = URL.createObjectURL(res.data as Blob);
+        waAudioCache.set(msg.wa_message_id!, url);
+        onAudioLoaded(msg.wa_message_id!, url);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [msg.wa_message_id, audioSrc, isAudio, onAudioLoaded]);
+
+  return (
+    <div className={cn('flex', msg.direction === 'out' ? 'justify-end' : 'justify-start')}>
+      <div className={cn(
+        'max-w-[75%] rounded-lg text-xs',
+        msg.direction === 'out' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
+        isAudio ? 'px-2 py-1.5' : 'px-3 py-1.5',
+      )}>
+        {isAudio ? (
+          audioSrc
+            ? <audio controls src={audioSrc} className="h-8 w-52 max-w-full" />
+            : <div className="flex items-center gap-1.5 w-52"><Loader2 className="h-3 w-3 animate-spin shrink-0" /><span className="text-xs opacity-70">Cargando audio...</span></div>
+        ) : (
+          msg.body
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -652,6 +709,34 @@ export function ChatBubble() {
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast({ title: 'Error al enviar', description: error.response?.data?.message, variant: 'destructive' });
+    } finally {
+      setWaSending(false);
+    }
+  };
+
+  const handleWaSendAudio = async () => {
+    if (!waRecordedBlob || !waPhone) return;
+    try {
+      setWaSending(true);
+      const formData = new FormData();
+      formData.append('phone', waPhone);
+      // Usar extensión acorde al mimeType grabado por el navegador
+      const ext = waRecordedBlob.type.includes('ogg') ? 'ogg'
+        : waRecordedBlob.type.includes('mp4') ? 'mp4'
+        : 'webm';
+      formData.append('audio', waRecordedBlob, `audio.${ext}`);
+
+      const res = await api.post('/api/whatsapp/send-audio', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      // URL independiente para el player del mensaje (resetWaRecordedAudio revoca la de preview)
+      const messageAudioUrl = URL.createObjectURL(waRecordedBlob);
+      resetWaRecordedAudio();
+      setWaMessages(prev => [...prev, { ...res.data, audio_url: messageAudioUrl }]);
+      fetchWaConversations();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast({ title: 'Error al enviar audio', description: error.response?.data?.message, variant: 'destructive' });
     } finally {
       setWaSending(false);
     }
@@ -1415,16 +1500,15 @@ export function ChatBubble() {
                           </div>
                         )}
                         {waMessages.map((msg, i) => (
-                          <div key={msg.wa_message_id ?? i} className={cn('flex', msg.direction === 'out' ? 'justify-end' : 'justify-start')}>
-                            <div className={cn(
-                              'max-w-[75%] rounded-lg px-3 py-1.5 text-xs',
-                              msg.direction === 'out'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-foreground'
-                            )}>
-                              {msg.body}
-                            </div>
-                          </div>
+                          <WaMessageBubble
+                            key={msg.wa_message_id ?? i}
+                            msg={msg}
+                            onAudioLoaded={(waId, url) =>
+                              setWaMessages(prev => prev.map(m =>
+                                m.wa_message_id === waId ? { ...m, audio_url: url } : m
+                              ))
+                            }
+                          />
                         ))}
                       </>
                     )}
@@ -1482,9 +1566,12 @@ export function ChatBubble() {
                           type="button"
                           size="icon"
                           className="h-7 w-7 shrink-0"
-                          onClick={() => toast({ title: 'Siguiente paso pendiente', description: 'El envío real del audio a Evolution se conectará en el próximo paso.' })}
+                          onClick={handleWaSendAudio}
+                          disabled={waSending}
                         >
-                          <Send className="h-3.5 w-3.5" />
+                          {waSending
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Send className="h-3.5 w-3.5" />}
                         </Button>
                       </div>
                     ) : (

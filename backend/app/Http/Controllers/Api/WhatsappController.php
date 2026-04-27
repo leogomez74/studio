@@ -128,16 +128,41 @@ class WhatsappController extends Controller
             $total   = $raw['messages']['total']   ?? $raw['total']   ?? count($records);
 
             $messages = collect($records)->map(function ($msg) use ($phone, $instance) {
-                $body      = $msg['message']['conversation']
-                    ?? $msg['message']['extendedTextMessage']['text']
-                    ?? '[media]';
-                $direction = ($msg['key']['fromMe'] ?? false) ? 'out' : 'in';
-                $waId      = $msg['key']['id'] ?? null;
-                $rawPush   = $msg['pushName'] ?? '';
-                $pushName  = ($rawPush && !$this->isSelfName($rawPush)) ? $rawPush : '';
-                $ts        = isset($msg['messageTimestamp'])
+                $msgContent  = $msg['message'] ?? [];
+                $direction   = ($msg['key']['fromMe'] ?? false) ? 'out' : 'in';
+                $waId        = $msg['key']['id'] ?? null;
+                $rawPush     = $msg['pushName'] ?? '';
+                $pushName    = ($rawPush && !$this->isSelfName($rawPush)) ? $rawPush : '';
+                $ts          = isset($msg['messageTimestamp'])
                     ? \Carbon\Carbon::createFromTimestamp($msg['messageTimestamp'])
                     : now();
+
+                // Detectar tipo de mensaje
+                $messageType = 'text';
+                $body        = $msgContent['conversation']
+                    ?? $msgContent['extendedTextMessage']['text']
+                    ?? null;
+
+                if (!$body) {
+                    if (isset($msgContent['audioMessage']) || isset($msgContent['ptvMessage'])) {
+                        $messageType = 'audio';
+                        $body        = '🎤 Audio';
+                    } elseif (isset($msgContent['imageMessage'])) {
+                        $messageType = 'image';
+                        $body        = '🖼 Imagen';
+                    } elseif (isset($msgContent['videoMessage'])) {
+                        $messageType = 'video';
+                        $body        = '🎥 Video';
+                    } elseif (isset($msgContent['documentMessage'])) {
+                        $messageType = 'document';
+                        $body        = '📄 ' . ($msgContent['documentMessage']['fileName'] ?? 'Documento');
+                    } elseif (isset($msgContent['stickerMessage'])) {
+                        $messageType = 'sticker';
+                        $body        = '🎨 Sticker';
+                    } else {
+                        $body = '[media]';
+                    }
+                }
 
                 // Upsert silencioso en BD local (respaldo)
                 if ($waId) {
@@ -146,10 +171,10 @@ class WhatsappController extends Controller
                         'user_id'               => $direction === 'out' ? auth()->id() : null,
                         'phone_number'          => $phone,
                         'body'                  => $body,
+                        'message_type'          => $messageType,
                         'direction'             => $direction,
                         'wa_timestamp'          => $ts,
                     ];
-                    // Guardar nombre solo si Evolution lo provee
                     if ($pushName) {
                         $upsertData['contact_name'] = $pushName;
                     }
@@ -159,6 +184,7 @@ class WhatsappController extends Controller
                 return [
                     'wa_message_id' => $waId,
                     'body'          => $body,
+                    'message_type'  => $messageType,
                     'direction'     => $direction,
                     'wa_timestamp'  => $ts,
                 ];
@@ -322,6 +348,154 @@ class WhatsappController extends Controller
         return response()->json([
             'wa_message_id' => $message->wa_message_id,
             'body'          => $message->body,
+            'direction'     => 'out',
+            'wa_timestamp'  => $message->wa_timestamp,
+        ], 201);
+    }
+
+    /**
+     * GET /api/whatsapp/media/{waMessageId}
+     * Obtiene el binario de un mensaje multimedia desde Evolution API.
+     * Usado para reproducir audios históricos en el player de HTML5.
+     */
+    public function getMedia(Request $request, string $waMessageId): \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
+    {
+        $instance = $this->getInstance($request);
+        if (!$instance) {
+            return response()->json(['message' => 'Sin instancia asignada'], 403);
+        }
+
+        // Buscar el registro en BD para obtener el teléfono
+        $record = WhatsappMessage::where('wa_message_id', $waMessageId)
+            ->where('evolution_instance_id', $instance->id)
+            ->first();
+
+        if (!$record) {
+            return response()->json(['message' => 'Mensaje no encontrado'], 404);
+        }
+
+        $baseUrl = $this->getBaseUrl();
+        $jid     = $record->phone_number . '@s.whatsapp.net';
+
+        try {
+            // 1. Obtener el objeto completo del mensaje desde Evolution
+            $findResp = Http::withHeaders(['apikey' => $instance->api_key])
+                ->timeout(15)
+                ->post("{$baseUrl}/chat/findMessages/{$instance->instance_name}", [
+                    'where' => ['key' => ['remoteJid' => $jid, 'id' => $waMessageId]],
+                    'limit' => 1,
+                ]);
+
+            if (!$findResp->successful()) {
+                return response()->json(['message' => 'Error al buscar mensaje en Evolution'], 422);
+            }
+
+            $records = $findResp->json()['messages']['records'] ?? $findResp->json()['records'] ?? [];
+            $evMsg   = $records[0] ?? null;
+
+            if (!$evMsg) {
+                return response()->json(['message' => 'Mensaje no encontrado en Evolution'], 404);
+            }
+
+            // 2. Obtener el base64 del media
+            $b64Resp = Http::withHeaders(['apikey' => $instance->api_key])
+                ->timeout(30)
+                ->post("{$baseUrl}/chat/getBase64FromMediaMessage/{$instance->instance_name}", [
+                    'message'           => $evMsg,
+                    'convertToMp4'      => false,
+                ]);
+
+            if (!$b64Resp->successful()) {
+                return response()->json(['message' => 'No se pudo obtener el media de Evolution'], 422);
+            }
+
+            $b64Data  = $b64Resp->json();
+            $base64   = $b64Data['base64'] ?? null;
+            $mimeType = $b64Data['mimetype'] ?? $record->mime_type ?? 'audio/ogg; codecs=opus';
+
+            if (!$base64) {
+                return response()->json(['message' => 'Media no disponible'], 404);
+            }
+
+            $binary = base64_decode($base64);
+
+            return response($binary, 200, [
+                'Content-Type'        => $mimeType,
+                'Content-Length'      => strlen($binary),
+                'Cache-Control'       => 'private, max-age=3600',
+                'Content-Disposition' => 'inline',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * POST /api/whatsapp/send-audio
+     * Recibe un archivo de audio grabado desde el navegador y lo envía
+     * como nota de voz (PTT) via Evolution API sendWhatsAppAudio.
+     */
+    public function sendAudio(Request $request): JsonResponse
+    {
+        $instance = $this->getInstance($request);
+        if (!$instance) {
+            return response()->json(['message' => 'No tienes una instancia de WhatsApp asignada.'], 403);
+        }
+
+        $request->validate([
+            'phone' => 'required|string|max:20',
+            'audio' => 'required|file|mimes:webm,ogg,mp4,mp3,mpeg,wav,x-m4a|max:16384',
+        ]);
+
+        $serverConfig = EvolutionServerConfig::instance();
+        if (empty($serverConfig->base_url)) {
+            return response()->json(['message' => 'URL del servidor Evolution no configurada.'], 422);
+        }
+
+        $phone = preg_replace('/\D/', '', $request->input('phone'));
+        $file  = $request->file('audio');
+
+        // Evolution espera el audio en base64
+        $base64 = base64_encode(file_get_contents($file->getRealPath()));
+
+        try {
+            $response = Http::withHeaders(['apikey' => $instance->api_key])
+                ->timeout(30)
+                ->post($this->getBaseUrl() . '/message/sendWhatsAppAudio/' . $instance->instance_name, [
+                    'number'   => $phone,
+                    'audio'    => $base64,
+                    'encoding' => true,
+                ]);
+
+            if (!$response->successful()) {
+                return response()->json(['message' => "Error Evolution API: HTTP {$response->status()}"], 422);
+            }
+
+            $waData = $response->json();
+            $waId   = $waData['key']['id'] ?? null;
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'No se pudo conectar con Evolution API: ' . $e->getMessage()], 422);
+        }
+
+        $message = WhatsappMessage::create([
+            'evolution_instance_id' => $instance->id,
+            'user_id'               => $request->user()->id,
+            'phone_number'          => $phone,
+            'contact_name'          => '',
+            'body'                  => '🎤 Audio',
+            'message_type'          => 'audio',
+            'mime_type'             => $file->getMimeType(),
+            'direction'             => 'out',
+            'wa_message_id'         => $waId,
+            'wa_timestamp'          => now(),
+        ]);
+
+        return response()->json([
+            'wa_message_id' => $message->wa_message_id,
+            'body'          => $message->body,
+            'message_type'  => 'audio',
             'direction'     => 'out',
             'wa_timestamp'  => $message->wa_timestamp,
         ], 201);

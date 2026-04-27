@@ -914,6 +914,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/conversations',      [\App\Http\Controllers\Api\WhatsappController::class, 'conversations']);
         Route::get('/messages',           [\App\Http\Controllers\Api\WhatsappController::class, 'messages']);
         Route::post('/send',              [\App\Http\Controllers\Api\WhatsappController::class, 'send']);
+        Route::post('/send-audio',        [\App\Http\Controllers\Api\WhatsappController::class, 'sendAudio']);
+        Route::get('/media/{waMessageId}', [\App\Http\Controllers\Api\WhatsappController::class, 'getMedia']);
         Route::post('/sync-chats',        [\App\Http\Controllers\Api\WhatsappController::class, 'syncChats']);
         Route::post('/contacts',          [\App\Http\Controllers\Api\WhatsappController::class, 'upsertAlias']);
         Route::delete('/contacts/{phone}',[\App\Http\Controllers\Api\WhatsappController::class, 'deleteAlias']);
