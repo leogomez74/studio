@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Plus, Trash2, Upload } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -152,6 +152,8 @@ export default function AnalisisDetailPage() {
   // Estados para archivos del filesystem
   const [heredados, setHeredados] = useState<AnalisisFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   // Verificación manual de documentos (key: requirement name, value: boolean)
   const [manualVerifications, setManualVerifications] = useState<Record<string, boolean>>({});
@@ -343,6 +345,24 @@ export default function AnalisisDetailPage() {
       setLoadingFiles(false);
     }
   }, [analisisId]);
+
+  const handleUploadFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      setUploading(true);
+      await api.post(`/api/analisis/${analisisId}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast({ title: 'Archivo subido correctamente' });
+      fetchAnalisisFiles();
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo subir el archivo.', variant: 'destructive' });
+    } finally {
+      setUploading(false);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
+    }
+  };
 
   // Lightbox helper functions - DEBEN estar ANTES de los returns condicionales
   const getViewableFiles = useCallback(() => {
@@ -1748,11 +1768,38 @@ export default function AnalisisDetailPage() {
         {/* Fila 3: Documentos con Miniaturas */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderInput className="h-4 w-4 text-blue-500" />
-              Documentos
-              <Badge variant="secondary" className="ml-2">{heredados.length}</Badge>
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FolderInput className="h-4 w-4 text-blue-500" />
+                Documentos
+                <Badge variant="secondary" className="ml-2">{heredados.length}</Badge>
+              </CardTitle>
+              <div>
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadFile(file);
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={uploading}
+                  onClick={() => uploadInputRef.current?.click()}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  {uploading ? 'Subiendo...' : 'Subir archivo'}
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingFiles ? (

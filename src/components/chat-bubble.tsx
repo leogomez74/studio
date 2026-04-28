@@ -9,6 +9,8 @@ import {
   Loader2,
   ExternalLink,
   Send,
+  Mic,
+  Square,
   Hash,
   AtSign,
   CornerDownLeft,
@@ -86,6 +88,8 @@ interface WaMessage {
   body: string;
   direction: 'out' | 'in';
   wa_timestamp: string;
+  message_type?: string;
+  audio_url?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,6 +139,13 @@ function relativeTime(dateStr: string) {
   if (day === 1) return 'ayer';
   return `${day}d`;
 }
+
+function formatDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 function getEntityInfo(type: string) {
   // Direct match first
   if (ENTITY_TYPE_MAP[type]) return ENTITY_TYPE_MAP[type];
@@ -510,6 +521,61 @@ function Compose({ placeholder, disabled, onSend, userList, autoFocus, onCancel 
 }
 
 // ---------------------------------------------------------------------------
+// Audio message bubble — carga el audio desde el backend la primera vez
+// ---------------------------------------------------------------------------
+
+// Caché a nivel de módulo: persiste mientras el componente padre se recarga
+// pero NO entre navegaciones de página. Evita refetch y corte de reproducción.
+const waAudioCache = new Map<string, string>();
+
+function WaMessageBubble({
+  msg,
+  onAudioLoaded,
+}: {
+  msg: WaMessage;
+  onAudioLoaded: (waId: string, url: string) => void;
+}) {
+  const isAudio = msg.message_type === 'audio' || msg.body === '🎤 Audio';
+
+  // Resolver URL: prioridad msg.audio_url → caché → null (pendiente de fetch)
+  const audioSrc = msg.audio_url
+    ?? (msg.wa_message_id ? waAudioCache.get(msg.wa_message_id) : undefined)
+    ?? null;
+
+  useEffect(() => {
+    if (!isAudio || audioSrc || !msg.wa_message_id) return;
+    let cancelled = false;
+    api.get(`/api/whatsapp/media/${msg.wa_message_id}`, { responseType: 'blob' })
+      .then(res => {
+        if (cancelled) return;
+        const url = URL.createObjectURL(res.data as Blob);
+        waAudioCache.set(msg.wa_message_id!, url);
+        onAudioLoaded(msg.wa_message_id!, url);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [msg.wa_message_id, audioSrc, isAudio, onAudioLoaded]);
+
+  return (
+    <div className={cn('flex', msg.direction === 'out' ? 'justify-end' : 'justify-start')}>
+      <div className={cn(
+        'max-w-[75%] rounded-lg text-xs',
+        msg.direction === 'out' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
+        isAudio ? 'px-2 py-1.5' : 'px-3 py-1.5',
+      )}>
+        {isAudio ? (
+          audioSrc
+            ? <audio controls src={audioSrc} className="h-8 w-52 max-w-full" />
+            : <div className="flex items-center gap-1.5 w-52"><Loader2 className="h-3 w-3 animate-spin shrink-0" /><span className="text-xs opacity-70">Cargando audio...</span></div>
+        ) : (
+          msg.body
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -550,10 +616,21 @@ export function ChatBubble() {
   const [waEditingAlias, setWaEditingAlias]   = useState(false);
   const [waAliasInput, setWaAliasInput]       = useState('');
   const [waSavingAlias, setWaSavingAlias]     = useState(false);
+  const [waShowEmoji, setWaShowEmoji]         = useState(false);
+  const [waRecording, setWaRecording]         = useState(false);
+  const [waRecordedBlob, setWaRecordedBlob]   = useState<Blob | null>(null);
+  const [waRecordedUrl, setWaRecordedUrl]     = useState<string | null>(null);
+  const [waRecordingSeconds, setWaRecordingSeconds] = useState(0);
   // Edición de alias desde la lista (sin abrir el chat)
   const [waListEditPhone, setWaListEditPhone] = useState<string | null>(null);
   const [waListEditInput, setWaListEditInput] = useState('');
   const lastWaOpenedAtRef                     = useRef<number>(Date.now());
+  const waInputRef                            = useRef<HTMLInputElement>(null);
+  const waEmojiRef                            = useRef<HTMLDivElement>(null);
+  const waMediaRecorderRef                    = useRef<MediaRecorder | null>(null);
+  const waMediaStreamRef                      = useRef<MediaStream | null>(null);
+  const waRecordingTimerRef                   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const waAudioChunksRef                      = useRef<Blob[]>([]);
   const WA_LIMIT = 20;
 
   // Entity selector state
@@ -634,6 +711,160 @@ export function ChatBubble() {
       toast({ title: 'Error al enviar', description: error.response?.data?.message, variant: 'destructive' });
     } finally {
       setWaSending(false);
+    }
+  };
+
+  const handleWaSendAudio = async () => {
+    if (!waRecordedBlob || !waPhone) return;
+    try {
+      setWaSending(true);
+      const formData = new FormData();
+      formData.append('phone', waPhone);
+      // Usar extensión acorde al mimeType grabado por el navegador
+      const ext = waRecordedBlob.type.includes('ogg') ? 'ogg'
+        : waRecordedBlob.type.includes('mp4') ? 'mp4'
+        : 'webm';
+      formData.append('audio', waRecordedBlob, `audio.${ext}`);
+
+      const res = await api.post('/api/whatsapp/send-audio', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      // URL independiente para el player del mensaje (resetWaRecordedAudio revoca la de preview)
+      const messageAudioUrl = URL.createObjectURL(waRecordedBlob);
+      resetWaRecordedAudio();
+      setWaMessages(prev => [...prev, { ...res.data, audio_url: messageAudioUrl }]);
+      fetchWaConversations();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast({ title: 'Error al enviar audio', description: error.response?.data?.message, variant: 'destructive' });
+    } finally {
+      setWaSending(false);
+    }
+  };
+
+  const handleWaEmojiSelect = (emoji: any) => {
+    const native = emoji?.native;
+    if (!native) return;
+
+    const input = waInputRef.current;
+    const start = input?.selectionStart ?? waInput.length;
+    const end = input?.selectionEnd ?? waInput.length;
+    const nextValue = waInput.slice(0, start) + native + waInput.slice(end);
+
+    setWaInput(nextValue);
+    setWaShowEmoji(false);
+
+    requestAnimationFrame(() => {
+      const newPos = start + native.length;
+      waInputRef.current?.focus();
+      waInputRef.current?.setSelectionRange(newPos, newPos);
+    });
+  };
+
+  const clearWaRecordingTimer = useCallback(() => {
+    if (waRecordingTimerRef.current) {
+      clearInterval(waRecordingTimerRef.current);
+      waRecordingTimerRef.current = null;
+    }
+  }, []);
+
+  const stopWaMediaStream = useCallback(() => {
+    waMediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    waMediaStreamRef.current = null;
+  }, []);
+
+  const resetWaRecordedAudio = useCallback(() => {
+    if (waRecordedUrl) {
+      URL.revokeObjectURL(waRecordedUrl);
+    }
+
+    setWaRecordedBlob(null);
+    setWaRecordedUrl(null);
+    setWaRecordingSeconds(0);
+  }, [waRecordedUrl]);
+
+  const cancelWaRecording = useCallback(() => {
+    clearWaRecordingTimer();
+
+    if (waMediaRecorderRef.current && waMediaRecorderRef.current.state !== 'inactive') {
+      waMediaRecorderRef.current.onstop = null;
+      waMediaRecorderRef.current.stop();
+    }
+
+    waMediaRecorderRef.current = null;
+    waAudioChunksRef.current = [];
+    stopWaMediaStream();
+    setWaRecording(false);
+    resetWaRecordedAudio();
+    requestAnimationFrame(() => waInputRef.current?.focus());
+  }, [clearWaRecordingTimer, resetWaRecordedAudio, stopWaMediaStream]);
+
+  const stopWaRecording = useCallback(() => {
+    clearWaRecordingTimer();
+
+    if (!waMediaRecorderRef.current || waMediaRecorderRef.current.state === 'inactive') {
+      setWaRecording(false);
+      stopWaMediaStream();
+      return;
+    }
+
+    waMediaRecorderRef.current.stop();
+  }, [clearWaRecordingTimer, stopWaMediaStream]);
+
+  const startWaRecording = async () => {
+    if (waSending || waRecording || waRecordedBlob) return;
+
+    try {
+      setWaShowEmoji(false);
+      resetWaRecordedAudio();
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+
+      waMediaStreamRef.current = stream;
+      waMediaRecorderRef.current = recorder;
+      waAudioChunksRef.current = [];
+      setWaRecording(true);
+      setWaRecordingSeconds(0);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          waAudioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const chunks = waAudioChunksRef.current;
+        waAudioChunksRef.current = [];
+        waMediaRecorderRef.current = null;
+        stopWaMediaStream();
+        setWaRecording(false);
+
+        if (chunks.length === 0) {
+          return;
+        }
+
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        setWaRecordedBlob(blob);
+        setWaRecordedUrl(url);
+      };
+
+      recorder.start();
+
+      waRecordingTimerRef.current = setInterval(() => {
+        setWaRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch {
+      stopWaMediaStream();
+      setWaRecording(false);
+      resetWaRecordedAudio();
+      toast({
+        title: 'Micrófono no disponible',
+        description: 'No se pudo iniciar la grabación de audio en este navegador.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -876,6 +1107,27 @@ export function ChatBubble() {
   useEffect(() => {
     if (directMode && directUserId) fetchDirectThread(directUserId);
   }, [directMode, directUserId, fetchDirectThread]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (waEmojiRef.current && !waEmojiRef.current.contains(e.target as Node)) {
+        setWaShowEmoji(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearWaRecordingTimer();
+      stopWaMediaStream();
+      if (waRecordedUrl) {
+        URL.revokeObjectURL(waRecordedUrl);
+      }
+    };
+  }, [clearWaRecordingTimer, stopWaMediaStream, waRecordedUrl]);
 
   // ---- Send direct message ----
   const handleSendDirect = async (body: string, mentions: Mention[]) => {
@@ -1248,33 +1500,101 @@ export function ChatBubble() {
                           </div>
                         )}
                         {waMessages.map((msg, i) => (
-                          <div key={msg.wa_message_id ?? i} className={cn('flex', msg.direction === 'out' ? 'justify-end' : 'justify-start')}>
-                            <div className={cn(
-                              'max-w-[75%] rounded-lg px-3 py-1.5 text-xs',
-                              msg.direction === 'out'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-foreground'
-                            )}>
-                              {msg.body}
-                            </div>
-                          </div>
+                          <WaMessageBubble
+                            key={msg.wa_message_id ?? i}
+                            msg={msg}
+                            onAudioLoaded={(waId, url) =>
+                              setWaMessages(prev => prev.map(m =>
+                                m.wa_message_id === waId ? { ...m, audio_url: url } : m
+                              ))
+                            }
+                          />
                         ))}
                       </>
                     )}
                   </div>
                   {/* Input de envío */}
                   <div className="flex items-center gap-2 p-2 border-t shrink-0">
-                    <input
-                      className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      placeholder="Escribe un mensaje..."
-                      value={waInput}
-                      onChange={e => setWaInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleWaSend()}
-                      disabled={waSending}
-                    />
-                    <Button size="icon" className="h-8 w-8 shrink-0" onClick={handleWaSend} disabled={waSending || !waInput.trim()}>
-                      {waSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    </Button>
+                    <div ref={waEmojiRef} className="relative shrink-0">
+                      {waShowEmoji && (
+                        <div className="absolute bottom-full left-0 mb-2 z-50">
+                          <Picker
+                            data={emojiData}
+                            onEmojiSelect={handleWaEmojiSelect}
+                            theme="light"
+                            locale="es"
+                            previewPosition="none"
+                            skinTonePosition="none"
+                            maxFrequentRows={2}
+                          />
+                        </div>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn('h-8 w-8 shrink-0', waShowEmoji && 'bg-accent text-accent-foreground')}
+                        onClick={() => setWaShowEmoji((prev) => !prev)}
+                        disabled={waSending || waRecording || !!waRecordedBlob}
+                      >
+                        <Smile className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {waRecording ? (
+                      <div className="flex-1 flex items-center justify-between gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-1.5 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-destructive animate-pulse shrink-0" />
+                          <span className="font-medium text-destructive">Grabando audio...</span>
+                          <span className="text-muted-foreground tabular-nums">{formatDuration(waRecordingSeconds)}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={cancelWaRecording}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button type="button" size="icon" className="h-7 w-7" onClick={stopWaRecording}>
+                            <Square className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : waRecordedBlob && waRecordedUrl ? (
+                      <div className="flex-1 flex items-center gap-2 rounded-md border border-input bg-muted/30 px-2 py-1">
+                        <audio className="flex-1 h-8" controls src={waRecordedUrl} />
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={cancelWaRecording}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={handleWaSendAudio}
+                          disabled={waSending}
+                        >
+                          {waSending
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Send className="h-3.5 w-3.5" />}
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          ref={waInputRef}
+                          className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          placeholder="Escribe un mensaje..."
+                          value={waInput}
+                          onChange={e => setWaInput(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleWaSend()}
+                          disabled={waSending}
+                        />
+                        <Button
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={waInput.trim() ? handleWaSend : startWaRecording}
+                          disabled={waSending}
+                        >
+                          {waSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : waInput.trim() ? <Send className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </>
               ) : (

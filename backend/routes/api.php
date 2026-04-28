@@ -206,6 +206,13 @@ Route::post('/jira/register-webhook', fn() => response()->json((new \App\Service
 Route::post('/webhooks/chatwoot', [\App\Http\Controllers\Api\ChatwootWebhookController::class, 'handle']);
 
 // =============================================================================
+// WEBHOOK EVOLUTION — Público (Evolution llama sin auth)
+// Recibe eventos MESSAGES_UPSERT cuando llega un mensaje a cualquier instancia.
+// Permite notificación push en lugar de polling desde el frontend.
+// =============================================================================
+Route::post('/webhooks/evolution', [\App\Http\Controllers\Api\EvolutionWebhookController::class, 'handle']);
+
+// =============================================================================
 // RUTAS PROTEGIDAS — Requieren autenticación Sanctum
 // =============================================================================
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -914,6 +921,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/conversations',      [\App\Http\Controllers\Api\WhatsappController::class, 'conversations']);
         Route::get('/messages',           [\App\Http\Controllers\Api\WhatsappController::class, 'messages']);
         Route::post('/send',              [\App\Http\Controllers\Api\WhatsappController::class, 'send']);
+        Route::post('/send-audio',        [\App\Http\Controllers\Api\WhatsappController::class, 'sendAudio']);
+        Route::get('/media/{waMessageId}', [\App\Http\Controllers\Api\WhatsappController::class, 'getMedia']);
         Route::post('/sync-chats',        [\App\Http\Controllers\Api\WhatsappController::class, 'syncChats']);
         Route::post('/contacts',          [\App\Http\Controllers\Api\WhatsappController::class, 'upsertAlias']);
         Route::delete('/contacts/{phone}',[\App\Http\Controllers\Api\WhatsappController::class, 'deleteAlias']);
