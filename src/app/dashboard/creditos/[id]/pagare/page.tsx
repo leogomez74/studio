@@ -30,6 +30,9 @@ interface CreditData {
     cedula?: string;
     estado_civil?: string;
     ocupacion?: string;
+    province?: string;
+    canton?: string;
+    distrito?: string;
     direccion1?: string;
     direccion2?: string;
     deductora_id?: number;
@@ -40,6 +43,9 @@ interface CreditData {
     cedula?: string;
     estado_civil?: string;
     ocupacion?: string;
+    province?: string;
+    canton?: string;
+    distrito?: string;
     direccion1?: string;
     direccion2?: string;
     deductora_id?: number;
@@ -146,6 +152,9 @@ export default function PagarePage() {
   const estadoCivil = (debtor?.estado_civil || '').toUpperCase();
   const profesion = ((debtor as any)?.profesion || debtor?.ocupacion || '').toUpperCase();
   const direccion = [
+    debtor?.province,
+    debtor?.canton,
+    debtor?.distrito,
     debtor?.direccion1,
     debtor?.direccion2,
   ].filter(Boolean).join(', ').toUpperCase();
