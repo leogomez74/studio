@@ -118,15 +118,17 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
       <CardContent className="pt-0">
         {/* Filtros */}
         <div className="flex flex-wrap gap-3 mb-4">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar cédula, nombre, crédito..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-8 h-9 text-sm"
-            />
-          </div>
+          {!compact && (
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar cédula, nombre, crédito..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 h-9 text-sm"
+              />
+            </div>
+          )}
           <div className="w-40">
             <Select value={filterTipo} onValueChange={setFilterTipo}>
               <SelectTrigger className="h-9 text-sm">
@@ -177,8 +179,8 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <th className="text-left py-2 px-3 font-medium text-xs text-muted-foreground">Cliente</th>
-                  <th className="text-left py-2 px-3 font-medium text-xs text-muted-foreground">Crédito</th>
+                  {!compact && <th className="text-left py-2 px-3 font-medium text-xs text-muted-foreground">Cliente</th>}
+                  {!compact && <th className="text-left py-2 px-3 font-medium text-xs text-muted-foreground">Crédito</th>}
                   <th className="text-right py-2 px-3 font-medium text-xs text-muted-foreground">Monto Sobrante</th>
                   <th className="text-left py-2 px-3 font-medium text-xs text-muted-foreground">Deductora</th>
                   <th className="text-center py-2 px-3 font-medium text-xs text-muted-foreground">Planilla</th>
@@ -193,15 +195,19 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
               <tbody>
                 {data.map(s => (
                   <tr key={s.id} className="border-b hover:bg-muted/20">
-                    <td className="py-2 px-3">
-                      <p className="font-medium text-sm">{s.lead_name}</p>
-                      <p className="text-xs text-muted-foreground">{s.cedula}</p>
-                    </td>
-                    <td className="py-2 px-3">
-                      <Link href={`/dashboard/creditos/${s.credit_id}`} className="text-primary hover:underline text-xs font-mono">
-                        {s.credit_reference}
-                      </Link>
-                    </td>
+                    {!compact && (
+                      <td className="py-2 px-3">
+                        <p className="font-medium text-sm">{s.lead_name}</p>
+                        <p className="text-xs text-muted-foreground">{s.cedula}</p>
+                      </td>
+                    )}
+                    {!compact && (
+                      <td className="py-2 px-3">
+                        <Link href={`/dashboard/creditos/${s.credit_id}`} className="text-primary hover:underline text-xs font-mono">
+                          {s.credit_reference}
+                        </Link>
+                      </td>
+                    )}
                     <td className="py-2 px-3 text-right font-mono text-sm font-semibold text-orange-600">
                       ₡{fmt(s.monto)}
                     </td>
