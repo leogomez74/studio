@@ -99,12 +99,7 @@ const calculateDaysInArrears = (credit: Credit): number => {
 
   let maxDias = 0;
   for (const c of cuotasMora) {
-    // Prioridad 1: dias_mora guardado directamente en la cuota
-    if (c.dias_mora && c.dias_mora > 0) {
-      maxDias = Math.max(maxDias, c.dias_mora);
-      continue;
-    }
-    // Prioridad 2: calcular desde fecha_corte (solo si es pasada)
+    // Siempre calcular dinámicamente desde fecha_corte hasta hoy (preciso al día)
     if (c.fecha_corte) {
       const fc = new Date(c.fecha_corte);
       if (!isNaN(fc.getTime()) && fc < today) {
@@ -536,21 +531,30 @@ function CreditDetailPanel({ credit, tab, onTabChange, onClose, expanded, onTogg
           {tab === 'credito' && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { icon: Banknote, label: 'Saldo', value: fmtMoney(credit.saldo) },
-                  { icon: CreditCard, label: 'Monto', value: fmtMoney(credit.monto_credito) },
-                  { icon: Wallet, label: 'Cuota', value: fmtMoney(credit.cuota) },
-                  { icon: Percent, label: 'Tasa Anual', value: `${credit.tasa_anual || 0}%` },
-                  { icon: Clock, label: 'Plazo', value: `${credit.plazo || 0} meses` },
-                  { icon: Calculator, label: 'Divisa', value: credit.divisa || 'CRC' },
-                ].map(({ icon: Icon, label, value }) => (
-                  <div key={label} className="rounded-lg border p-2.5 bg-background">
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-0.5">
-                      <Icon className="h-3 w-3" /> {label}
+                {(() => {
+                  const moraInt = ((credit as any).plan_de_pagos || [])
+                    .filter((p: any) => p.estado === 'Mora' && p.numero_cuota > 0)
+                    .reduce((s: number, p: any) => s + Number(p.interes_corriente||0) + Number(p.int_corriente_vencido||0) + Number(p.interes_moratorio||0), 0);
+                  const saldoTotal = Number(credit.saldo||0) + moraInt;
+                  const cards = [
+                    { icon: Banknote, label: 'Saldo', value: fmtMoney(credit.saldo), className: '' },
+                    { icon: CreditCard, label: 'Monto', value: fmtMoney(credit.monto_credito), className: '' },
+                    { icon: Wallet, label: 'Cuota', value: fmtMoney(credit.cuota), className: '' },
+                    { icon: Percent, label: 'Tasa Anual', value: `${credit.tasa_anual || 0}%`, className: '' },
+                    { icon: Clock, label: 'Plazo', value: `${credit.plazo || 0} meses`, className: '' },
+                    { icon: Calculator, label: 'Divisa', value: credit.divisa || 'CRC', className: '' },
+                    ...(moraInt > 0 ? [{ icon: AlertTriangle, label: 'Mora', value: fmtMoney(moraInt), className: 'border-destructive/50 bg-red-50' }] : []),
+                    ...(moraInt > 0 ? [{ icon: Banknote, label: 'Saldo Total', value: fmtMoney(saldoTotal), className: 'border-destructive/50 bg-red-50' }] : []),
+                  ];
+                  return cards.map(({ icon: Icon, label, value, className }) => (
+                    <div key={label} className={`rounded-lg border p-2.5 bg-background ${className}`}>
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-0.5">
+                        <Icon className="h-3 w-3" /> {label}
+                      </div>
+                      <p className={`text-sm font-semibold truncate ${label === 'Mora' || label === 'Saldo Total' ? 'text-destructive' : ''}`}>{value}</p>
                     </div>
-                    <p className="text-sm font-semibold truncate">{value}</p>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
 
               <Separator />
@@ -1126,11 +1130,11 @@ export default function CobrosPage() {
     cobrosFiltered.filter(c => c.status === 'Al día' || c.status === 'Formalizado'),
     [cobrosFiltered]
   );
-  const mora30 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 1, 30), [cobrosFiltered, filterCreditsByArrearsRange]);
-  const mora60 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 31, 60), [cobrosFiltered, filterCreditsByArrearsRange]);
-  const mora90 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 61, 90), [cobrosFiltered, filterCreditsByArrearsRange]);
-  const mora180 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 91, 180), [cobrosFiltered, filterCreditsByArrearsRange]);
-  const mas180 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 181, null), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mora30 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 30, 59), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mora60 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 60, 89), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mora90 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 90, 179), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mora180 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 180, 359), [cobrosFiltered, filterCreditsByArrearsRange]);
+  const mas180 = useMemo(() => filterCreditsByArrearsRange(cobrosFiltered, 360, null), [cobrosFiltered, filterCreditsByArrearsRange]);
 
   const uniqueLeads = useMemo(() => {
     const leadsMap = new Map();
