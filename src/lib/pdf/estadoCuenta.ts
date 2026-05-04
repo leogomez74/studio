@@ -167,13 +167,13 @@ export const generateEstadoCuenta = async (creditId: number) => {
     ]],
     theme: 'plain',
     styles: { fontSize: 7.5, cellPadding: 1.5 },
-    headStyles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: GREEN },
+    headStyles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: GREEN, fontSize: 6.5, cellPadding: 1.2 },
     alternateRowStyles: { fillColor: [240, 247, 220] },
     columnStyles: {
-      0: { cellWidth: 28 }, 1: { cellWidth: 24 }, 2: { cellWidth: 22 }, 3: { cellWidth: 12 },
-      4: { cellWidth: 20 }, 5: { cellWidth: 22 }, 6: { cellWidth: 14 }, 7: { cellWidth: 19 },
-      8: { cellWidth: 18 }, 9: { cellWidth: 20 }, 10: { cellWidth: 20 }, 11: { cellWidth: 20 },
-      12: { cellWidth: 12 },
+      0: { cellWidth: 27 }, 1: { cellWidth: 22 }, 2: { cellWidth: 21 }, 3: { cellWidth: 11 },
+      4: { cellWidth: 19 }, 5: { cellWidth: 21 }, 6: { cellWidth: 13 }, 7: { cellWidth: 21 },
+      8: { cellWidth: 17 }, 9: { cellWidth: 19 }, 10: { cellWidth: 19 }, 11: { cellWidth: 18 },
+      12: { cellWidth: 19 },
     },
   });
 
