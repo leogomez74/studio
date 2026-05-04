@@ -116,6 +116,7 @@ import { DocumentManager } from '@/components/document-manager';
 import { CreditDocumentManager } from '@/components/credit-document-manager';
 import { RefundicionModal } from '@/components/RefundicionModal';
 import { SaldosPorAsignar } from '@/components/saldos-por-asignar';
+import { HistorialPagosAsignados } from '@/components/historial-pagos-asignados';
 import { TareasTab } from '@/components/TareasTab';
 import { getAuthUser } from '@/lib/auth';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -1614,7 +1615,7 @@ function CreditDetailClient({ id }: { id: string }) {
       <div className="space-y-6">
         <div className="space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="credito">Crédito</TabsTrigger>
               <TabsTrigger value="plan-pagos">Plan de Pagos</TabsTrigger>
               <TabsTrigger value="saldos" className="gap-1.5 relative">
@@ -1625,6 +1626,9 @@ function CreditDetailClient({ id }: { id: string }) {
                     {saldosCount}
                   </span>
                 )}
+              </TabsTrigger>
+              <TabsTrigger value="historial-saldos" className="gap-1.5">
+                Historial Asignados
               </TabsTrigger>
             </TabsList>
 
@@ -2376,6 +2380,20 @@ function CreditDetailClient({ id }: { id: string }) {
                   clientName={[credit.lead?.name, credit.lead?.apellido1, credit.lead?.apellido2].filter(Boolean).join(' ')}
                   onAssigned={fetchCredit}
                   onCountChange={setSaldosCount}
+                />
+              )}
+            </TabsContent>
+
+            {/* Tab: Historial de Pagos Asignados del crédito */}
+            <TabsContent value="historial-saldos">
+              {credit?.lead?.cedula && (
+                <HistorialPagosAsignados
+                  cedula={credit.lead.cedula.toString()}
+                  compact
+                  annulledPayments={(credit as any).payments?.filter((p: any) =>
+                    (p.source?.includes('Saldo Pendiente') || p.source?.includes('Abono a Capital')) &&
+                    p.estado_reverso === 'Anulado'
+                  ) || []}
                 />
               )}
             </TabsContent>

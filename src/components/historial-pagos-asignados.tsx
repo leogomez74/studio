@@ -39,6 +39,9 @@ interface SaldoAsignado {
 interface Props {
   deductoras?: Deductora[];
   annulledPayments?: any[];
+  creditId?: number;   // filtrar por crédito específico
+  cedula?: string;     // filtrar por cédula específica
+  compact?: boolean;   // modo compacto sin filtros de deductora/fechas
 }
 
 const fmt = (v?: number | null) =>
@@ -58,7 +61,7 @@ const estadoBadge = (estado: string) => {
   }
 };
 
-export function HistorialPagosAsignados({ deductoras = [], annulledPayments = [] }: Props) {
+export function HistorialPagosAsignados({ deductoras = [], annulledPayments = [], creditId, cedula, compact = false }: Props) {
   const [data, setData] = useState<SaldoAsignado[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -87,6 +90,7 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
       if (filterDeductora !== 'all') params.deductora_id = filterDeductora;
       if (fechaDesde) params.fecha_desde = fechaDesde;
       if (fechaHasta) params.fecha_hasta = fechaHasta;
+      if (cedula) params.cedula = cedula;
 
       const res = await api.get('/api/saldos-pendientes', { params });
       setData(res.data.data || []);
@@ -182,6 +186,7 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
                   <th className="text-center py-2 px-3 font-medium text-xs text-muted-foreground">F. Aplicado</th>
                   <th className="text-center py-2 px-3 font-medium text-xs text-muted-foreground">Tipo</th>
                   <th className="text-left py-2 px-3 font-medium text-xs text-muted-foreground">Detalle</th>
+                  <th className="text-left py-2 px-3 font-medium text-xs text-muted-foreground">Aplicado por</th>
                   <th className="text-center py-2 px-3 font-medium text-xs text-muted-foreground">Estado Pago</th>
                 </tr>
               </thead>
@@ -217,6 +222,9 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
                         : s.estado === 'reintegrado'
                         ? (s.notas || 'Reintegrado')
                         : '-'}
+                    </td>
+                    <td className="py-2 px-3 text-xs text-muted-foreground">
+                      {(s as any).aplicado_por || '-'}
                     </td>
                     <td className="py-2 px-3 text-center">
                       {s.credit_payment ? (
