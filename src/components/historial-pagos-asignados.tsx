@@ -69,6 +69,8 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
   const [filterDeductora, setFilterDeductora] = useState('all');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
+  const [annulledPage, setAnnulledPage] = useState(1);
+  const annulledPerPage = 10;
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [lastPage, setLastPage] = useState(1);
@@ -259,7 +261,7 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <tbody>
-                  {annulledPayments.map((p: any) => (
+                  {annulledPayments.slice((annulledPage-1)*annulledPerPage, annulledPage*annulledPerPage).map((p: any) => (
                     <tr key={p.id} className="border-b bg-red-50/40 hover:bg-red-50/60">
                       <td className="py-2 px-3">
                         <p className="font-medium text-sm">{p.credit?.lead?.name} {p.credit?.lead?.apellido1}</p>
@@ -292,6 +294,20 @@ export function HistorialPagosAsignados({ deductoras = [], annulledPayments = []
                 </tbody>
               </table>
             </div>
+            {annulledPayments.length > annulledPerPage && (
+              <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
+                <span>{annulledPayments.length} registros</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setAnnulledPage(p => Math.max(1, p-1))} disabled={annulledPage === 1} className="p-1 rounded hover:bg-muted disabled:opacity-40">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span>{annulledPage} / {Math.ceil(annulledPayments.length/annulledPerPage)}</span>
+                  <button onClick={() => setAnnulledPage(p => Math.min(Math.ceil(annulledPayments.length/annulledPerPage), p+1))} disabled={annulledPage >= Math.ceil(annulledPayments.length/annulledPerPage)} className="p-1 rounded hover:bg-muted disabled:opacity-40">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
