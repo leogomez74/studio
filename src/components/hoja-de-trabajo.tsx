@@ -259,6 +259,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   });
   const [embargableResult, setEmbargableResult] = useState<any>(null);
   const [loadingEmbargo, setLoadingEmbargo] = useState(false);
+  const [aplicarCastigo, setAplicarCastigo] = useState(true);
 
   // Pre-llenar salario bruto con el promedio líquido cuando esté disponible
   useEffect(() => {
@@ -409,7 +410,8 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     : otroEmbargoNum > 0
       ? Math.max(0, totalEmbargo - otroEmbargoNum)
       : totalEmbargo;
-  const salarioCastigado = Math.max(0, minSalarioMeses - embargoPorNuevoCredito);
+  const embargoCastigo = aplicarCastigo ? embargoPorNuevoCredito : 0;
+  const salarioCastigado = Math.max(0, minSalarioMeses - embargoCastigo);
   const capacidadReal = Math.round(salarioCastigado * 0.25);
   const cuotaSuperaCapacidad = cuotaCalculada > 0 && minSalarioMeses > 0 && cuotaCalculada > capacidadReal;
 
@@ -1049,12 +1051,24 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                 {/* Salario Castigado + 25% Capacidad Real */}
                 {minSalarioMeses > 0 && embargableResult != null && (
                   <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 space-y-1 text-xs">
-                    <p className="font-semibold text-slate-600 text-[11px] uppercase tracking-wide mb-1">Salario Castigado</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="font-semibold text-slate-600 text-[11px] uppercase tracking-wide">Salario Castigado</p>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <span className="text-[10px] text-muted-foreground">{aplicarCastigo ? 'Con castigo' : 'Sin castigo'}</span>
+                        <button
+                          type="button"
+                          onClick={() => setAplicarCastigo(v => !v)}
+                          className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${aplicarCastigo ? 'bg-orange-500' : 'bg-slate-300'}`}
+                        >
+                          <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform ${aplicarCastigo ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      </label>
+                    </div>
                     <div className="flex justify-between text-muted-foreground">
                       <span>Mín. {totalMeses} meses</span>
                       <span>{fmt(minSalarioMeses)}</span>
                     </div>
-                    <div className="flex justify-between text-orange-600">
+                    <div className={`flex justify-between ${aplicarCastigo ? 'text-orange-600' : 'text-slate-400 line-through'}`}>
                       <span>− {embargoActualNum > 0 ? 'Disponible nuevo crédito' : otroEmbargoNum > 0 ? 'Embargo disponible' : 'Máx embargable'}</span>
                       <span>{fmt(embargoPorNuevoCredito)}</span>
                     </div>
