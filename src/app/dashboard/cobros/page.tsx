@@ -45,6 +45,7 @@ import { Credit, Payment } from '@/lib/data';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { SaldosPorAsignar } from '@/components/saldos-por-asignar';
+import { HistorialPagosAsignados } from '@/components/historial-pagos-asignados';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import jsPDF from 'jspdf';
@@ -1722,6 +1723,7 @@ export default function CobrosPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="planillas">Historial de Planillas</TabsTrigger>
+          <TabsTrigger value="historial-asignados">Historial Pagos Asignados</TabsTrigger>
         </TabsList>
 
         <TabsContent value="gestion">
@@ -2782,7 +2784,9 @@ export default function CobrosPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentsState.slice((abonosPage - 1) * abonosPerPage, abonosPage * abonosPerPage).map((payment) => (
+                  {paymentsState
+                    .filter((p: any) => !p.source?.includes('Saldo Pendiente') && !p.source?.includes('Abono a Capital'))
+                    .slice((abonosPage - 1) * abonosPerPage, abonosPage * abonosPerPage).map((payment) => (
                     <PaymentTableRow
                       key={payment.id}
                       payment={payment}
@@ -2806,14 +2810,14 @@ export default function CobrosPage() {
                       <SelectItem value="50">50</SelectItem>
                     </SelectContent>
                   </Select>
-                  <span>de {paymentsState.length}</span>
+                  <span>de {paymentsState.filter((p: any) => !p.source?.includes('Saldo Pendiente') && !p.source?.includes('Abono a Capital')).length}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="icon" className="h-8 w-8" disabled={abonosPage <= 1} onClick={() => setAbonosPage(abonosPage - 1)}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm">{abonosPage} / {Math.ceil(paymentsState.length / abonosPerPage) || 1}</span>
-                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={abonosPage >= Math.ceil(paymentsState.length / abonosPerPage)} onClick={() => setAbonosPage(abonosPage + 1)}>
+                  <span className="text-sm">{abonosPage} / {Math.ceil(paymentsState.filter((p: any) => !p.source?.includes('Saldo Pendiente') && !p.source?.includes('Abono a Capital')).length / abonosPerPage) || 1}</span>
+                  <Button variant="outline" size="icon" className="h-8 w-8" disabled={abonosPage >= Math.ceil(paymentsState.filter((p: any) => !p.source?.includes('Saldo Pendiente') && !p.source?.includes('Abono a Capital')).length / abonosPerPage)} onClick={() => setAbonosPage(abonosPage + 1)}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -3077,6 +3081,17 @@ export default function CobrosPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="historial-asignados">
+          <HistorialPagosAsignados
+            deductoras={deductoras}
+            annulledPayments={paymentsState.filter((p: any) =>
+              (p.source?.includes('Saldo Pendiente') || p.source?.includes('Abono a Capital')) &&
+              p.estado_reverso === 'Anulado'
+            )}
+          />
+        </TabsContent>
+
       </Tabs>
 
       {/* Modal: Anular Planilla */}

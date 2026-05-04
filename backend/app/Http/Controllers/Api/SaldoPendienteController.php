@@ -27,7 +27,12 @@ class SaldoPendienteController extends Controller
             ->orderBy('created_at', 'desc');
 
         if ($request->has('estado')) {
-            $query->where('estado', $request->estado);
+            $estados = explode(',', $request->estado);
+            if (count($estados) > 1) {
+                $query->whereIn('estado', $estados);
+            } else {
+                $query->where('estado', $estados[0]);
+            }
         } else {
             $query->where('estado', 'pendiente');
         }
@@ -157,10 +162,15 @@ class SaldoPendienteController extends Controller
                 'origen' => $saldo->origen,
                 'fecha_origen' => $saldo->fecha_origen?->format('Y-m-d'),
                 'estado' => $saldo->estado,
+                'asignado_at' => $saldo->asignado_at?->toISOString(),
                 'notas' => $saldo->notas,
                 'saldo_credito' => (float) $saldo->credit->saldo,
                 'planilla_id' => $saldo->creditPayment?->planilla_upload_id,
                 'distribuciones' => $distribuciones,
+                'credit_payment' => $saldo->estado !== 'pendiente'
+                    ? \App\Models\CreditPayment::where('saldo_pendiente_id', $saldo->id)
+                        ->first(['id','numero_cuota','source','monto','fecha_pago','estado_reverso'])
+                    : null,
             ];
         });
 
