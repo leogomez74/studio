@@ -136,9 +136,20 @@ export const generateEstadoCuenta = async (creditId: number) => {
     .reduce((s: number, p: any) =>
       s + Number(p.interes_moratorio || 0) + Number(p.int_corriente_vencido || 0), 0);
 
+  // Días de atraso: siempre calculado desde fecha_corte hasta HOY (preciso al día)
+  const cuotaVencida: any = (credit.plan_de_pagos || []).find(
+    (p: any) => (p.estado === 'Mora' || p.estado === 'Parcial') && p.numero_cuota > 0
+  );
+  let diasAtraso = 0;
+  if (cuotaVencida?.fecha_corte) {
+    const fc = new Date(cuotaVencida.fecha_corte);
+    const hoy = new Date();
+    if (fc < hoy) diasAtraso = Math.floor((hoy.getTime() - fc.getTime()) / 86400000);
+  }
+
   autoTable(doc, {
     startY: finalY + 4,
-    head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'TASA', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO']],
+    head: [['OPERACIÓN', 'LINEA', 'MONTO', 'PLAZO', 'CUOTA', 'SALDO', 'TASA', 'MOROSIDAD', 'PRI.DED', 'ULT.MOV', 'TERMINA', 'PROCESO', 'DÍAS ATRASO']],
     body: [[
       credit.numero_operacion || credit.reference,
       credit.linea || credit.category || 'Crédito',
@@ -152,15 +163,17 @@ export const generateEstadoCuenta = async (creditId: number) => {
       new Date().toISOString().split('T')[0],
       (credit.fecha_culminacion_credito || '-').split('T')[0].split(' ')[0],
       credit.status || 'Formalizado',
+      diasAtraso > 0 ? `${diasAtraso}` : '-',
     ]],
     theme: 'plain',
     styles: { fontSize: 7.5, cellPadding: 1.5 },
     headStyles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: GREEN },
     alternateRowStyles: { fillColor: [240, 247, 220] },
     columnStyles: {
-      0: { cellWidth: 30 }, 1: { cellWidth: 26 }, 2: { cellWidth: 24 }, 3: { cellWidth: 13 },
-      4: { cellWidth: 22 }, 5: { cellWidth: 24 }, 6: { cellWidth: 15 }, 7: { cellWidth: 20 },
-      8: { cellWidth: 20 }, 9: { cellWidth: 20 }, 10: { cellWidth: 20 }, 11: { cellWidth: 22 },
+      0: { cellWidth: 28 }, 1: { cellWidth: 24 }, 2: { cellWidth: 22 }, 3: { cellWidth: 12 },
+      4: { cellWidth: 20 }, 5: { cellWidth: 22 }, 6: { cellWidth: 14 }, 7: { cellWidth: 19 },
+      8: { cellWidth: 18 }, 9: { cellWidth: 20 }, 10: { cellWidth: 20 }, 11: { cellWidth: 20 },
+      12: { cellWidth: 12 },
     },
   });
 
