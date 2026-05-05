@@ -36,7 +36,10 @@ export function CertificarConstanciaModal({
   const [notasManual, setNotasManual] = useState('');
   const [guardando, setGuardando] = useState(false);
 
-  const pdfArchivos = archivos.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+  const ALLOWED_EXT = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif'];
+  const pdfArchivos = archivos.filter(f =>
+    ALLOWED_EXT.some(ext => f.name.toLowerCase().endsWith(ext))
+  );
 
   const resetModal = () => {
     setStep('seleccion');
