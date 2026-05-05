@@ -145,6 +145,7 @@ export interface AnalisisItem {
   constancia_metodo?: 'automatico' | 'manual' | null;
   constancia_archivo?: string | null;
   constancia_certificada_por?: number | null;
+  constancia_certificada_por_nombre?: string | null;
   constancia_certificada_at?: string | null;
   constancia_notas?: string | null;
   constancia_resultado?: Record<string, unknown> | null;

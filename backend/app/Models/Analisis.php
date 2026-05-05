@@ -130,6 +130,7 @@ class Analisis extends Model
         'score_riesgo',
         'score_riesgo_color',
         'score_riesgo_label',
+        'constancia_certificada_por_nombre',
     ];
 
     protected static function booted()
@@ -181,6 +182,15 @@ class Analisis extends Model
     public function credit()
     {
         return $this->hasOne(Credit::class, 'opportunity_id', 'opportunity_id');
+    }
+
+    /**
+     * Accessor: nombre del usuario que certificó la constancia.
+     */
+    public function getConstanciaCertificadaPorNombreAttribute(): ?string
+    {
+        if (!$this->constancia_certificada_por) return null;
+        return \App\Models\User::find($this->constancia_certificada_por)?->name;
     }
 
     /**
