@@ -736,6 +736,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'getFiles']);
     Route::post('analisis/{id}/files', [\App\Http\Controllers\Api\AnalisisController::class, 'uploadFile'])->middleware('throttle:30,1');
     Route::delete('analisis/{id}/files/{filename}', [\App\Http\Controllers\Api\AnalisisController::class, 'deleteFile'])->middleware('permission:analizados,delete');
+    Route::post('analisis/{id}/verificar-constancia', [\App\Http\Controllers\Api\AnalisisController::class, 'verificarConstancia'])->middleware('throttle:10,1');
+    Route::post('analisis/{id}/certificar', [\App\Http\Controllers\Api\AnalisisController::class, 'certificar'])->middleware('throttle:10,1');
 
     // --- Propuestas de Análisis ---
     Route::get('analisis/{reference}/propuestas', [\App\Http\Controllers\Api\PropuestaController::class, 'index']);

@@ -64,6 +64,13 @@ class Analisis extends Model
         // manchas_detalle, juicios_detalle, embargos_detalle ahora en tablas separadas
         'deducciones_mensuales',
         'hoja_trabajo_datos',
+        'constancia_certificada',
+        'constancia_metodo',
+        'constancia_archivo',
+        'constancia_certificada_por',
+        'constancia_certificada_at',
+        'constancia_notas',
+        'constancia_resultado',
     ];
 
     protected $casts = [
@@ -104,6 +111,9 @@ class Analisis extends Model
         // manchas_detalle, juicios_detalle, embargos_detalle ahora en tablas separadas
         'deducciones_mensuales' => 'array',
         'hoja_trabajo_datos' => 'array',
+        'constancia_certificada' => 'boolean',
+        'constancia_certificada_at' => 'datetime',
+        'constancia_resultado' => 'array',
     ];
 
     protected $hidden = [

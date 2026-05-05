@@ -116,6 +116,7 @@ const PROFESIONES_LIST = [
   "Planificador(a)",
   "Policía",
   "Politólogo(a)",
+  "Profesor(a)",
   "Profesor(a) Universitario",
   "Programador(a)",
   "Promotor(a) Social",
