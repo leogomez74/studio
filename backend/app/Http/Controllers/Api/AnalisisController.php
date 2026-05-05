@@ -731,7 +731,17 @@ class AnalisisController extends Controller
         }
 
         $fileContents = Storage::disk('public')->get($filePath);
-        $mimeType     = 'application/pdf';
+        $ext      = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $mimeMap  = [
+            'pdf'  => 'application/pdf',
+            'jpg'  => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png'  => 'image/png',
+            'webp' => 'image/webp',
+            'tiff' => 'image/tiff',
+            'tif'  => 'image/tiff',
+        ];
+        $mimeType = $mimeMap[$ext] ?? 'application/octet-stream';
 
         try {
             $bccrUrl = 'https://servicios.sinpe.fi.cr/FVA/ValidacionDocumentoPublico/ValidadorDocumentoPublico/ValideElDocumento?api-version=1';
