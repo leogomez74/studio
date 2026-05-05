@@ -169,6 +169,7 @@ export default function AnalisisDetailPage() {
 
   // Estado del modal de certificación de constancia
   const [isCertificarOpen, setIsCertificarOpen] = useState(false);
+  const [isDetalleCertOpen, setIsDetalleCertOpen] = useState(false);
 
   // Estado del modal de crédito
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
@@ -974,10 +975,13 @@ export default function AnalisisDetailPage() {
                       </Button>
                     )}
                     {analisis.constancia_certificada && (
-                      <Badge className="ml-2 bg-green-100 text-green-800 border-green-300">
-                        <CheckCircle className="h-3 w-3 mr-1" />
+                      <button
+                        onClick={() => setIsDetalleCertOpen(true)}
+                        className="ml-2 inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 hover:bg-green-200 transition-colors cursor-pointer"
+                      >
+                        <CheckCircle className="h-3 w-3" />
                         Constancia Certificada
-                      </Badge>
+                      </button>
                     )}
                     <Button
                       size="sm"
@@ -2035,6 +2039,87 @@ export default function AnalisisDetailPage() {
             setAnalisis(res.data);
           }}
         />
+      )}
+
+      {/* Dialog detalle de certificación */}
+      {analisis?.constancia_certificada && (
+        <Dialog open={isDetalleCertOpen} onOpenChange={setIsDetalleCertOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                Detalle de Certificación
+              </DialogTitle>
+              <DialogDescription>
+                Información del proceso de verificación de la constancia.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Certificado por</p>
+                  <p className="font-medium">{analisis.constancia_certificada_por_nombre ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Fecha</p>
+                  <p className="font-medium">
+                    {analisis.constancia_certificada_at
+                      ? new Date(analisis.constancia_certificada_at).toLocaleString('es-CR')
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Método</p>
+                  <p className="font-medium capitalize">
+                    {analisis.constancia_metodo === 'automatico' ? 'Automático (BCCR/SINPE)' : 'Manual'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Archivo verificado</p>
+                  <p className="font-medium truncate">{analisis.constancia_archivo ?? '—'}</p>
+                </div>
+              </div>
+
+              {analisis.constancia_notas && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Notas de verificación</p>
+                  <p className="rounded-md bg-slate-50 px-3 py-2 text-sm">{analisis.constancia_notas}</p>
+                </div>
+              )}
+
+              {analisis.constancia_resultado && analisis.constancia_metodo === 'automatico' && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Resultado BCCR</p>
+                  {(() => {
+                    const r = analisis.constancia_resultado as any;
+                    const firmas: any[] = r?.firmas ?? [];
+                    return (
+                      <div className="rounded-md border px-3 py-2.5 space-y-1.5">
+                        <div className="flex items-center gap-2 text-green-700 font-medium text-xs">
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          {r?.fueExitosa ? 'Documento válido' : 'Documento no válido'}
+                        </div>
+                        {firmas.map((f: any, i: number) => {
+                          const camposAutoria: Record<string, string> = {};
+                          [...(f.autoriaDelFirmante ?? '').matchAll(/<p[^>]*>([^<]+)<\/p>/g)].forEach((m: any) => {
+                            const [k, ...v] = m[1].split(':');
+                            if (v.length) camposAutoria[k.trim()] = v.join(':').trim();
+                          });
+                          return (
+                            <div key={i} className="text-xs text-muted-foreground pl-5">
+                              {camposAutoria['Nombre'] && <span className="font-medium text-foreground">{camposAutoria['Nombre']}</span>}
+                              {camposAutoria['Identificación'] && <span> — Cédula: {camposAutoria['Identificación']}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       <CreditFormModal
