@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Plus, Trash2, Upload } from 'lucide-react';
+import { Loader2, FileText, ThumbsUp, ThumbsDown, ArrowLeft, File, Image as ImageIcon, FileSpreadsheet, FolderInput, Pencil, Download, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Plus, Trash2, Upload, Shield } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -31,6 +31,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { CreditFormModal } from '@/components/CreditFormModal';
+import { CertificarConstanciaModal } from '@/components/certificar-constancia-modal';
 import {
   AnalisisItem,
   AnalisisFile,
@@ -165,6 +166,9 @@ export default function AnalisisDetailPage() {
 
   // Empresa encontrada basada en institucion_labora del lead
   const [empresaMatch, setEmpresaMatch] = useState<Empresa | undefined>(undefined);
+
+  // Estado del modal de certificación de constancia
+  const [isCertificarOpen, setIsCertificarOpen] = useState(false);
 
   // Estado del modal de crédito
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
@@ -957,43 +961,63 @@ export default function AnalisisDetailPage() {
                     Ver Crédito
                   </Button>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={async () => {
-                      try {
-                        const refResponse = await api.get('/api/credits/next-reference');
-                        const nextReference = refResponse.data.reference;
-                        setCreditForm({
-                          reference: nextReference,
-                          title: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
-                          status: 'Por firmar',
-                          category: analisis.category || 'Regular',
-                          monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
-                          leadId: analisis.lead_id ? String(analisis.lead_id) : '',
-                          clientName: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
-                          description: `Crédito generado desde análisis ${analisis.reference}`,
-                          divisa: analisis.divisa || 'CRC',
-                          plazo: analisis.plazo ? String(analisis.plazo) : '36',
-                          poliza: false,
-                          conCargosAdicionales: true,
-                          deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
-                          opportunity_id: analisis.opportunity_id ? Number(analisis.opportunity_id) : undefined,
-                        });
-                        setIsCreditDialogOpen(true);
-                      } catch (err) {
-                        toast({
-                          variant: "destructive",
-                          title: "Error",
-                          description: "No se pudo obtener la referencia del crédito",
-                        });
-                      }
-                    }}
-                    className="ml-2"
-                  >
-                    <FileText className="h-4 w-4 mr-1" />
-                    Generar crédito
-                  </Button>
+                  <>
+                    {!analisis.constancia_certificada && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsCertificarOpen(true)}
+                        className="ml-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                      >
+                        <Shield className="h-4 w-4 mr-1" />
+                        Certificar Constancia
+                      </Button>
+                    )}
+                    {analisis.constancia_certificada && (
+                      <Badge className="ml-2 bg-green-100 text-green-800 border-green-300">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Constancia Certificada
+                      </Badge>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="default"
+                      disabled={!analisis.constancia_certificada}
+                      onClick={async () => {
+                        try {
+                          const refResponse = await api.get('/api/credits/next-reference');
+                          const nextReference = refResponse.data.reference;
+                          setCreditForm({
+                            reference: nextReference,
+                            title: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
+                            status: 'Por firmar',
+                            category: analisis.category || 'Regular',
+                            monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
+                            leadId: analisis.lead_id ? String(analisis.lead_id) : '',
+                            clientName: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
+                            description: `Crédito generado desde análisis ${analisis.reference}`,
+                            divisa: analisis.divisa || 'CRC',
+                            plazo: analisis.plazo ? String(analisis.plazo) : '36',
+                            poliza: false,
+                            conCargosAdicionales: true,
+                            deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
+                            opportunity_id: analisis.opportunity_id ? Number(analisis.opportunity_id) : undefined,
+                          });
+                          setIsCreditDialogOpen(true);
+                        } catch (err) {
+                          toast({
+                            variant: "destructive",
+                            title: "Error",
+                            description: "No se pudo obtener la referencia del crédito",
+                          });
+                        }
+                      }}
+                      className="ml-2"
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      Generar crédito
+                    </Button>
+                  </>
                 )
               )}
             </div>
@@ -2000,6 +2024,19 @@ export default function AnalisisDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {analisis && (
+        <CertificarConstanciaModal
+          open={isCertificarOpen}
+          onOpenChange={setIsCertificarOpen}
+          analisisId={analisis.id}
+          archivos={heredados}
+          onCertificado={async () => {
+            const res = await api.get(`/api/analisis/${analisisId}`);
+            setAnalisis(res.data);
+          }}
+        />
+      )}
+
       <CreditFormModal
         open={isCreditDialogOpen}
         onOpenChange={setIsCreditDialogOpen}
@@ -2159,43 +2196,63 @@ export default function AnalisisDetailPage() {
                   Ver Crédito
                 </Button>
               ) : (
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={async () => {
-                    try {
-                      const refResponse = await api.get('/api/credits/next-reference');
-                      const nextReference = refResponse.data.reference;
-                      setCreditForm({
-                        reference: nextReference,
-                        title: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
-                        status: 'Por firmar',
-                        category: analisis.category || 'Regular',
-                        monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
-                        leadId: analisis.lead_id ? String(analisis.lead_id) : '',
-                        clientName: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
-                        description: `Crédito generado desde análisis ${analisis.reference}`,
-                        divisa: analisis.divisa || 'CRC',
-                        plazo: analisis.plazo ? String(analisis.plazo) : '36',
-                        poliza: false,
-                        conCargosAdicionales: true,
-                        deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
-                        opportunity_id: analisis.opportunity_id ? Number(analisis.opportunity_id) : undefined,
-                      });
-                      setIsCreditDialogOpen(true);
-                    } catch (err) {
-                      toast({
-                        variant: "destructive",
-                        title: "Error",
-                        description: "No se pudo obtener la referencia del crédito",
-                      });
-                    }
-                  }}
-                  className="ml-2"
-                >
-                  <FileText className="h-4 w-4 mr-1" />
-                  Generar crédito
-                </Button>
+                <>
+                  {!analisis.constancia_certificada && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsCertificarOpen(true)}
+                      className="ml-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      <Shield className="h-4 w-4 mr-1" />
+                      Certificar Constancia
+                    </Button>
+                  )}
+                  {analisis.constancia_certificada && (
+                    <Badge className="ml-2 bg-green-100 text-green-800 border-green-300">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Constancia Certificada
+                    </Badge>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={!analisis.constancia_certificada}
+                    onClick={async () => {
+                      try {
+                        const refResponse = await api.get('/api/credits/next-reference');
+                        const nextReference = refResponse.data.reference;
+                        setCreditForm({
+                          reference: nextReference,
+                          title: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
+                          status: 'Por firmar',
+                          category: analisis.category || 'Regular',
+                          monto_credito: analisis.monto_credito ? String(analisis.monto_credito) : '',
+                          leadId: analisis.lead_id ? String(analisis.lead_id) : '',
+                          clientName: [analisis.lead?.name, analisis.lead?.apellido1, analisis.lead?.apellido2].filter(Boolean).join(' ') || '',
+                          description: `Crédito generado desde análisis ${analisis.reference}`,
+                          divisa: analisis.divisa || 'CRC',
+                          plazo: analisis.plazo ? String(analisis.plazo) : '36',
+                          poliza: false,
+                          conCargosAdicionales: true,
+                          deductora_id: analisis.lead?.deductora_id ? Number(analisis.lead.deductora_id) : undefined,
+                          opportunity_id: analisis.opportunity_id ? Number(analisis.opportunity_id) : undefined,
+                        });
+                        setIsCreditDialogOpen(true);
+                      } catch (err) {
+                        toast({
+                          variant: "destructive",
+                          title: "Error",
+                          description: "No se pudo obtener la referencia del crédito",
+                        });
+                      }
+                    }}
+                    className="ml-2"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Generar crédito
+                  </Button>
+                </>
               )
             )}
           </div>

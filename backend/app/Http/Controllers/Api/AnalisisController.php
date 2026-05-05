@@ -13,6 +13,7 @@ use App\Models\Lead;
 use App\Models\Task;
 use App\Models\TaskAutomation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use App\Events\BusinessActionPerformed;
@@ -697,6 +698,116 @@ class AnalisisController extends Controller
             'success' => false,
             'message' => 'Archivo no encontrado'
         ], 404);
+    }
+
+    /**
+     * Proxy a la API del BCCR para validar la firma digital de un archivo.
+     * POST /api/analisis/{id}/verificar-constancia
+     */
+    public function verificarConstancia(Request $request, int $id)
+    {
+        $analisis = Analisis::with(['lead', 'opportunity'])->findOrFail($id);
+        $cedula   = $this->getCedulaFromAnalisis($analisis);
+
+        $request->validate(['archivo' => 'required|string']);
+        $filename = $request->input('archivo');
+
+        $baseFolder  = "documentos/{$cedula}/analisis/{$id}";
+        $searchPaths = [
+            "{$baseFolder}/heredados/{$filename}",
+            "{$baseFolder}/especificos/{$filename}",
+        ];
+
+        $filePath = null;
+        foreach ($searchPaths as $candidate) {
+            if (Storage::disk('public')->exists($candidate)) {
+                $filePath = $candidate;
+                break;
+            }
+        }
+
+        if (!$filePath) {
+            return response()->json(['success' => false, 'message' => 'Archivo no encontrado'], 404);
+        }
+
+        $fileContents = Storage::disk('public')->get($filePath);
+        $mimeType     = 'application/pdf';
+
+        try {
+            $bccrUrl = 'https://servicios.sinpe.fi.cr/FVA/ValidacionDocumentoPublico/ValidadorDocumentoPublico/ValideElDocumento?api-version=1';
+            $baseHeaders = [
+                'Accept'     => 'application/json, text/plain, */*',
+                'Origin'     => 'https://www.centraldirecto.fi.cr',
+                'Referer'    => 'https://www.centraldirecto.fi.cr/',
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            ];
+
+            // Intento 1: application/octet-stream
+            $response = Http::timeout(30)->withoutVerifying()
+                ->withHeaders(array_merge($baseHeaders, ['Content-Type' => 'application/octet-stream']))
+                ->withBody($fileContents, 'application/octet-stream')
+                ->post($bccrUrl);
+
+            // Intento 2: multipart con campo 'documento' si sigue en 415
+            if ($response->status() === 415) {
+                $response = Http::timeout(30)->withoutVerifying()
+                    ->withHeaders($baseHeaders)
+                    ->attach('documento', $fileContents, $filename)
+                    ->post($bccrUrl);
+            }
+
+            // Intento 3: JSON con base64
+            if ($response->status() === 415) {
+                $response = Http::timeout(30)->withoutVerifying()
+                    ->withHeaders(array_merge($baseHeaders, ['Content-Type' => 'application/json']))
+                    ->post($bccrUrl, ['documento' => base64_encode($fileContents), 'nombre' => $filename]);
+            }
+
+            Log::info('BCCR verificación', ['status' => $response->status(), 'body_preview' => substr($response->body(), 0, 500)]);
+
+            return response()->json([
+                'success'   => $response->successful(),
+                'status'    => $response->status(),
+                'resultado' => $response->json() ?? $response->body(),
+            ], $response->successful() ? 200 : 422);
+        } catch (\Exception $e) {
+            Log::warning('BCCR verificación falló', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo conectar con el servicio BCCR: ' . $e->getMessage(),
+            ], 503);
+        }
+    }
+
+    /**
+     * Guardar la certificación de constancia en el análisis.
+     * POST /api/analisis/{id}/certificar
+     */
+    public function certificar(Request $request, int $id)
+    {
+        $analisis = Analisis::findOrFail($id);
+
+        $validated = $request->validate([
+            'metodo'         => 'required|in:automatico,manual',
+            'archivo'        => 'required|string',
+            'notas'          => 'nullable|string|max:2000',
+            'resultado_bccr' => 'nullable|array',
+        ]);
+
+        $analisis->update([
+            'constancia_certificada'     => true,
+            'constancia_metodo'          => $validated['metodo'],
+            'constancia_archivo'         => $validated['archivo'],
+            'constancia_certificada_por' => $request->user()?->id,
+            'constancia_certificada_at'  => now(),
+            'constancia_notas'           => $validated['notas'] ?? null,
+            'constancia_resultado'       => $validated['resultado_bccr'] ?? null,
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'analisis' => $analisis->fresh(),
+        ]);
     }
 
     /**

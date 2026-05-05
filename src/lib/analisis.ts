@@ -141,6 +141,13 @@ export interface AnalisisItem {
     salario_castigado?: number;
     capacidad_real_25?: number;
   };
+  constancia_certificada?: boolean;
+  constancia_metodo?: 'automatico' | 'manual' | null;
+  constancia_archivo?: string | null;
+  constancia_certificada_por?: number | null;
+  constancia_certificada_at?: string | null;
+  constancia_notas?: string | null;
+  constancia_resultado?: Record<string, unknown> | null;
 }
 
 export interface AnalisisFile {
