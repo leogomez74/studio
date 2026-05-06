@@ -189,14 +189,26 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   // ── Paso 2: Ingresos ─────────────────────────────────────────────────────────
   const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-  // Micro: 3 meses × 2 quincenas = 6 periodos. Regular: 6 meses × 2 quincenas = 12 periodos.
+  // Periodo de referencia: mes INICIAL de las colillas (por defecto = hace N meses)
+  const hoy = new Date();
   const totalMeses = esMicro ? 3 : 6;
+  const mesInicioDefault = ((hoy.getMonth() - totalMeses) % 12 + 12) % 12;
+  const anioInicioDefault = hoy.getMonth() < totalMeses ? hoy.getFullYear() - 1 : hoy.getFullYear();
+
+  const [periodoMesInicio, setPeriodoMesInicio] = useState<number>(() => {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); return d.periodoMesInicio ?? mesInicioDefault; } catch { return mesInicioDefault; }
+  });
+  const [periodoAnioInicio, setPeriodoAnioInicio] = useState<number>(() => {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); return d.periodoAnioInicio ?? anioInicioDefault; } catch { return anioInicioDefault; }
+  });
+
+  // Micro: 3 meses × 2 quincenas = 6 periodos. Regular: 6 meses × 2 quincenas = 12 periodos.
   const mesesNombres = useMemo(() => Array.from({ length: totalMeses }, (_, i) => {
-    const d = new Date();
-    // Excluir el mes actual (en circulación), empezar desde el mes anterior
-    d.setMonth(d.getMonth() - (totalMeses - i));
-    return MESES_ES[d.getMonth()];
-  }), [totalMeses]);
+    let mes  = periodoMesInicio + i;
+    let anio = periodoAnioInicio;
+    while (mes > 11) { mes -= 12; anio += 1; }
+    return `${MESES_ES[mes]} ${anio}`;
+  }), [totalMeses, periodoMesInicio, periodoAnioInicio]);
 
   // Switch: true = 1Q y 2Q por mes, false = 1 campo por mes
   const [colillasPorQuincena, setColillasPorQuincena] = useState<boolean>(() => {
@@ -324,9 +336,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
         ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData,
+        periodoMesInicio, periodoAnioInicio,
       }));
     } catch {}
-  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData]);
+  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData, periodoMesInicio, periodoAnioInicio]);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleCrearAnalisis = () => {
@@ -798,7 +811,33 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                 ? `Colillas / Ingresos (3 meses${colillasPorQuincena ? ' × 2 quincenas' : ''})`
                 : `Colillas / Ingresos (6 meses${colillasPorQuincena ? ' × 2 quincenas' : ''})`}
             </CardTitle>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-3 flex-wrap justify-end">
+              {/* Selector de periodo */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">Desde:</span>
+                <select
+                  value={periodoMesInicio}
+                  onChange={e => setPeriodoMesInicio(Number(e.target.value))}
+                  className="h-6 rounded border border-slate-200 bg-white text-xs px-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  {MESES_ES.map((m, i) => (
+                    <option key={i} value={i}>{m}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={periodoAnioInicio}
+                  onChange={e => {
+                    const v = parseInt(e.target.value);
+                    if (!isNaN(v) && v > 2000 && v < 2100) setPeriodoAnioInicio(v);
+                  }}
+                  className="h-6 w-16 rounded border border-slate-200 bg-white text-xs px-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+                <span className="text-[10px] text-muted-foreground mx-0.5">—</span>
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">Hasta:</span>
+                <span className="text-[10px] font-medium text-slate-700">{mesesNombres[mesesNombres.length - 1]}</span>
+              </div>
+
               {promedioLiquido > 0 && (
                 <Badge variant="outline" className="text-blue-700 border-blue-300 text-xs">
                   Prom. mensual: {fmt(promedioLiquido)}
@@ -810,7 +849,6 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                   checked={colillasPorQuincena}
                   onCheckedChange={v => {
                     setColillasPorQuincena(v);
-                    // Limpiar quincenas pares al desactivar
                     if (!v) {
                       setIngresos(prev => prev.map((ing, i) => i % 2 === 1 ? { ...ing, liquido: '' } : ing));
                     }
