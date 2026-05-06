@@ -18,6 +18,7 @@ class RolePermission extends Model
         'can_assign',
         'can_formalizar',
         'can_formalizar_admin',
+        'can_autoaplicar_abono',
     ];
 
     protected $casts = [
@@ -29,6 +30,7 @@ class RolePermission extends Model
         'can_assign' => 'boolean',
         'can_formalizar' => 'boolean',
         'can_formalizar_admin' => 'boolean',
+        'can_autoaplicar_abono' => 'boolean',
     ];
 
     /**

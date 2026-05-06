@@ -13,6 +13,7 @@ export interface ModulePermissions {
   assign?: boolean;
   formalizar?: boolean;
   formalizar_admin?: boolean;
+  autoaplicar_abono?: boolean;
 }
 
 export interface UserPermissions {
@@ -22,7 +23,7 @@ export interface UserPermissions {
 interface PermissionsContextType {
   permissions: UserPermissions;
   loading: boolean;
-  hasPermission: (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign' | 'formalizar' | 'formalizar_admin') => boolean;
+  hasPermission: (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign' | 'formalizar' | 'formalizar_admin' | 'autoaplicar_abono') => boolean;
   canViewModule: (module: string) => boolean;
   refreshPermissions: () => Promise<void>;
 }
@@ -100,6 +101,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         return modulePerms.formalizar ?? false;
       case 'formalizar_admin':
         return modulePerms.formalizar_admin ?? false;
+      case 'autoaplicar_abono':
+        return modulePerms.autoaplicar_abono ?? false;
       default:
         return false;
     }

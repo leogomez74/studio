@@ -34,6 +34,7 @@ interface Permission {
   assign?: boolean;
   formalizar?: boolean;
   formalizar_admin?: boolean;
+  autoaplicar_abono?: boolean;
 }
 
 interface RolePermissions {
@@ -48,7 +49,7 @@ interface Role {
   permissions: RolePermissions;
 }
 
-type PermType = 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign' | 'formalizar' | 'formalizar_admin';
+type PermType = 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign' | 'formalizar' | 'formalizar_admin' | 'autoaplicar_abono';
 
 interface Module {
   key: string;
@@ -115,7 +116,7 @@ const MODULE_GROUPS: ModuleGroup[] = [
       {
         // Acciones específicas de cobros, cada permiso tiene función propia
         key: 'cobros', label: 'Cobros',
-        permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign', 'formalizar', 'formalizar_admin'],
+        permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign', 'formalizar', 'formalizar_admin', 'autoaplicar_abono'],
         customPermissionLabels: {
           create: 'Registrar Abono',
           edit: 'Cargar Planilla',
@@ -124,6 +125,7 @@ const MODULE_GROUPS: ModuleGroup[] = [
           assign: 'Reintegro de Saldo',
           formalizar: 'Aplicar Parcial',
           formalizar_admin: 'Aplicar Capital',
+          autoaplicar_abono: 'Auto-aplicar Abono',
         },
       },
       {
@@ -264,7 +266,7 @@ const RolesPermisosManager: React.FC = () => {
   const initializePermissions = (): RolePermissions => {
     const perms: RolePermissions = {};
     MODULES.forEach(module => {
-      perms[module.key] = { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false };
+      perms[module.key] = { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false, autoaplicar_abono: false };
     });
     return perms;
   };
@@ -320,7 +322,7 @@ const RolesPermisosManager: React.FC = () => {
       permissions: {
         ...prev.permissions,
         [moduleKey]: {
-          ...(prev.permissions[moduleKey] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false }),
+          ...(prev.permissions[moduleKey] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false, autoaplicar_abono: false }),
           [permType]: value,
         },
       },
@@ -473,14 +475,14 @@ const RolesPermisosManager: React.FC = () => {
                         </div>
                         {/* Filas de módulos */}
                         {group.modules.map((module) => {
-                          const perms = roleForm.permissions[module.key] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false };
+                          const perms = roleForm.permissions[module.key] || { view: false, create: false, edit: false, delete: false, archive: false, assign: false, formalizar: false, formalizar_admin: false, autoaplicar_abono: false };
                           const modulePermissions = module.permissions || ['view', 'create', 'edit', 'delete'];
                           const isModuleEnabled = perms.view || perms.create || perms.edit || perms.delete || perms.archive || perms.assign || perms.formalizar || perms.formalizar_admin;
 
                           const defaultLabels: Record<string, string> = {
                             view: 'Ver', create: 'Crear', edit: 'Editar',
                             delete: 'Eliminar', archive: 'Archivar', assign: 'Asignar',
-                            formalizar: 'Formalizar', formalizar_admin: 'Formalizar (fecha libre)',
+                            formalizar: 'Formalizar', formalizar_admin: 'Formalizar (fecha libre)', autoaplicar_abono: 'Auto-aplicar Abono',
                           };
 
                           return (
