@@ -64,6 +64,7 @@ interface Module {
     assign?: string;
     formalizar?: string;
     formalizar_admin?: string;
+    autoaplicar_abono?: string;
   };
 }
 
