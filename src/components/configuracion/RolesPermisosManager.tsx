@@ -345,6 +345,7 @@ const RolesPermisosManager: React.FC = () => {
           assign: enabled && modulePermissions.includes('assign'),
           formalizar: enabled && modulePermissions.includes('formalizar'),
           formalizar_admin: enabled && modulePermissions.includes('formalizar_admin'),
+          autoaplicar_abono: enabled && modulePermissions.includes('autoaplicar_abono'),
         },
       },
     }));
@@ -364,6 +365,7 @@ const RolesPermisosManager: React.FC = () => {
           assign: modulePermissions.includes('assign'),
           formalizar: modulePermissions.includes('formalizar'),
           formalizar_admin: modulePermissions.includes('formalizar_admin'),
+          autoaplicar_abono: modulePermissions.includes('autoaplicar_abono'),
         };
       });
       setRoleForm(prev => ({ ...prev, full_access: true, permissions: allPerms }));
