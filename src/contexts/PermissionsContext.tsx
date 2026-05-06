@@ -71,7 +71,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     fetchPermissions();
   }, [token, user?.id]);
 
-  const hasPermission = (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign' | 'formalizar' | 'formalizar_admin'): boolean => {
+  const hasPermission = (module: string, action: 'view' | 'create' | 'edit' | 'delete' | 'archive' | 'assign' | 'formalizar' | 'formalizar_admin' | 'autoaplicar_abono'): boolean => {
     // Solo permitir visualización durante la carga para evitar flickering
     // Pero NO permitir acciones como create, edit, delete, archive
     if (loading) {
