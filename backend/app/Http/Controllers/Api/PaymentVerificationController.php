@@ -86,9 +86,14 @@ class PaymentVerificationController extends Controller
         $requesterId = $request->user()->id;
 
         if ($verifierId === $requesterId) {
-            return response()->json([
-                'message' => 'El verificador no puede ser el mismo usuario que solicita el abono.',
-            ], 422);
+            $userPerms = $request->user()->load('role.permissions')->role?->getFormattedPermissions();
+            $puedeAutoAplicar = $userPerms['cobros']['autoaplicar_abono'] ?? false;
+
+            if (!$puedeAutoAplicar) {
+                return response()->json([
+                    'message' => 'El verificador no puede ser el mismo usuario que solicita el abono.',
+                ], 422);
+            }
         }
 
         $credit    = Credit::with('lead:id,name,apellido1,cedula')->findOrFail($validated['credit_id']);

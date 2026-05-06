@@ -60,6 +60,7 @@ class Role extends Model
                     'assign' => true,
                     'formalizar' => true,
                     'formalizar_admin' => true,
+                    'autoaplicar_abono' => true,
                 ];
             }
             return $permissions;
@@ -78,6 +79,7 @@ class Role extends Model
                 'assign' => $perm->can_assign ?? false,
                 'formalizar' => $perm->can_formalizar ?? false,
                 'formalizar_admin' => $perm->can_formalizar_admin ?? false,
+                'autoaplicar_abono' => $perm->can_autoaplicar_abono ?? false,
             ];
         }
         return $permissions;
