@@ -71,6 +71,7 @@ class RoleController extends Controller
                         'can_assign' => $perms['assign'] ?? false,
                         'can_formalizar' => $perms['formalizar'] ?? false,
                         'can_formalizar_admin' => $perms['formalizar_admin'] ?? false,
+                        'can_autoaplicar_abono' => $perms['autoaplicar_abono'] ?? false,
                     ]);
                 }
             }
@@ -158,6 +159,7 @@ class RoleController extends Controller
                         'can_assign' => $perms['assign'] ?? false,
                         'can_formalizar' => $perms['formalizar'] ?? false,
                         'can_formalizar_admin' => $perms['formalizar_admin'] ?? false,
+                        'can_autoaplicar_abono' => $perms['autoaplicar_abono'] ?? false,
                     ]);
                 }
             }
