@@ -1887,24 +1887,43 @@ export default function AnalisisDetailPage() {
                           </div>
                         )}
                       </div>
-                      {/* Info y botón de descarga */}
+                      {/* Info y botones */}
                       <div className="p-3">
                         <p className="text-xs font-medium truncate mb-1" title={file.name}>
                           {file.name}
                         </p>
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-muted-foreground">{formatFileSize(file.size)}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            asChild
-                          >
-                            <a href={file.url} download={file.name}>
-                              <Download className="h-4 w-4 mr-1" />
-                              <span className="text-xs">Descargar</span>
-                            </a>
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              asChild
+                            >
+                              <a href={file.url} download={file.name}>
+                                <Download className="h-4 w-4 mr-1" />
+                                <span className="text-xs">Descargar</span>
+                              </a>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={async () => {
+                                if (!confirm(`¿Eliminar "${file.name}"?`)) return;
+                                try {
+                                  await api.delete(`/api/analisis/${analisisId}/files/${encodeURIComponent(file.name)}`);
+                                  setHeredados(prev => prev.filter(f => f.path !== file.path));
+                                  toast({ title: 'Archivo eliminado' });
+                                } catch {
+                                  toast({ variant: 'destructive', title: 'Error', description: 'No se pudo eliminar el archivo.' });
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
