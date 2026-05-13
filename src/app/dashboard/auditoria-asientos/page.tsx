@@ -492,7 +492,7 @@ export default function AuditoriaAsientosPage() {
 
       {/* Dialog de Detalle */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalle del Asiento #{selectedLog?.id}</DialogTitle>
             <DialogDescription>
@@ -555,12 +555,12 @@ export default function AuditoriaAsientosPage() {
                 <div>
                   <Label className="text-sm font-medium">Movimientos contables</Label>
                   <div className="mt-2 border rounded-md overflow-hidden">
-                    <table className="w-full text-xs">
+                    <table className="w-full text-xs table-fixed">
                       <thead className="bg-muted">
                         <tr>
                           <th className="text-left px-3 py-2 font-medium">Cuenta</th>
-                          <th className="text-right px-3 py-2 font-medium text-blue-700">Débito</th>
-                          <th className="text-right px-3 py-2 font-medium text-orange-700">Crédito</th>
+                          <th className="text-right px-3 py-2 font-medium text-blue-700 w-[160px]">Débito</th>
+                          <th className="text-right px-3 py-2 font-medium text-orange-700 w-[160px]">Crédito</th>
                         </tr>
                       </thead>
                       <tbody>
