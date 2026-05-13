@@ -44,7 +44,8 @@ class Role extends Model
                 'reportes', 'kpis', 'crm', 'oportunidades', 'analizados', 'creditos',
                 'calculos', 'cobros', 'cobro_judicial', 'ventas', 'inversiones',
                 'rutas', 'comunicaciones', 'staff', 'entrenamiento',
-                'recompensas', 'tareas', 'auditoria', 'incidencias',
+                'recompensas', 'tareas', 'auditoria', 'auditoria_asientos',
+                'importacion', 'incidencias',
                 'config_general', 'config_personas', 'config_usuarios',
                 'config_contabilidad', 'config_sistema',
             ];
