@@ -69,7 +69,32 @@ class AccountingEntryLogController extends Controller
     {
         $log = AccountingEntryLog::findOrFail($id);
 
-        return response()->json(['log' => $log]);
+        // Enriquecer items del payload con nombre de cuenta
+        $logData = $log->toArray();
+        $payload = is_array($log->payload_sent) ? $log->payload_sent : [];
+        $items = $payload['items'] ?? [];
+
+        if (!empty($items)) {
+            $codes = array_unique(array_column($items, 'account_code'));
+            $accountNames = ErpAccountingAccount::whereIn('account_code', $codes)
+                ->pluck('account_name', 'account_code')
+                ->all();
+
+            $logData['entry_items'] = array_map(function ($item) use ($accountNames) {
+                $code = $item['account_code'] ?? null;
+                return [
+                    'account_code' => $code,
+                    'account_name' => $accountNames[$code] ?? null,
+                    'debit' => (float) ($item['debit'] ?? 0),
+                    'credit' => (float) ($item['credit'] ?? 0),
+                    'description' => $item['description'] ?? null,
+                ];
+            }, $items);
+        } else {
+            $logData['entry_items'] = [];
+        }
+
+        return response()->json(['log' => $logData]);
     }
 
     /**
