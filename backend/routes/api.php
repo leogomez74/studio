@@ -406,13 +406,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     // --- Log de Asientos Contables enviados al ERP ---
-    Route::prefix('accounting-entry-logs')->group(function () {
+    Route::prefix('accounting-entry-logs')->middleware('permission:auditoria_asientos,view')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'index']);
         Route::get('/stats', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'stats']);
         Route::get('/alerts', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'alerts']);
         Route::get('/export', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'export'])->middleware('throttle:10,1');
         Route::get('/{id}', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'show']);
         Route::post('/{id}/retry', [\App\Http\Controllers\Api\AccountingEntryLogController::class, 'retry'])->middleware(['admin', 'throttle:10,1']);
+    });
+
+    // --- Importación masiva de clientes y créditos ---
+    Route::prefix('importacion')->group(function () {
+        Route::post('/preview-cliente', [\App\Http\Controllers\Api\ImportacionController::class, 'previewCliente'])
+            ->middleware(['permission:importacion,view', 'throttle:30,1']);
+        Route::post('/crear-cliente', [\App\Http\Controllers\Api\ImportacionController::class, 'crearCliente'])
+            ->middleware(['permission:importacion,create', 'throttle:30,1']);
     });
 
     // --- Bitácora de Auditoría General del Sistema ---

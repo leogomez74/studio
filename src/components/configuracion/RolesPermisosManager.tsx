@@ -210,6 +210,17 @@ const MODULE_GROUPS: ModuleGroup[] = [
         permissions: ['view'],
       },
       {
+        // Auditoría de Asientos Contables: solo lectura, reintento es admin-only
+        key: 'auditoria_asientos', label: 'Auditoría Asientos',
+        permissions: ['view'],
+      },
+      {
+        // Importación masiva de clientes/créditos desde Excel/CSV/PDF
+        key: 'importacion', label: 'Importación',
+        permissions: ['view', 'create'],
+        customPermissionLabels: { create: 'Importar' },
+      },
+      {
         // Incidencias: ver, reportar, editar estado, eliminar
         key: 'incidencias', label: 'Incidencias',
         permissions: ['view', 'create', 'edit', 'delete'],

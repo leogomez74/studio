@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   BookOpen,
   Bug,
+  Upload,
 } from 'lucide-react';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { Badge } from '@/components/ui/badge';
@@ -84,7 +85,8 @@ const navGroups = [
     label: 'Sistema',
     items: [
       { href: '/dashboard/auditoria', icon: ShieldCheck, label: 'Auditoría', module: 'auditoria' },
-      { href: '/dashboard/auditoria-asientos', icon: BookOpen, label: 'Auditoría Asientos', module: 'config_contabilidad' },
+      { href: '/dashboard/auditoria-asientos', icon: BookOpen, label: 'Auditoría Asientos', module: 'auditoria_asientos' },
+      { href: '/dashboard/importacion', icon: Upload, label: 'Importación', module: 'importacion' },
       { href: '/dashboard/incidencias', icon: Bug, label: 'Incidencias', module: 'incidencias' },
     ],
   },
