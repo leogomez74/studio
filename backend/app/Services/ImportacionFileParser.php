@@ -6,6 +6,7 @@ namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use Smalot\PdfParser\Parser as PdfParser;
 
 /**
@@ -26,26 +27,38 @@ class ImportacionFileParser
      * @var array<string, array<int, string>>
      */
     private array $synonyms = [
-        'cedula'             => ['cedula', 'identificacion', 'identidad', 'dni', 'numerodecedula', 'numerocedula', 'nocedula', 'cedulaidentidad', 'numeroidentificacion'],
-        'name'               => ['nombre', 'nombres', 'firstname', 'primernombre'],
+        'cedula'             => [
+            'cedula', 'identificacion', 'identidad', 'dni', 'numerodecedula', 'numerocedula',
+            'nocedula', 'cedulaidentidad', 'numeroidentificacion', 'idalterno', 'numerodeidentificacion',
+        ],
+        // 'name' captura desde headers genéricos "Nombre" / "Nombres".
+        // Si el valor viene con varias palabras (ej: "JENKINS CRUZ STEPHANIE") y no hay
+        // apellido1/apellido2 separados, postProcess() lo divide automáticamente.
+        'name'               => ['nombre', 'nombres', 'nombrecompleto', 'nombrepersona', 'nombrepila', 'primernombre', 'firstname', 'apellidosynombres'],
         'apellido1'          => ['apellido1', 'primerapellido', 'apellidopaterno', 'apellido'],
         'apellido2'          => ['apellido2', 'segundoapellido', 'apellidomaterno'],
-        'fecha_nacimiento'   => ['fechanacimiento', 'fechadenacimiento', 'nacimiento', 'fechanac', 'dob', 'birthdate', 'fechadenac'],
-        'estado_civil'       => ['estadocivil'],
+        'fecha_nacimiento'   => [
+            'fechanacimiento', 'fechadenacimiento', 'nacimiento', 'fechanac', 'dob', 'birthdate',
+            'fechadenac', 'fecnacimiento', 'fnacimiento',
+        ],
+        'estado_civil'       => ['estadocivil', 'edocivil'],
         'genero'             => ['genero', 'sexo'],
-        'nacionalidad'       => ['nacionalidad'],
-        'email'              => ['email', 'correo', 'correoelectronico', 'mail'],
-        'phone'              => ['phone', 'telefono', 'tel', 'celular', 'movil', 'numerotelefono'],
-        'whatsapp'           => ['whatsapp', 'wa'],
-        'tel_casa'           => ['telcasa', 'telefonocasa', 'telefonohogar'],
+        'nacionalidad'       => ['nacionalidad', 'pais'],
+        'email'              => ['email', 'correo', 'correoelectronico', 'mail', 'emailno1', 'emailprincipal', 'email1'],
+        'phone'              => ['phone', 'telefono', 'tel', 'celular', 'movil', 'numerotelefono', 'telmovil', 'telcelular', 'celularmovil'],
+        'whatsapp'           => ['whatsapp', 'wa', 'numwhatsapp'],
+        'tel_casa'           => ['telcasa', 'telefonocasa', 'telefonohogar', 'telhabitacion', 'telhogar'],
         'province'           => ['provincia', 'province'],
         'canton'             => ['canton'],
         'distrito'           => ['distrito'],
-        'direccion1'         => ['direccion', 'direccion1', 'direccionexacta', 'domicilio', 'address', 'domicilioelectoral'],
+        'direccion1'         => ['direccion', 'direccion1', 'direccionexacta', 'domicilio', 'address', 'domicilioelectoral', 'direccionresidencia'],
         'direccion2'         => ['direccion2', 'otradireccion'],
         'ocupacion'          => ['ocupacion', 'oficio'],
         'profesion'          => ['profesion'],
-        'institucion_labora' => ['institucionlabora', 'institucion', 'empresa', 'patrono', 'lugardetrabajo', 'lugartrabajo', 'centrodetrabajo'],
+        'institucion_labora' => [
+            'institucionlabora', 'institucion', 'empresa', 'patrono', 'lugardetrabajo', 'lugartrabajo',
+            'centrodetrabajo', 'institucionempresa', 'razonsocial', 'empresalabora',
+        ],
         'puesto'             => ['puesto', 'cargo'],
         'nivel_academico'    => ['nivelacademico', 'escolaridad', 'educacion'],
         'nombramientos'      => ['nombramientos', 'nombramiento'],
@@ -207,11 +220,74 @@ class ImportacionFileParser
             }
 
             if (count($record) > 1) {
-                $records[] = $record;
+                $records[] = $this->postProcessRecord($record, $synonyms);
             }
         }
 
         return $records;
+    }
+
+    /**
+     * Aplica reglas post-extracción sobre un record ya mapeado:
+     * - Split de nombre compuesto "APELLIDO1 APELLIDO2 NOMBRES" → 3 campos
+     * - Conversión de fechas Excel serial → string YYYY-MM-DD
+     *
+     * @param array<string, mixed> $record
+     * @param array<string, array<int, string>> $synonyms
+     * @return array<string, mixed>
+     */
+    private function postProcessRecord(array $record, array $synonyms): array
+    {
+        // 1. Si tenemos `name` pero NO apellido1 ni apellido2, intentar split del nombre completo.
+        // El formato común en CR es "APELLIDO1 APELLIDO2 NOMBRES" (excel CREDIPEP, INS, TSE, etc.)
+        if (isset($record['name']) && empty($record['apellido1']) && empty($record['apellido2'])) {
+            $tokens = preg_split('/\s+/', trim((string) $record['name'])) ?: [];
+            $tokens = array_values(array_filter($tokens, fn($t) => $t !== ''));
+            $count = count($tokens);
+
+            if ($count >= 3) {
+                // 3+ palabras: apellido1, apellido2, resto = nombres
+                $record['apellido1'] = $tokens[0];
+                $record['apellido2'] = $tokens[1];
+                $record['name']      = implode(' ', array_slice($tokens, 2));
+            } elseif ($count === 2) {
+                // 2 palabras: apellido1 + name
+                $record['apellido1'] = $tokens[0];
+                $record['name']      = $tokens[1];
+            }
+            // count === 1: dejar como name solo
+        }
+
+        // 2. Convertir fechas Excel serial (números entre 25569 y 73050 = 1970..2099)
+        $dateFields = ['fecha_nacimiento', 'fecha_formalizacion', 'fecha_pago'];
+        foreach ($dateFields as $df) {
+            if (isset($record[$df])) {
+                $converted = $this->maybeExcelSerialToDate($record[$df]);
+                if ($converted !== null) {
+                    $record[$df] = $converted;
+                }
+            }
+        }
+
+        return $record;
+    }
+
+    /**
+     * Si el valor parece un serial Excel (número entre 1970 y 2099), lo convierte a YYYY-MM-DD.
+     * Si no, devuelve null (el campo se queda como vino).
+     */
+    private function maybeExcelSerialToDate(mixed $value): ?string
+    {
+        if (!is_numeric($value)) return null;
+        $serial = (float) $value;
+        // Excel serial: 25569 = 1970-01-01, 73050 = 2099-12-31
+        if ($serial < 25569 || $serial > 73050) return null;
+        try {
+            $dt = ExcelDate::excelToDateTimeObject($serial);
+            return $dt->format('Y-m-d');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -285,7 +361,7 @@ class ImportacionFileParser
             }
 
             if (!empty($record)) {
-                $records[] = $record;
+                $records[] = $this->postProcessRecord($record, $this->synonyms);
             }
         }
 
