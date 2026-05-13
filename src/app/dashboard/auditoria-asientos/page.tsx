@@ -492,7 +492,7 @@ export default function AuditoriaAsientosPage() {
 
       {/* Dialog de Detalle */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalle del Asiento #{selectedLog?.id}</DialogTitle>
             <DialogDescription>
