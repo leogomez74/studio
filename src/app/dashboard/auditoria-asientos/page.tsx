@@ -67,6 +67,15 @@ interface AuditLogEntry {
   retry_count: number;
   max_retries: number;
   created_at: string;
+  entry_items?: AccountingEntryItem[];
+}
+
+interface AccountingEntryItem {
+  account_code: string | null;
+  account_name: string | null;
+  debit: number;
+  credit: number;
+  description: string | null;
 }
 
 interface AuditLogStats {
@@ -239,6 +248,17 @@ export default function AuditoriaAsientosPage() {
       window.URL.revokeObjectURL(url);
     } catch {
       toast({ title: 'Error', description: 'No se pudo exportar el CSV', variant: 'destructive' });
+    }
+  };
+
+  const loadEntryDetail = async (logId: number) => {
+    try {
+      const res = await api.get(`/api/accounting-entry-logs/${logId}`);
+      if (res.data?.log) {
+        setSelectedLog(res.data.log);
+      }
+    } catch {
+      // El detalle ya se mostró con la data del listado; si falla, no rompemos el modal
     }
   };
 
@@ -431,7 +451,7 @@ export default function AuditoriaAsientosPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => { setSelectedLog(log); setDetailOpen(true); }}>
+                        <Button variant="ghost" size="sm" onClick={() => { setSelectedLog(log); setDetailOpen(true); loadEntryDetail(log.id); }}>
                           <Eye className="h-4 w-4" />
                         </Button>
                         {log.status === 'error' && log.payload_sent && (
@@ -529,6 +549,58 @@ export default function AuditoriaAsientosPage() {
                   </div>
                 )}
               </div>
+
+              {/* Movimientos contables (débito / crédito por cuenta) */}
+              {selectedLog.entry_items && selectedLog.entry_items.length > 0 && (
+                <div>
+                  <Label className="text-sm font-medium">Movimientos contables</Label>
+                  <div className="mt-2 border rounded-md overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">Cuenta</th>
+                          <th className="text-right px-3 py-2 font-medium text-blue-700">Débito</th>
+                          <th className="text-right px-3 py-2 font-medium text-orange-700">Crédito</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedLog.entry_items.map((item, idx) => (
+                          <tr key={idx} className="border-t">
+                            <td className="px-3 py-2">
+                              <div className="font-mono text-[11px] text-muted-foreground">{item.account_code ?? '—'}</div>
+                              <div className="font-medium">{item.account_name ?? <span className="text-muted-foreground italic">Sin nombre local</span>}</div>
+                              {item.description && (
+                                <div className="text-[11px] text-muted-foreground mt-0.5">{item.description}</div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono text-blue-700">
+                              {item.debit > 0 ? formatAmount(item.debit.toString()) : ''}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono text-orange-700">
+                              {item.credit > 0 ? formatAmount(item.credit.toString()) : ''}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-muted/50 border-t-2">
+                        <tr>
+                          <td className="px-3 py-2 text-right font-semibold">TOTAL</td>
+                          <td className="px-3 py-2 text-right font-mono font-semibold text-blue-700">
+                            {formatAmount(
+                              selectedLog.entry_items.reduce((s, i) => s + i.debit, 0).toString()
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-semibold text-orange-700">
+                            {formatAmount(
+                              selectedLog.entry_items.reduce((s, i) => s + i.credit, 0).toString()
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {selectedLog.status === 'error' && selectedLog.payload_sent && (
                 <Button
