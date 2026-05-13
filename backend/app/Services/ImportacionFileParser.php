@@ -61,7 +61,7 @@ class ImportacionFileParser
         ],
         'puesto'             => ['puesto', 'cargo'],
         'nivel_academico'    => ['nivelacademico', 'escolaridad', 'educacion'],
-        'nombramientos'      => ['nombramientos', 'nombramiento'],
+        'nombramientos'      => ['nombramientos', 'nombramiento', 'estadolaboral', 'tiponombramiento', 'estadopuesto'],
     ];
 
     /**
