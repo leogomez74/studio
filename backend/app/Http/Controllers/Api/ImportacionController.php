@@ -271,4 +271,301 @@ class ImportacionController extends Controller
             'message' => 'Endpoint de creación aún no implementado en esta fase.',
         ], 501);
     }
+
+    // -----------------------------------------------------------------------
+    // CRÉDITOS
+    // -----------------------------------------------------------------------
+
+    private const CREDITO_REQUIRED_FIELDS = [
+        'cedula', 'monto_credito', 'plazo_meses', 'tasa_anual', 'cuota', 'fecha_formalizacion',
+    ];
+
+    private const PAGO_REQUIRED_FIELDS = [
+        'fecha_pago', 'monto_total', 'capital', 'interes_corriente', 'tipo_pago',
+    ];
+
+    /**
+     * Preview de importación de créditos.
+     * Lee Excel con hojas "Creditos" y "Pagos", valida y devuelve preview agrupado.
+     */
+    public function previewCreditos(Request $request): JsonResponse
+    {
+        $request->validate([
+            'files'   => 'required|array|min:1|max:10',
+            'files.*' => 'file|mimes:xlsx,xls,csv,pdf|max:20480',
+        ]);
+
+        $uploadedFiles = $request->file('files') ?? [];
+
+        $parser = new ImportacionFileParser();
+        $creditos = [];
+        $fileErrors = [];
+
+        foreach ($uploadedFiles as $file) {
+            try {
+                $parsed = $parser->parseCreditos($file);
+            } catch (\Throwable $e) {
+                Log::error('ImportacionController: error parseando créditos', [
+                    'error' => $e->getMessage(),
+                    'file'  => $file->getClientOriginalName(),
+                ]);
+                $fileErrors[] = [
+                    'file'  => $file->getClientOriginalName(),
+                    'error' => $e->getMessage(),
+                ];
+                continue;
+            }
+
+            // Indexar pagos por cedula/numero_operacion para vincularlos al crédito
+            $pagosByKey = [];
+            foreach ($parsed['pagos'] as $pago) {
+                $key = $this->pagoKey($pago);
+                if ($key === null) continue;
+                $pagosByKey[$key] = $pagosByKey[$key] ?? [];
+                $pagosByKey[$key][] = $pago;
+            }
+
+            foreach ($parsed['creditos'] as $credito) {
+                $sanitized = $this->sanitizeCredito($credito);
+
+                // Vincular pagos al crédito
+                $creditoKeys = array_filter([
+                    $sanitized['cedula'] ?? null,
+                    $sanitized['numero_operacion'] ?? null,
+                ]);
+                $pagosVinculados = [];
+                foreach ($creditoKeys as $k) {
+                    if (isset($pagosByKey[$k])) {
+                        foreach ($pagosByKey[$k] as $p) {
+                            $pagosVinculados[] = $this->sanitizePago($p);
+                        }
+                    }
+                }
+
+                // Buscar cliente por cédula
+                $cliente = null;
+                if (!empty($sanitized['cedula'])) {
+                    $cliente = Person::query()
+                        ->withoutGlobalScopes()
+                        ->where('cedula', $sanitized['cedula'])
+                        ->first([
+                            'id', 'cedula', 'name', 'apellido1', 'apellido2',
+                            'person_type_id', 'is_active',
+                        ]);
+                }
+
+                // Crédito ya existe?
+                $creditoExistente = null;
+                if (!empty($sanitized['numero_operacion'])) {
+                    $creditoExistente = \App\Models\Credit::query()
+                        ->where('numero_operacion', $sanitized['numero_operacion'])
+                        ->first(['id', 'numero_operacion', 'monto_credito', 'fecha_formalizacion']);
+                }
+
+                // Detectar pagos duplicados: la `referencia_pago` del archivo se compara
+                // contra la columna `referencia` de credit_payments (que ya existe).
+                $pagosDuplicados = [];
+                $referenciasFile = array_filter(array_column($pagosVinculados, 'referencia_pago'));
+                if (!empty($referenciasFile)) {
+                    $pagosDuplicados = \App\Models\CreditPayment::query()
+                        ->whereIn('referencia', $referenciasFile)
+                        ->pluck('referencia')
+                        ->toArray();
+                }
+
+                // Validar campos requeridos del crédito
+                $errors = [];
+                foreach (self::CREDITO_REQUIRED_FIELDS as $req) {
+                    if (empty($sanitized[$req]) && $sanitized[$req] !== 0 && $sanitized[$req] !== '0') {
+                        $errors[] = "Falta {$req}";
+                    }
+                }
+
+                // Validar cliente
+                if (!empty($sanitized['cedula']) && !$cliente) {
+                    $errors[] = "Cliente con cédula {$sanitized['cedula']} no existe en el sistema";
+                }
+
+                // Validar pagos
+                $pagoErrors = [];
+                foreach ($pagosVinculados as $idxPago => $pago) {
+                    foreach (self::PAGO_REQUIRED_FIELDS as $req) {
+                        if (empty($pago[$req]) && $pago[$req] !== 0 && $pago[$req] !== '0') {
+                            $pagoErrors[$idxPago][] = "Falta {$req}";
+                        }
+                    }
+                }
+
+                $creditos[] = [
+                    'source_file'        => $file->getClientOriginalName(),
+                    'row_number'         => $credito['__row'] ?? null,
+                    'extracted'          => $sanitized,
+                    'cliente'            => $cliente ? [
+                        'id'              => $cliente->id,
+                        'cedula'          => $cliente->cedula,
+                        'nombre_completo' => trim("{$cliente->name} {$cliente->apellido1} {$cliente->apellido2}"),
+                        'person_type_id'  => $cliente->person_type_id,
+                        'tipo'            => $cliente->person_type_id === 2 ? 'Cliente' : 'Lead',
+                        'is_active'       => (bool) $cliente->is_active,
+                    ] : null,
+                    'cliente_existe'     => $cliente !== null,
+                    'credito_ya_existe'  => $creditoExistente !== null,
+                    'credito_existente'  => $creditoExistente ? [
+                        'id'                  => $creditoExistente->id,
+                        'numero_operacion'    => $creditoExistente->numero_operacion,
+                        'monto_credito'       => (float) $creditoExistente->monto_credito,
+                        'fecha_formalizacion' => $creditoExistente->fecha_formalizacion?->format('Y-m-d'),
+                    ] : null,
+                    'pagos'              => $pagosVinculados,
+                    'pagos_count'        => count($pagosVinculados),
+                    'pagos_duplicados'   => array_values($pagosDuplicados),
+                    'pagos_a_importar'   => count($pagosVinculados) - count($pagosDuplicados),
+                    'pago_errors'        => $pagoErrors,
+                    'errors'             => $errors,
+                    'ready_to_import'    => empty($errors) && $cliente !== null && $creditoExistente === null,
+                ];
+            }
+        }
+
+        // Resumen
+        $summary = [
+            'total'              => count($creditos),
+            'ready'              => 0,
+            'cliente_faltante'   => 0,
+            'credito_existente'  => 0,
+            'con_errores'        => 0,
+            'pagos_total'        => 0,
+            'pagos_duplicados'   => 0,
+            'pagos_a_importar'   => 0,
+            'file_errors'        => count($fileErrors),
+        ];
+        foreach ($creditos as $c) {
+            $summary['pagos_total']      += $c['pagos_count'];
+            $summary['pagos_duplicados'] += count($c['pagos_duplicados']);
+            $summary['pagos_a_importar'] += $c['pagos_a_importar'];
+
+            if ($c['ready_to_import']) {
+                $summary['ready']++;
+            } elseif (!$c['cliente_existe']) {
+                $summary['cliente_faltante']++;
+            } elseif ($c['credito_ya_existe']) {
+                $summary['credito_existente']++;
+            } else {
+                $summary['con_errores']++;
+            }
+        }
+
+        return response()->json([
+            'success'      => true,
+            'summary'      => $summary,
+            'creditos'     => $creditos,
+            'file_errors'  => $fileErrors,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $extracted
+     * @return array<string, mixed>
+     */
+    private function sanitizeCredito(array $extracted): array
+    {
+        return [
+            'cedula'              => isset($extracted['cedula']) ? preg_replace('/[^0-9]/', '', (string) $extracted['cedula']) : null,
+            'numero_operacion'    => isset($extracted['numero_operacion']) ? trim((string) $extracted['numero_operacion']) : null,
+            'monto_credito'       => isset($extracted['monto_credito']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['monto_credito']) : null,
+            'plazo_meses'         => isset($extracted['plazo_meses']) ? (int) $extracted['plazo_meses'] : null,
+            'tasa_anual'          => isset($extracted['tasa_anual']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['tasa_anual']) : null,
+            'cuota'               => isset($extracted['cuota']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['cuota']) : null,
+            'fecha_formalizacion' => isset($extracted['fecha_formalizacion']) ? $this->normalizeDate((string) $extracted['fecha_formalizacion']) : null,
+            'deductora_nombre'    => isset($extracted['deductora_nombre']) ? trim((string) $extracted['deductora_nombre']) : null,
+            'divisa'              => isset($extracted['divisa']) ? strtoupper(trim((string) $extracted['divisa'])) : 'CRC',
+            'categoria'           => isset($extracted['categoria']) ? trim((string) $extracted['categoria']) : null,
+            'descripcion'         => isset($extracted['descripcion']) ? trim((string) $extracted['descripcion']) : null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $extracted
+     * @return array<string, mixed>
+     */
+    private function sanitizePago(array $extracted): array
+    {
+        return [
+            'cedula'             => isset($extracted['cedula']) ? preg_replace('/[^0-9]/', '', (string) $extracted['cedula']) : null,
+            'numero_operacion'   => isset($extracted['numero_operacion']) ? trim((string) $extracted['numero_operacion']) : null,
+            'fecha_pago'         => isset($extracted['fecha_pago']) ? $this->normalizeDate((string) $extracted['fecha_pago']) : null,
+            'monto_total'        => isset($extracted['monto_total']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['monto_total']) : null,
+            'capital'            => isset($extracted['capital']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['capital']) : 0.0,
+            'interes_corriente'  => isset($extracted['interes_corriente']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['interes_corriente']) : 0.0,
+            'interes_moratorio'  => isset($extracted['interes_moratorio']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['interes_moratorio']) : 0.0,
+            'otros'              => isset($extracted['otros']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['otros']) : 0.0,
+            'tipo_pago'          => isset($extracted['tipo_pago']) ? strtolower(trim((string) $extracted['tipo_pago'])) : 'cuota_regular',
+            'numero_cuota'       => isset($extracted['numero_cuota']) ? (int) $extracted['numero_cuota'] : null,
+            'referencia_pago'    => isset($extracted['referencia_pago']) ? trim((string) $extracted['referencia_pago']) : null,
+            'nota'               => isset($extracted['nota']) ? trim((string) $extracted['nota']) : null,
+            'row_number'         => $extracted['__row'] ?? null,
+        ];
+    }
+
+    /**
+     * Construye una clave para vincular pagos a su crédito.
+     * Usa numero_operacion como preferencia, cédula como fallback.
+     */
+    private function pagoKey(array $pago): ?string
+    {
+        if (!empty($pago['numero_operacion'])) {
+            return trim((string) $pago['numero_operacion']);
+        }
+        if (!empty($pago['cedula'])) {
+            return preg_replace('/[^0-9]/', '', (string) $pago['cedula']);
+        }
+        return null;
+    }
+
+    /**
+     * Crea los créditos del payload (post-preview): genera credit + plan de pagos
+     * con cuota override del archivo y dispara los asientos contables en la fecha histórica.
+     * Los pagos del archivo se importan y disparan sus asientos respectivos.
+     */
+    public function crearCreditos(Request $request): JsonResponse
+    {
+        $request->validate([
+            'creditos'                          => 'required|array|min:1|max:200',
+            'creditos.*.credito'                => 'required|array',
+            'creditos.*.credito.cedula'         => 'required|string',
+            'creditos.*.credito.monto_credito'  => 'required|numeric|min:0.01',
+            'creditos.*.credito.plazo_meses'    => 'required|integer|min:1',
+            'creditos.*.credito.tasa_anual'     => 'required|numeric|min:0',
+            'creditos.*.credito.cuota'          => 'required|numeric|min:0.01',
+            'creditos.*.credito.fecha_formalizacion' => 'required|date',
+            'creditos.*.pagos'                  => 'sometimes|array',
+        ]);
+
+        $creator = new \App\Services\ImportacionCreditoCreator();
+        $results = [];
+        $stats = ['creados' => 0, 'fallidos' => 0, 'pagos_creados' => 0, 'pagos_saltados' => 0];
+
+        foreach ($request->input('creditos', []) as $idx => $item) {
+            $creditoData = $item['credito'] ?? [];
+            $pagosData   = $item['pagos']   ?? [];
+
+            $result = $creator->crear($creditoData, $pagosData);
+
+            $results[] = array_merge(['index' => $idx, 'cedula' => $creditoData['cedula'] ?? null], $result);
+
+            if ($result['success'] ?? false) {
+                $stats['creados']++;
+                $stats['pagos_creados'] += $result['pagos_creados'] ?? 0;
+                $stats['pagos_saltados'] += $result['pagos_saltados'] ?? 0;
+            } else {
+                $stats['fallidos']++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'stats'   => $stats,
+            'results' => $results,
+        ]);
+    }
 }

@@ -488,8 +488,14 @@ trait AccountingTrigger
             $mainDescriptionResolved = "{$config->name} {$reference} - {$clienteNombre} ({$cedula})";
         }
 
+        // Permitir override de fecha para data histórica (ej: migraciones).
+        // El contexto puede traer entry_date = 'YYYY-MM-DD' para usar fecha distinta a hoy.
+        $entryDate = !empty($context['entry_date'])
+            ? (string) $context['entry_date']
+            : now()->format('Y-m-d');
+
         $result = $service->createJournalEntry(
-            date: now()->format('Y-m-d'),
+            date: $entryDate,
             description: $mainDescriptionResolved,
             items: $items,
             reference: strtoupper($entryType) . "-{$reference}"
