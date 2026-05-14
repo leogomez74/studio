@@ -536,10 +536,12 @@ class ImportacionFileParser
             $cuota = $this->parseMoney($m[1]);
         }
 
-        // Institución/Deductora: la línea anterior a "GARANTIA" o entre PAGARÉ y los labels
-        $deductora = null;
+        // INSTITUCION del PDF (ej: "MUNICIPALIDAD DE SAN JOSÉ") = donde labora la persona.
+        // NO es la deductora. La deductora se infiere del prefijo del comprobante de pagos
+        // (ej: M-SJ, CSG) que puede cambiar a lo largo de la vida del crédito.
+        $institucion = null;
         if (preg_match('/PAGAR[ÉE]\s*\([^)]*\)\s*\n([^\n]+)/u', $text, $m)) {
-            $deductora = trim($m[1]);
+            $institucion = trim($m[1]);
         }
 
         // Divisa: "COL" → "CRC", "USD" → "USD"
@@ -556,7 +558,10 @@ class ImportacionFileParser
             'tasa_anual'          => $tasa,
             'cuota'               => $cuota,
             'fecha_formalizacion' => $fechaFormalizacion,
-            'deductora_nombre'    => $deductora,
+            // institucion_labora va al Person, NO a la Deductora del Crédito.
+            // El creator usará este valor para actualizar Person.institucion_labora.
+            'institucion_labora'  => $institucion,
+            'deductora_nombre'    => null, // No se infiere del PDF; queda en null
             'divisa'              => $divisa,
             'saldo_actual'        => $saldo,
         ];

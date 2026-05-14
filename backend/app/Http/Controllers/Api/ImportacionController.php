@@ -672,6 +672,7 @@ class ImportacionController extends Controller
             'cuota'               => isset($extracted['cuota']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['cuota']) : null,
             'fecha_formalizacion' => isset($extracted['fecha_formalizacion']) ? $this->normalizeDate((string) $extracted['fecha_formalizacion']) : null,
             'deductora_nombre'    => isset($extracted['deductora_nombre']) ? trim((string) $extracted['deductora_nombre']) : null,
+            'institucion_labora'  => isset($extracted['institucion_labora']) ? trim((string) $extracted['institucion_labora']) : null,
             'divisa'              => isset($extracted['divisa']) ? strtoupper(trim((string) $extracted['divisa'])) : 'CRC',
             'categoria'           => isset($extracted['categoria']) ? trim((string) $extracted['categoria']) : null,
             'descripcion'         => isset($extracted['descripcion']) ? trim((string) $extracted['descripcion']) : null,

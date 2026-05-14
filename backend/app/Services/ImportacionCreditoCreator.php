@@ -66,6 +66,13 @@ class ImportacionCreditoCreator
             $cliente->save();
         }
 
+        // Si el PDF trae institucion_labora y el cliente no la tiene, actualizarla.
+        // (INSTITUCION del PDF = donde labora la persona, NO la deductora del crédito)
+        if (!empty($creditoData['institucion_labora']) && empty($cliente->institucion_labora)) {
+            $cliente->institucion_labora = $creditoData['institucion_labora'];
+            $cliente->save();
+        }
+
         // Validar crédito no existe — chequeo en 2 niveles:
         //   1. Por numero_operacion (exacto)
         //   2. Por cedula + monto + plazo + fecha_formalizacion (mismo crédito, distinto numero)

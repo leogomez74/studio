@@ -722,6 +722,7 @@ interface CreditoRecord {
     cuota: number | null;
     fecha_formalizacion: string | null;
     deductora_nombre: string | null;
+    institucion_labora: string | null;
     divisa: string | null;
     categoria: string | null;
     descripcion: string | null;
@@ -1362,6 +1363,7 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
                   <Detail label="Tasa anual" value={detailCredito.extracted.tasa_anual ? `${detailCredito.extracted.tasa_anual}%` : null} />
                   <Detail label="Cuota" value={fmtMoney(detailCredito.extracted.cuota)} />
                   <Detail label="Fecha formalización" value={detailCredito.extracted.fecha_formalizacion} />
+                  <Detail label="Institución (donde labora)" value={detailCredito.extracted.institucion_labora} />
                   <Detail label="Deductora" value={detailCredito.extracted.deductora_nombre} />
                   <Detail label="Divisa" value={detailCredito.extracted.divisa} />
                 </CardContent>
