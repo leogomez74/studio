@@ -94,14 +94,10 @@ class ImportacionCreditoCreator
             }
         }
 
-        // Resolver tasa_id (busca por valor numérico de tasa_anual)
-        $tasa = $this->resolverTasa((float) $creditoData['tasa_anual']);
-        if (!$tasa) {
-            return [
-                'success' => false,
-                'error' => "No se encontró una tasa configurada con valor {$creditoData['tasa_anual']}%",
-            ];
-        }
+        // Para data histórica, usamos la tasa EXACTA del archivo.
+        // Si no existe en la tabla `tasas`, la creamos automáticamente como tasa histórica
+        // (no requiere coincidir con tasas vigentes del sistema actual).
+        $tasa = $this->resolverOCrearTasa((float) $creditoData['tasa_anual'], $creditoData['fecha_formalizacion']);
 
         // Resolver deductora_id (opcional)
         $deductoraId = null;
@@ -429,17 +425,29 @@ class ImportacionCreditoCreator
     }
 
     /**
-     * Busca una tasa configurada con el mismo valor que viene en el archivo.
+     * Busca una tasa con el mismo valor que viene en el archivo. Si no existe,
+     * la crea automáticamente como tasa histórica (inactiva, sin afectar tasas vigentes).
+     *
+     * El objetivo de la importación histórica es respetar EXACTAMENTE los valores
+     * del archivo original, no validar contra tasas vigentes del sistema actual.
      */
-    private function resolverTasa(float $tasaAnual): ?Tasa
+    private function resolverOCrearTasa(float $tasaAnual, ?string $fechaFormalizacion = null): Tasa
     {
-        // Match exacto primero
-        $tasa = Tasa::where('tasa', $tasaAnual)->first();
+        $tasaRedondeada = round($tasaAnual, 2);
+
+        // Match exacto (redondeado a 2 decimales)
+        $tasa = Tasa::whereRaw('ROUND(tasa, 2) = ?', [$tasaRedondeada])->first();
         if ($tasa) return $tasa;
 
-        // Si no, redondeado a 2 decimales
-        $tasaRedondeada = round($tasaAnual, 2);
-        return Tasa::whereRaw('ROUND(tasa, 2) = ?', [$tasaRedondeada])->first();
+        // Crear nueva tasa histórica con el valor del archivo
+        return Tasa::create([
+            'nombre'      => "Tasa Histórica {$tasaRedondeada}%",
+            'tasa'        => $tasaRedondeada,
+            'tasa_maxima' => $tasaRedondeada * 1.3, // moratoria estándar 30% adicional
+            'inicio'      => $fechaFormalizacion ?: now()->format('Y-m-d'),
+            'fin'         => null,
+            'activo'      => false, // No interferir con tasas vigentes
+        ]);
     }
 
     /**
