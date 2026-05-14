@@ -80,6 +80,9 @@ class ImportacionController extends Controller
             'files.*' => 'file|mimes:xlsx,xls,csv,pdf|max:10240',
         ]);
 
+        @set_time_limit(0);
+        @ini_set('memory_limit', '512M');
+
         $uploadedFiles = $request->file('files') ?? [];
 
         // Si hay un Excel/CSV no puede venir mezclado con PDFs ni otros Excel
@@ -92,19 +95,53 @@ class ImportacionController extends Controller
         }
 
         $parser = new ImportacionFileParser();
-        $records = [];
+        // Recolectar todos los records parseados de todos los archivos primero,
+        // luego hacer UNA sola query para detectar duplicados (mucho más rápido para 2000+ records).
+        $parsedAll = [];
 
         foreach ($uploadedFiles as $file) {
             try {
                 $parsedList = $parser->parse($file);
+                foreach ($parsedList as $rowIdx => $extracted) {
+                    $parsedAll[] = [
+                        'source_file' => $file->getClientOriginalName(),
+                        'row_number'  => $rowIdx + 1,
+                        'extracted'   => $extracted,
+                    ];
+                }
             } catch (\Throwable $e) {
                 Log::error('ImportacionController: error al parsear archivo', [
                     'error' => $e->getMessage(),
                     'file'  => $file->getClientOriginalName(),
                 ]);
-                $records[] = [
+                $parsedAll[] = [
                     'source_file' => $file->getClientOriginalName(),
+                    'row_number'  => null,
                     'error'       => $e->getMessage(),
+                ];
+            }
+        }
+
+        // Batch lookup de cédulas existentes (1 query para todos)
+        $cedulasBuscadas = [];
+        foreach ($parsedAll as $p) {
+            $ced = preg_replace('/[^0-9]/', '', (string)($p['extracted']['cedula'] ?? ''));
+            if ($ced !== '') $cedulasBuscadas[] = $ced;
+        }
+        $existingMap = [];
+        if (!empty($cedulasBuscadas)) {
+            $existingMap = Person::query()->withoutGlobalScopes()
+                ->whereIn('cedula', array_unique($cedulasBuscadas))
+                ->get(['id', 'cedula', 'name', 'apellido1', 'apellido2', 'person_type_id', 'email', 'phone', 'is_active'])
+                ->keyBy('cedula');
+        }
+
+        $records = [];
+        foreach ($parsedAll as $p) {
+            if (!empty($p['error'])) {
+                $records[] = [
+                    'source_file' => $p['source_file'],
+                    'error'       => $p['error'],
                     'extracted'   => [],
                     'filled'      => [],
                     'missing'     => [],
@@ -113,14 +150,12 @@ class ImportacionController extends Controller
                 ];
                 continue;
             }
-
-            foreach ($parsedList as $rowIdx => $extracted) {
-                $records[] = $this->buildRecordPreview(
-                    $file->getClientOriginalName(),
-                    $rowIdx + 1,
-                    $extracted
-                );
-            }
+            $records[] = $this->buildRecordPreview(
+                $p['source_file'],
+                $p['row_number'] ?? 0,
+                $p['extracted'],
+                $existingMap
+            );
         }
 
         // Resumen agregado
@@ -156,21 +191,19 @@ class ImportacionController extends Controller
      * Construye el preview de un único record.
      *
      * @param array<string, mixed> $extracted
+     * @param \Illuminate\Support\Collection<string, \App\Models\Person>|array<string, \App\Models\Person> $existingMap
+     *        Mapa cedula → Person para evitar N queries.
      * @return array<string, mixed>
      */
-    private function buildRecordPreview(string $sourceFile, int $rowNumber, array $extracted): array
+    private function buildRecordPreview(string $sourceFile, int $rowNumber, array $extracted, $existingMap = []): array
     {
         $sanitized = $this->sanitizeExtracted($extracted);
 
         $existing = null;
         if (!empty($sanitized['cedula'])) {
-            $existing = Person::query()
-                ->withoutGlobalScopes()
-                ->where('cedula', $sanitized['cedula'])
-                ->first([
-                    'id', 'cedula', 'name', 'apellido1', 'apellido2', 'person_type_id',
-                    'email', 'phone', 'is_active',
-                ]);
+            $existing = is_array($existingMap)
+                ? ($existingMap[$sanitized['cedula']] ?? null)
+                : $existingMap->get($sanitized['cedula']);
         }
 
         $filled  = [];
@@ -265,11 +298,115 @@ class ImportacionController extends Controller
         }
     }
 
+    /**
+     * Crea clientes en lote a partir del payload validado en el preview.
+     * El frontend envía los registros confirmados; aquí se persisten en `persons`
+     * con person_type_id = 2 (Cliente directo).
+     */
     public function crearCliente(Request $request): JsonResponse
     {
+        $request->validate([
+            'clientes'              => 'required|array|min:1',
+            'clientes.*.cedula'     => 'required|string',
+            'clientes.*.name'       => 'required|string|max:100',
+            'clientes.*.apellido1'  => 'nullable|string|max:100',
+            'clientes.*.apellido2'  => 'nullable|string|max:100',
+        ]);
+
+        // Lotes grandes (2000+ records) requieren más tiempo y memoria
+        @set_time_limit(0);
+        @ini_set('memory_limit', '512M');
+
+        $clientes = $request->input('clientes', []);
+
+        // Pre-cargar todas las cédulas existentes en UNA query (idempotencia rápida)
+        $cedulasInput = array_filter(array_map(
+            fn($c) => preg_replace('/[^0-9]/', '', (string)($c['cedula'] ?? '')),
+            $clientes
+        ));
+        $existingMap = [];
+        if (!empty($cedulasInput)) {
+            $existingMap = Person::query()->withoutGlobalScopes()
+                ->whereIn('cedula', array_unique($cedulasInput))
+                ->pluck('id', 'cedula')
+                ->toArray();
+        }
+
+        $results = [];
+        $stats = ['creados' => 0, 'omitidos' => 0, 'fallidos' => 0];
+
+        foreach ($clientes as $idx => $data) {
+            try {
+                $cedula = preg_replace('/[^0-9]/', '', (string) ($data['cedula'] ?? ''));
+                if (empty($cedula)) {
+                    $results[] = [
+                        'index'   => $idx,
+                        'cedula'  => $data['cedula'] ?? null,
+                        'success' => false,
+                        'error'   => 'Cédula inválida',
+                    ];
+                    $stats['fallidos']++;
+                    continue;
+                }
+
+                // Idempotencia rápida con el mapa pre-cargado
+                if (isset($existingMap[$cedula])) {
+                    $results[] = [
+                        'index'   => $idx,
+                        'cedula'  => $cedula,
+                        'success' => false,
+                        'omitido' => true,
+                        'error'   => "Ya existe (id #{$existingMap[$cedula]})",
+                    ];
+                    $stats['omitidos']++;
+                    continue;
+                }
+
+                // Construir payload limpio: solo campos mappeados
+                $payload = ['person_type_id' => 2, 'cedula' => $cedula, 'is_active' => true];
+                $allowed = [
+                    'name', 'apellido1', 'apellido2', 'fecha_nacimiento', 'estado_civil',
+                    'genero', 'nacionalidad', 'email', 'phone', 'whatsapp', 'tel_casa',
+                    'province', 'canton', 'distrito', 'direccion1', 'direccion2',
+                    'ocupacion', 'profesion', 'institucion_labora', 'puesto',
+                    'nivel_academico', 'nombramientos',
+                ];
+                foreach ($allowed as $field) {
+                    if (!empty($data[$field])) {
+                        $payload[$field] = $data[$field];
+                    }
+                }
+
+                $person = Person::create($payload);
+
+                $results[] = [
+                    'index'   => $idx,
+                    'cedula'  => $cedula,
+                    'success' => true,
+                    'id'      => $person->id,
+                    'nombre'  => trim("{$person->name} {$person->apellido1} {$person->apellido2}"),
+                ];
+                $stats['creados']++;
+            } catch (\Throwable $e) {
+                Log::error('ImportacionController: error creando cliente', [
+                    'cedula' => $data['cedula'] ?? null,
+                    'error'  => $e->getMessage(),
+                ]);
+                $results[] = [
+                    'index'   => $idx,
+                    'cedula'  => $data['cedula'] ?? null,
+                    'success' => false,
+                    'error'   => $e->getMessage(),
+                ];
+                $stats['fallidos']++;
+            }
+        }
+
         return response()->json([
-            'message' => 'Endpoint de creación aún no implementado en esta fase.',
-        ], 501);
+            'success' => true,
+            'stats'   => $stats,
+            'results' => $results,
+        ]);
     }
 
     // -----------------------------------------------------------------------
@@ -294,6 +431,9 @@ class ImportacionController extends Controller
             'files'   => 'required|array|min:1|max:10',
             'files.*' => 'file|mimes:xlsx,xls,csv,pdf|max:20480',
         ]);
+
+        @set_time_limit(0);
+        @ini_set('memory_limit', '512M');
 
         $uploadedFiles = $request->file('files') ?? [];
 
@@ -530,7 +670,7 @@ class ImportacionController extends Controller
     public function crearCreditos(Request $request): JsonResponse
     {
         $request->validate([
-            'creditos'                          => 'required|array|min:1|max:200',
+            'creditos'                          => 'required|array|min:1',
             'creditos.*.credito'                => 'required|array',
             'creditos.*.credito.cedula'         => 'required|string',
             'creditos.*.credito.monto_credito'  => 'required|numeric|min:0.01',
@@ -540,6 +680,9 @@ class ImportacionController extends Controller
             'creditos.*.credito.fecha_formalizacion' => 'required|date',
             'creditos.*.pagos'                  => 'sometimes|array',
         ]);
+
+        @set_time_limit(0);
+        @ini_set('memory_limit', '512M');
 
         $creator = new \App\Services\ImportacionCreditoCreator();
         $results = [];

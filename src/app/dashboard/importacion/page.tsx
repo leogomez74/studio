@@ -107,12 +107,30 @@ export default function ImportacionPage() {
 type HasPermissionFn = ReturnType<typeof usePermissions>['hasPermission'];
 type ToastFn = ReturnType<typeof useToast>['toast'];
 
+interface ClienteCreateResult {
+  index: number;
+  cedula: string | null;
+  success: boolean;
+  omitido?: boolean;
+  id?: number;
+  nombre?: string;
+  error?: string;
+}
+
+interface ClienteCreateResponse {
+  success: boolean;
+  stats: { creados: number; omitidos: number; fallidos: number };
+  results: ClienteCreateResult[];
+}
+
 function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermissionFn; toast: ToastFn }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [detailRecord, setDetailRecord] = useState<RecordPreview | null>(null);
+  const [createResult, setCreateResult] = useState<ClienteCreateResponse | null>(null);
 
   const canCreate = hasPermission('importacion', 'create');
 
@@ -165,7 +183,36 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
   const handleReset = () => {
     setFiles([]);
     setPreview(null);
+    setCreateResult(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleCreate = async () => {
+    if (!preview) return;
+    const payload = {
+      clientes: preview.records
+        .filter(r => !r.error && !r.already_exists && r.extracted.cedula)
+        .map(r => r.extracted),
+    };
+    if (payload.clientes.length === 0) {
+      toast({ title: 'Sin clientes nuevos', description: 'No hay registros válidos para crear.' });
+      return;
+    }
+    try {
+      setCreating(true);
+      const res = await api.post<ClienteCreateResponse>('/api/importacion/crear-cliente', payload);
+      setCreateResult(res.data);
+      toast({
+        title: 'Importación completada',
+        description: `${res.data.stats.creados} cliente(s) creado(s), ${res.data.stats.omitidos} omitido(s), ${res.data.stats.fallidos} con error.`,
+      });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        || 'No se pudo crear los clientes.';
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -362,19 +409,85 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
 
           {/* Acción bulk */}
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handleReset}>
+            <Button variant="outline" onClick={handleReset} disabled={creating}>
               Cancelar
             </Button>
             <Button
-              disabled={!canCreate || preview.summary.new === 0}
+              disabled={!canCreate || preview.summary.new === 0 || creating}
+              onClick={handleCreate}
               title={
                 !canCreate ? 'No tienes permiso para crear clientes' :
                 preview.summary.new === 0 ? 'No hay registros nuevos para crear' : ''
               }
             >
-              Crear {preview.summary.new} cliente{preview.summary.new !== 1 ? 's' : ''}
+              {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {creating ? 'Creando...' : `Crear ${preview.summary.new} cliente${preview.summary.new !== 1 ? 's' : ''}`}
             </Button>
           </div>
+
+          {/* Overlay de loading durante creación */}
+          {creating && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <Card className="w-[400px]">
+                <CardContent className="pt-6 flex flex-col items-center gap-3 text-center">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <p className="font-medium">Creando clientes...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Procesando {preview.summary.new} registro{preview.summary.new !== 1 ? 's' : ''}. Por favor espera, no cierres esta ventana.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Resultado de la creación */}
+          {createResult && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  Resultado de la importación
+                </CardTitle>
+                <CardDescription>
+                  {createResult.stats.creados} cliente(s) creado(s) ·{' '}
+                  {createResult.stats.omitidos} omitido(s) por duplicado ·{' '}
+                  {createResult.stats.fallidos} con error
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]">#</TableHead>
+                      <TableHead>Cédula</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead className="text-center">Estado</TableHead>
+                      <TableHead>Detalle</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {createResult.results.map((r) => (
+                      <TableRow key={r.index}>
+                        <TableCell className="text-xs text-muted-foreground">{r.index + 1}</TableCell>
+                        <TableCell className="font-mono text-xs">{r.cedula || '—'}</TableCell>
+                        <TableCell className="text-xs">{r.nombre || '—'}</TableCell>
+                        <TableCell className="text-center">
+                          {r.success
+                            ? <Badge className="text-xs bg-green-100 text-green-800 border-green-300 hover:bg-green-100">Creado</Badge>
+                            : r.omitido
+                              ? <Badge variant="outline" className="text-xs">Omitido</Badge>
+                              : <Badge variant="destructive" className="text-xs">Falló</Badge>}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {r.error || (r.success ? `Cliente #${r.id}` : '')}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
@@ -870,6 +983,21 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
               Crear {preview.summary.ready} crédito{preview.summary.ready !== 1 ? 's' : ''}
             </Button>
           </div>
+
+          {/* Overlay de loading durante creación */}
+          {creating && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <Card className="w-[420px]">
+                <CardContent className="pt-6 flex flex-col items-center gap-3 text-center">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <p className="font-medium">Creando créditos...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Procesando {preview.summary.ready} crédito{preview.summary.ready !== 1 ? 's' : ''} con sus pagos y asientos contables. Esto puede tomar varios segundos.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Resultado de la creación */}
           {createResult && (
