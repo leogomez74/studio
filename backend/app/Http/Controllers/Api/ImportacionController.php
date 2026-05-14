@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Client;
 use App\Models\Person;
 use App\Services\ImportacionFileParser;
 use Illuminate\Http\JsonResponse;
@@ -362,8 +363,9 @@ class ImportacionController extends Controller
                     continue;
                 }
 
-                // Construir payload limpio: solo campos mappeados
-                $payload = ['person_type_id' => 2, 'cedula' => $cedula, 'is_active' => true];
+                // Construir payload limpio: solo campos mappeados.
+                // Client::create() asigna person_type_id=2 automáticamente vía boot.
+                $payload = ['cedula' => $cedula, 'is_active' => true];
                 $allowed = [
                     'name', 'apellido1', 'apellido2', 'fecha_nacimiento', 'estado_civil',
                     'genero', 'nacionalidad', 'email', 'phone', 'whatsapp', 'tel_casa',
@@ -377,7 +379,7 @@ class ImportacionController extends Controller
                     }
                 }
 
-                $person = Person::create($payload);
+                $person = Client::create($payload);
 
                 $results[] = [
                     'index'   => $idx,
