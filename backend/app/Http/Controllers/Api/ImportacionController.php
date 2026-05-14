@@ -693,6 +693,7 @@ class ImportacionController extends Controller
             'capital'            => isset($extracted['capital']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['capital']) : 0.0,
             'interes_corriente'  => isset($extracted['interes_corriente']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['interes_corriente']) : 0.0,
             'interes_moratorio'  => isset($extracted['interes_moratorio']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['interes_moratorio']) : 0.0,
+            'poliza'             => isset($extracted['poliza']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['poliza']) : 0.0,
             'otros'              => isset($extracted['otros']) ? (float) preg_replace('/[^0-9.]/', '', (string) $extracted['otros']) : 0.0,
             'tipo_pago'          => isset($extracted['tipo_pago']) ? strtolower(trim((string) $extracted['tipo_pago'])) : 'cuota_regular',
             'numero_cuota'       => isset($extracted['numero_cuota']) ? (int) $extracted['numero_cuota'] : null,

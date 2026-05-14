@@ -253,6 +253,7 @@ class ImportacionCreditoCreator
         $capital = (float) $pago['capital'];
         $interesCorriente = (float) $pago['interes_corriente'];
         $interesMoratorio = (float) ($pago['interes_moratorio'] ?? 0);
+        $poliza = (float) ($pago['poliza'] ?? 0);
         $otros = (float) ($pago['otros'] ?? 0);
         $tipoPago = $pago['tipo_pago'] ?? 'cuota_regular';
 
@@ -265,6 +266,7 @@ class ImportacionCreditoCreator
             'fecha_pago'        => $fechaPago,
             'cuota'             => (float) $credit->cuota,
             'monto'             => $montoTotal,
+            'poliza'            => $poliza,  // ← columna POLIZAS del PDF
             'interes_corriente' => $interesCorriente,
             'interes_moratorio' => $interesMoratorio,
             'amortizacion'      => $capital,
@@ -317,7 +319,7 @@ class ImportacionCreditoCreator
                     'total'             => $montoTotal,
                     'interes_corriente' => $interesCorriente,
                     'interes_moratorio' => $interesMoratorio,
-                    'poliza'            => 0,
+                    'poliza'            => $poliza,  // ← ahora real, no 0 hardcoded
                     'capital'           => $capital,
                     'sobrante'          => 0,
                     'cargos_adicionales_total' => $otros,
