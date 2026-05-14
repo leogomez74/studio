@@ -133,6 +133,7 @@ class ImportacionCreditoCreator
         try {
             DB::transaction(function () use (
                 $creditoData, $pagosData, $cliente, $tasa, $deductoraId, $fechaFormalizacion,
+                $deductoraIdPrimerPago, $deductoraMap,
                 &$accountingResults, &$pagosCreados, &$pagosSaltados, &$creditId, &$reference
             ) {
                 // 1. Crear opportunity si no existe (necesario para el flujo del sistema)
