@@ -98,6 +98,7 @@ class ImportacionFileParser
         'capital'            => ['capital', 'amortizacioncapital', 'principal'],
         'interes_corriente'  => ['interescorriente', 'interes', 'interesnormal'],
         'interes_moratorio'  => ['interesmoratorio', 'mora', 'moratorio'],
+        'poliza'             => ['poliza', 'polizas', 'polizapago'],
         'otros'              => ['otros', 'cargos', 'cargosadicionales'],
         'tipo_pago'          => ['tipopago', 'tipo', 'tipodepago'],
         'numero_cuota'       => ['numerocuota', 'cuotanumero', 'noCuota', 'nocuota'],
@@ -631,7 +632,8 @@ class ImportacionFileParser
                 'capital'            => $this->parseMoney($m[8]),
                 'interes_corriente'  => $this->parseMoney($m[4]),
                 'interes_moratorio'  => $this->parseMoney($m[5]),
-                'otros'              => ($this->parseMoney($m[6]) ?? 0) + ($this->parseMoney($m[13]) ?? 0), // cargos + polizas
+                'poliza'             => $this->parseMoney($m[13]) ?? 0,  // columna POLIZAS
+                'otros'              => $this->parseMoney($m[6]) ?? 0,   // columna CARGOS
                 'tipo_pago'          => $tipoPago,
                 'numero_cuota'       => (int) $m[2],
                 // Referencia única por crédito+linea+comprobante para idempotencia
