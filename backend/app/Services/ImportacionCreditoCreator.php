@@ -110,16 +110,17 @@ class ImportacionCreditoCreator
         $deductoraMap = $this->cargarDeductoraMap();
 
         // Calcular deductora del PRIMER y ÚLTIMO pago según el comprobante.
-        // FORMALIZACION usará la deductora del primer pago.
-        // Credit.deductora_id = deductora del último pago (estado actual del crédito).
+        // FORMALIZACION usará la deductora del primer pago (null si no tiene coope).
+        // Credit.deductora_id = deductora del último pago con coope válida.
+        // Si NINGÚN pago tiene coope reconocida (CSG/CS/CN), ambos quedan en null.
         $deductoraIdPrimerPago = $this->extraerDeductoraIdDePago($pagosData[0] ?? null, $deductoraMap);
         $deductoraIdUltimoPago = null;
         for ($i = count($pagosData) - 1; $i >= 0; $i--) {
             $d = $this->extraerDeductoraIdDePago($pagosData[$i], $deductoraMap);
             if ($d !== null) { $deductoraIdUltimoPago = $d; break; }
         }
-        // Fallback: si ningún pago tiene deductora válida, intentar resolver del archivo
-        $deductoraId = $deductoraIdUltimoPago ?? $deductoraIdPrimerPago;
+        // Credit.deductora_id = última coope (null si ninguna). NO se cae al primer pago.
+        $deductoraId = $deductoraIdUltimoPago;
 
         $fechaFormalizacion = Carbon::parse($creditoData['fecha_formalizacion'])->startOfDay();
 
