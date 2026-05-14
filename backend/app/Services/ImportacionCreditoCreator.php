@@ -102,16 +102,24 @@ class ImportacionCreditoCreator
         }
 
         // Para data histórica, usamos la tasa EXACTA del archivo.
-        // Si no existe en la tabla `tasas`, la creamos automáticamente como tasa histórica
-        // (no requiere coincidir con tasas vigentes del sistema actual).
         $tasa = $this->resolverOCrearTasa((float) $creditoData['tasa_anual'], $creditoData['fecha_formalizacion']);
 
-        // Resolver deductora_id (opcional)
-        $deductoraId = null;
-        if (!empty($creditoData['deductora_nombre'])) {
-            $deductora = Deductora::where('nombre', 'like', '%' . $creditoData['deductora_nombre'] . '%')->first();
-            $deductoraId = $deductora?->id;
+        // Cargar el mapa fijo de deductoras conocidas: solo CSG / CS / CN.
+        // Cualquier otro comprobante (M-SJ, MIGRA, AJ, etc.) NO crea deductora;
+        // sus pagos se contabilizan como PAGO_VENTANILLA.
+        $deductoraMap = $this->cargarDeductoraMap();
+
+        // Calcular deductora del PRIMER y ÚLTIMO pago según el comprobante.
+        // FORMALIZACION usará la deductora del primer pago.
+        // Credit.deductora_id = deductora del último pago (estado actual del crédito).
+        $deductoraIdPrimerPago = $this->extraerDeductoraIdDePago($pagosData[0] ?? null, $deductoraMap);
+        $deductoraIdUltimoPago = null;
+        for ($i = count($pagosData) - 1; $i >= 0; $i--) {
+            $d = $this->extraerDeductoraIdDePago($pagosData[$i], $deductoraMap);
+            if ($d !== null) { $deductoraIdUltimoPago = $d; break; }
         }
+        // Fallback: si ningún pago tiene deductora válida, intentar resolver del archivo
+        $deductoraId = $deductoraIdUltimoPago ?? $deductoraIdPrimerPago;
 
         $fechaFormalizacion = Carbon::parse($creditoData['fecha_formalizacion'])->startOfDay();
 
@@ -167,7 +175,9 @@ class ImportacionCreditoCreator
                         'credit_numeric_id'=> $credit->id,
                         'cedula'           => $cliente->cedula,
                         'clienteNombre'    => $cliente->name,
-                        'deductora_id'     => $deductoraId,
+                        // FORMALIZACION usa la deductora del PRIMER pago del archivo
+                        // (representa la coope vigente al momento de formalizar el crédito)
+                        'deductora_id'     => $deductoraIdPrimerPago,
                         'entry_date'       => $fechaFormalizacion->format('Y-m-d'),
                         'amount_breakdown' => [
                             'total'              => (float) $credit->monto_credito,
@@ -198,7 +208,10 @@ class ImportacionCreditoCreator
                         }
                     }
 
-                    $pagoResult = $this->aplicarPago($credit, $cliente, $pago, $deductoraId);
+                    // Cada pago usa su PROPIA deductora según el sufijo del comprobante.
+                    // Si el sufijo NO es CSG/CS/CN, el pago es PAGO_VENTANILLA sin deductora.
+                    $pagoDeductoraId = $this->extraerDeductoraIdDePago($pago, $deductoraMap);
+                    $pagoResult = $this->aplicarPago($credit, $cliente, $pago, $pagoDeductoraId);
                     if ($pagoResult['accounting']) {
                         $accountingResults[] = $pagoResult['accounting'];
                     }
@@ -261,7 +274,8 @@ class ImportacionCreditoCreator
             'movimiento_amortizacion' => $capital,
             'tasa_actual'       => $credit->tasa_anual,
             'plazo_actual'      => $credit->plazo,
-            'source'            => $this->mapearSource($tipoPago),
+            // Source según si hay deductora válida (CSG/CS/CN) o no
+            'source'            => $deductoraId ? 'Planilla' : 'Ventanilla',
             'referencia'        => $pago['referencia_pago'] ?? null,
             'cedula'            => $cliente->cedula,
         ]);
@@ -280,8 +294,10 @@ class ImportacionCreditoCreator
                 ]);
         }
 
-        // Disparar asiento contable correspondiente
-        $entryType = $this->mapearEntryType($tipoPago);
+        // Tipo del asiento según si hay deductora válida (CSG/CS/CN):
+        //  - Con deductora → PAGO_PLANILLA (la cuenta dinámica de la deductora se resuelve en el trigger)
+        //  - Sin deductora → PAGO_VENTANILLA (cuenta fija de Caja General)
+        $entryType = $deductoraId ? 'PAGO_PLANILLA' : 'PAGO_VENTANILLA';
         $accountingResult = $this->triggerAccountingEntry(
             $entryType,
             $montoTotal,
@@ -491,5 +507,52 @@ class ImportacionCreditoCreator
             'cancelacion_total', 'cancelacion' => 'Cancelación Total',
             default                        => 'Importación',
         };
+    }
+
+    /**
+     * Construye un mapa de prefijo de comprobante → deductora_id usando solo las
+     * 3 cooperativas conocidas. Si no se encuentra alguna en la BD, se omite (el
+     * pago caerá a PAGO_VENTANILLA por no tener deductora_id).
+     *
+     * @return array<string, int>
+     */
+    private function cargarDeductoraMap(): array
+    {
+        $map = [];
+        $patterns = [
+            'CSG' => 'coope san gabriel',
+            'CS'  => 'coopeservicios',
+            'CN'  => 'coopenacional',
+        ];
+        foreach ($patterns as $sufijo => $patron) {
+            $d = Deductora::whereRaw('LOWER(nombre) LIKE ?', ['%' . $patron . '%'])->first();
+            if ($d) {
+                $map[$sufijo] = $d->id;
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Extrae el id de deductora de un pago según el sufijo del comprobante.
+     * Devuelve null si:
+     *   - El pago no tiene referencia_pago
+     *   - El comprobante no es PLA*.SUFIJO.CRD
+     *   - El sufijo no es CSG/CS/CN (caso M-SJ, MIGRA, AJ, etc.)
+     *
+     * @param array<string, mixed>|null $pago
+     * @param array<string, int> $deductoraMap
+     */
+    private function extraerDeductoraIdDePago(?array $pago, array $deductoraMap): ?int
+    {
+        if (!$pago) return null;
+        $ref = (string) ($pago['referencia_pago'] ?? '');
+        if ($ref === '') return null;
+
+        if (!preg_match('/PLA\d+\.([A-Z\-]+)\.CRD/', $ref, $m)) {
+            return null;
+        }
+        $sufijo = $m[1];
+        return $deductoraMap[$sufijo] ?? null;
     }
 }
