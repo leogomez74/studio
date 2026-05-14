@@ -124,11 +124,14 @@ interface ClienteCreateResponse {
   results: ClienteCreateResult[];
 }
 
+const CLIENTE_CREATE_CHUNK_SIZE = 100; // Clientes por request al crear
+
 function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermissionFn; toast: ToastFn }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createProgress, setCreateProgress] = useState<{ done: number; total: number } | null>(null);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [detailRecord, setDetailRecord] = useState<RecordPreview | null>(null);
   const [createResult, setCreateResult] = useState<ClienteCreateResponse | null>(null);
@@ -190,22 +193,50 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
 
   const handleCreate = async () => {
     if (!preview) return;
-    const payload = {
-      clientes: preview.records
-        .filter(r => !r.error && !r.already_exists && r.extracted.cedula)
-        .map(r => r.extracted),
-    };
-    if (payload.clientes.length === 0) {
+    const clientesReady = preview.records
+      .filter(r => !r.error && !r.already_exists && r.extracted.cedula)
+      .map(r => r.extracted);
+
+    if (clientesReady.length === 0) {
       toast({ title: 'Sin clientes nuevos', description: 'No hay registros válidos para crear.' });
       return;
     }
+
+    // Chunking: lotes de CLIENTE_CREATE_CHUNK_SIZE por request
+    const chunks: typeof clientesReady[] = [];
+    for (let i = 0; i < clientesReady.length; i += CLIENTE_CREATE_CHUNK_SIZE) {
+      chunks.push(clientesReady.slice(i, i + CLIENTE_CREATE_CHUNK_SIZE));
+    }
+
+    setCreating(true);
+    setCreateProgress({ done: 0, total: clientesReady.length });
+
+    const accumulated: ClienteCreateResponse = {
+      success: true,
+      stats: { creados: 0, omitidos: 0, fallidos: 0, email_omitidos: 0 },
+      results: [],
+    };
+
     try {
-      setCreating(true);
-      const res = await api.post<ClienteCreateResponse>('/api/importacion/crear-cliente', payload);
-      setCreateResult(res.data);
+      for (let i = 0; i < chunks.length; i++) {
+        const res = await api.post<ClienteCreateResponse>('/api/importacion/crear-cliente', { clientes: chunks[i] });
+
+        accumulated.results.push(...res.data.results);
+        accumulated.stats.creados   += res.data.stats.creados;
+        accumulated.stats.omitidos  += res.data.stats.omitidos;
+        accumulated.stats.fallidos  += res.data.stats.fallidos;
+        if (res.data.stats.email_omitidos) {
+          accumulated.stats.email_omitidos = (accumulated.stats.email_omitidos ?? 0) + res.data.stats.email_omitidos;
+        }
+
+        const processed = Math.min((i + 1) * CLIENTE_CREATE_CHUNK_SIZE, clientesReady.length);
+        setCreateProgress({ done: processed, total: clientesReady.length });
+      }
+
+      setCreateResult(accumulated);
       toast({
         title: 'Importación completada',
-        description: `${res.data.stats.creados} cliente(s) creado(s), ${res.data.stats.omitidos} omitido(s), ${res.data.stats.fallidos} con error.`,
+        description: `${accumulated.stats.creados} cliente(s) creado(s), ${accumulated.stats.omitidos} omitido(s), ${accumulated.stats.fallidos} con error.`,
       });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -213,6 +244,7 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
       toast({ title: 'Error', description: msg, variant: 'destructive' });
     } finally {
       setCreating(false);
+      setCreateProgress(null);
     }
   };
 
@@ -431,15 +463,32 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
             </CardContent>
           </Card>
 
-          {/* Overlay de loading durante creación */}
+          {/* Overlay de loading con barra de progreso durante creación */}
           {creating && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-              <Card className="w-[400px]">
-                <CardContent className="pt-6 flex flex-col items-center gap-3 text-center">
+              <Card className="w-[480px]">
+                <CardContent className="pt-6 flex flex-col items-center gap-4 text-center">
                   <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                  <p className="font-medium">Creando clientes...</p>
-                  <p className="text-sm text-muted-foreground">
-                    Procesando {preview.summary.new} registro{preview.summary.new !== 1 ? 's' : ''}. Por favor espera, no cierres esta ventana.
+                  <div className="w-full">
+                    <p className="font-medium mb-1">Creando clientes en lotes</p>
+                    {createProgress ? (
+                      <>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {createProgress.done} de {createProgress.total} clientes procesados
+                        </p>
+                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all duration-300"
+                            style={{ width: `${(createProgress.done / createProgress.total) * 100}%` }}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Preparando...</p>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    No cierres esta ventana.
                   </p>
                 </CardContent>
               </Card>
@@ -725,7 +774,8 @@ interface CreateResponse {
   results: CreateResult[];
 }
 
-const PREVIEW_CHUNK_SIZE = 50; // PDFs por request
+const PREVIEW_CHUNK_SIZE = 50; // PDFs por request del preview
+const CREATE_CHUNK_SIZE = 10;  // Créditos por request al crear (cada uno dispara muchos asientos)
 
 function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermissionFn; toast: ToastFn }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -733,6 +783,7 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createProgress, setCreateProgress] = useState<{ done: number; total: number; asientos: number } | null>(null);
   const [preview, setPreview] = useState<CreditoPreviewResponse | null>(null);
   const [detailCredito, setDetailCredito] = useState<CreditoRecord | null>(null);
   const [createResult, setCreateResult] = useState<CreateResponse | null>(null);
@@ -853,25 +904,60 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
 
   const handleCreate = async () => {
     if (!preview) return;
-    const payload = {
-      creditos: preview.creditos
-        .filter(c => c.ready_to_import)
-        .map(c => ({
-          credito: c.extracted,
-          pagos: c.pagos,
-        })),
-    };
-    if (payload.creditos.length === 0) {
+    const creditosReady = preview.creditos
+      .filter(c => c.ready_to_import)
+      .map(c => ({ credito: c.extracted, pagos: c.pagos }));
+
+    if (creditosReady.length === 0) {
       toast({ title: 'Sin créditos listos', description: 'No hay créditos válidos para crear.' });
       return;
     }
+
+    // Chunking: lotes de CREATE_CHUNK_SIZE créditos por request
+    const chunks: typeof creditosReady[] = [];
+    for (let i = 0; i < creditosReady.length; i += CREATE_CHUNK_SIZE) {
+      chunks.push(creditosReady.slice(i, i + CREATE_CHUNK_SIZE));
+    }
+
+    setCreating(true);
+    setCreateProgress({ done: 0, total: creditosReady.length, asientos: 0 });
+
+    const accumulated: CreateResponse = {
+      success: true,
+      stats: { creados: 0, fallidos: 0, pagos_creados: 0, pagos_saltados: 0 },
+      results: [],
+    };
+
     try {
-      setCreating(true);
-      const res = await api.post<CreateResponse>('/api/importacion/crear-creditos', payload);
-      setCreateResult(res.data);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const res = await api.post<CreateResponse>('/api/importacion/crear-creditos', { creditos: chunk });
+
+        // Acumular
+        accumulated.results.push(...res.data.results);
+        accumulated.stats.creados        += res.data.stats.creados;
+        accumulated.stats.fallidos       += res.data.stats.fallidos;
+        accumulated.stats.pagos_creados  += res.data.stats.pagos_creados;
+        accumulated.stats.pagos_saltados += res.data.stats.pagos_saltados;
+
+        // Contar asientos disparados en este chunk
+        const asientosChunk = res.data.results.reduce(
+          (acc, r) => acc + (r.accounting?.filter(a => a.success).length ?? 0),
+          0
+        );
+
+        const processed = Math.min((i + 1) * CREATE_CHUNK_SIZE, creditosReady.length);
+        setCreateProgress(prev => ({
+          done: processed,
+          total: creditosReady.length,
+          asientos: (prev?.asientos ?? 0) + asientosChunk,
+        }));
+      }
+
+      setCreateResult(accumulated);
       toast({
         title: 'Importación completada',
-        description: `${res.data.stats.creados} crédito(s) creado(s), ${res.data.stats.pagos_creados} pago(s) registrado(s).`,
+        description: `${accumulated.stats.creados} crédito(s), ${accumulated.stats.pagos_creados} pago(s), ${accumulated.results.reduce((a, r) => a + (r.accounting?.filter(x => x.success).length ?? 0), 0)} asiento(s) generado(s).`,
       });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -879,6 +965,7 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
       toast({ title: 'Error', description: msg, variant: 'destructive' });
     } finally {
       setCreating(false);
+      setCreateProgress(null);
     }
   };
 
@@ -1115,15 +1202,35 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
             </CardContent>
           </Card>
 
-          {/* Overlay de loading durante creación */}
+          {/* Overlay de loading con barra de progreso durante creación */}
           {creating && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-              <Card className="w-[420px]">
-                <CardContent className="pt-6 flex flex-col items-center gap-3 text-center">
+              <Card className="w-[500px]">
+                <CardContent className="pt-6 flex flex-col items-center gap-4 text-center">
                   <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                  <p className="font-medium">Creando créditos...</p>
-                  <p className="text-sm text-muted-foreground">
-                    Procesando {preview.summary.ready} crédito{preview.summary.ready !== 1 ? 's' : ''} con sus pagos y asientos contables. Esto puede tomar varios segundos.
+                  <div className="w-full">
+                    <p className="font-medium mb-1">Creando créditos en lotes</p>
+                    {createProgress ? (
+                      <>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          {createProgress.done} de {createProgress.total} créditos procesados
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          {createProgress.asientos} asiento{createProgress.asientos !== 1 ? 's' : ''} contable{createProgress.asientos !== 1 ? 's' : ''} generado{createProgress.asientos !== 1 ? 's' : ''} hasta ahora
+                        </p>
+                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all duration-300"
+                            style={{ width: `${(createProgress.done / createProgress.total) * 100}%` }}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Preparando...</p>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Cada crédito dispara su asiento de FORMALIZACION + 1 asiento por pago. No cierres esta ventana.
                   </p>
                 </CardContent>
               </Card>
