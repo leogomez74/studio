@@ -530,12 +530,12 @@ class ImportacionController extends Controller
                         ]);
                 }
 
-                // Crédito ya existe?
+                // Crédito ya existe? (columna en BD es `formalized_at`, no `fecha_formalizacion`)
                 $creditoExistente = null;
                 if (!empty($sanitized['numero_operacion'])) {
                     $creditoExistente = \App\Models\Credit::query()
                         ->where('numero_operacion', $sanitized['numero_operacion'])
-                        ->first(['id', 'numero_operacion', 'monto_credito', 'fecha_formalizacion']);
+                        ->first(['id', 'numero_operacion', 'monto_credito', 'formalized_at']);
                 }
 
                 // Detectar pagos duplicados: la `referencia_pago` del archivo se compara
@@ -590,7 +590,7 @@ class ImportacionController extends Controller
                         'id'                  => $creditoExistente->id,
                         'numero_operacion'    => $creditoExistente->numero_operacion,
                         'monto_credito'       => (float) $creditoExistente->monto_credito,
-                        'fecha_formalizacion' => $creditoExistente->fecha_formalizacion?->format('Y-m-d'),
+                        'fecha_formalizacion' => $creditoExistente->formalized_at?->format('Y-m-d'),
                     ] : null,
                     'pagos'              => $pagosVinculados,
                     'pagos_count'        => count($pagosVinculados),
