@@ -333,8 +333,28 @@ class ImportacionController extends Controller
                 ->toArray();
         }
 
+        // Pre-cargar emails ya usados en la BD (constraint UNIQUE en persons.email).
+        // Si el email del archivo ya está usado por otra persona, lo omitimos para evitar fallar.
+        $emailsInput = array_filter(array_map(
+            fn($c) => filter_var(strtolower((string)($c['email'] ?? '')), FILTER_VALIDATE_EMAIL) ?: null,
+            $clientes
+        ));
+        $emailsTomados = [];
+        if (!empty($emailsInput)) {
+            $emailsTomados = array_flip(
+                Person::query()->withoutGlobalScopes()
+                    ->whereIn('email', array_unique($emailsInput))
+                    ->pluck('email')
+                    ->toArray()
+            );
+        }
+
+        // Track emails ya usados DENTRO del mismo lote (para que 2 filas con mismo email
+        // no fallen entre sí: la primera se crea con email, la segunda sin email).
+        $emailsUsadosEnLote = [];
+
         $results = [];
-        $stats = ['creados' => 0, 'omitidos' => 0, 'fallidos' => 0];
+        $stats = ['creados' => 0, 'omitidos' => 0, 'fallidos' => 0, 'email_omitidos' => 0];
 
         foreach ($clientes as $idx => $data) {
             try {
@@ -373,8 +393,20 @@ class ImportacionController extends Controller
                     'ocupacion', 'profesion', 'institucion_labora', 'puesto',
                     'nivel_academico', 'nombramientos',
                 ];
+                $emailOmitido = false;
                 foreach ($allowed as $field) {
                     if (!empty($data[$field])) {
+                        // Si el email ya está tomado por otra persona (BD o lote actual), omitirlo.
+                        if ($field === 'email') {
+                            $emailLower = strtolower(trim((string) $data[$field]));
+                            if (isset($emailsTomados[$emailLower]) || isset($emailsUsadosEnLote[$emailLower])) {
+                                $emailOmitido = true;
+                                continue;
+                            }
+                            $emailsUsadosEnLote[$emailLower] = true;
+                            $payload[$field] = $emailLower;
+                            continue;
+                        }
                         $payload[$field] = $data[$field];
                     }
                 }
@@ -382,13 +414,15 @@ class ImportacionController extends Controller
                 $person = Client::create($payload);
 
                 $results[] = [
-                    'index'   => $idx,
-                    'cedula'  => $cedula,
-                    'success' => true,
-                    'id'      => $person->id,
-                    'nombre'  => trim("{$person->name} {$person->apellido1} {$person->apellido2}"),
+                    'index'         => $idx,
+                    'cedula'        => $cedula,
+                    'success'       => true,
+                    'id'            => $person->id,
+                    'nombre'        => trim("{$person->name} {$person->apellido1} {$person->apellido2}"),
+                    'email_omitido' => $emailOmitido,
                 ];
                 $stats['creados']++;
+                if ($emailOmitido) $stats['email_omitidos']++;
             } catch (\Throwable $e) {
                 Log::error('ImportacionController: error creando cliente', [
                     'cedula' => $data['cedula'] ?? null,

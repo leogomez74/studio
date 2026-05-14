@@ -114,12 +114,13 @@ interface ClienteCreateResult {
   omitido?: boolean;
   id?: number;
   nombre?: string;
+  email_omitido?: boolean;
   error?: string;
 }
 
 interface ClienteCreateResponse {
   success: boolean;
-  stats: { creados: number; omitidos: number; fallidos: number };
+  stats: { creados: number; omitidos: number; fallidos: number; email_omitidos?: number };
   results: ClienteCreateResult[];
 }
 
@@ -457,6 +458,9 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
                   {createResult.stats.creados} cliente(s) creado(s) ·{' '}
                   {createResult.stats.omitidos} omitido(s) por duplicado ·{' '}
                   {createResult.stats.fallidos} con error
+                  {createResult.stats.email_omitidos ? (
+                    <> · {createResult.stats.email_omitidos} con email duplicado (omitido)</>
+                  ) : null}
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
@@ -484,7 +488,16 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
                               : <Badge variant="destructive" className="text-xs">Falló</Badge>}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {r.error || (r.success ? `Cliente #${r.id}` : '')}
+                          {r.error || (r.success ? (
+                            <>
+                              Cliente #{r.id}
+                              {r.email_omitido && (
+                                <Badge variant="outline" className="ml-2 text-[10px] border-amber-500 text-amber-700">
+                                  email duplicado · omitido
+                                </Badge>
+                              )}
+                            </>
+                          ) : '')}
                         </TableCell>
                       </TableRow>
                     ))}
