@@ -725,10 +725,13 @@ interface CreateResponse {
   results: CreateResult[];
 }
 
+const PREVIEW_CHUNK_SIZE = 50; // PDFs por request
+
 function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermissionFn; toast: ToastFn }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [creating, setCreating] = useState(false);
   const [preview, setPreview] = useState<CreditoPreviewResponse | null>(null);
   const [detailCredito, setDetailCredito] = useState<CreditoRecord | null>(null);
@@ -749,21 +752,95 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
 
   const handleUpload = async () => {
     if (files.length === 0) return;
-    const formData = new FormData();
-    files.forEach(f => formData.append('files[]', f));
+
+    // Si todos son Excel/CSV, una sola request (sin chunking)
+    const isAllSheet = files.every(f => /\.(xlsx|xls|csv)$/i.test(f.name));
+    if (isAllSheet) {
+      const formData = new FormData();
+      files.forEach(f => formData.append('files[]', f));
+      try {
+        setUploading(true);
+        setPreview(null);
+        const res = await api.post<CreditoPreviewResponse>('/api/importacion/preview-creditos', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        setPreview(res.data);
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          || 'No se pudo procesar los archivos.';
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
+    // PDFs: chunking automático en lotes de PREVIEW_CHUNK_SIZE
+    const chunks: File[][] = [];
+    for (let i = 0; i < files.length; i += PREVIEW_CHUNK_SIZE) {
+      chunks.push(files.slice(i, i + PREVIEW_CHUNK_SIZE));
+    }
+
+    setUploading(true);
+    setPreview(null);
+    setUploadProgress({ done: 0, total: files.length });
+
+    const accumulated: CreditoPreviewResponse = {
+      success: true,
+      summary: {
+        total: 0,
+        ready: 0,
+        cliente_faltante: 0,
+        credito_existente: 0,
+        con_errores: 0,
+        pagos_total: 0,
+        pagos_duplicados: 0,
+        pagos_a_importar: 0,
+        file_errors: 0,
+      },
+      creditos: [],
+      file_errors: [],
+    };
+
     try {
-      setUploading(true);
-      setPreview(null);
-      const res = await api.post<CreditoPreviewResponse>('/api/importacion/preview-creditos', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      for (let idx = 0; idx < chunks.length; idx++) {
+        const chunk = chunks[idx];
+        const formData = new FormData();
+        chunk.forEach(f => formData.append('files[]', f));
+
+        const res = await api.post<CreditoPreviewResponse>('/api/importacion/preview-creditos', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        // Acumular
+        accumulated.creditos.push(...res.data.creditos);
+        accumulated.file_errors.push(...res.data.file_errors);
+        accumulated.summary.total              += res.data.summary.total;
+        accumulated.summary.ready              += res.data.summary.ready;
+        accumulated.summary.cliente_faltante   += res.data.summary.cliente_faltante;
+        accumulated.summary.credito_existente  += res.data.summary.credito_existente;
+        accumulated.summary.con_errores        += res.data.summary.con_errores;
+        accumulated.summary.pagos_total        += res.data.summary.pagos_total;
+        accumulated.summary.pagos_duplicados   += res.data.summary.pagos_duplicados;
+        accumulated.summary.pagos_a_importar   += res.data.summary.pagos_a_importar;
+        accumulated.summary.file_errors        += res.data.summary.file_errors;
+
+        const processed = Math.min((idx + 1) * PREVIEW_CHUNK_SIZE, files.length);
+        setUploadProgress({ done: processed, total: files.length });
+      }
+
+      setPreview(accumulated);
+      toast({
+        title: 'Preview completado',
+        description: `${accumulated.summary.total} crédito(s) procesado(s) en ${chunks.length} lote(s).`,
       });
-      setPreview(res.data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
         || 'No se pudo procesar los archivos.';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -866,7 +943,9 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
                 </Button>
                 <Button size="sm" onClick={handleUpload} disabled={uploading || files.length === 0}>
                   {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
-                  {uploading ? 'Procesando...' : `Previsualizar (${files.length})`}
+                  {uploading
+                    ? (uploadProgress ? `Procesando ${uploadProgress.done}/${uploadProgress.total}...` : 'Procesando...')
+                    : `Previsualizar (${files.length})`}
                 </Button>
                 {preview && (
                   <>
@@ -899,6 +978,32 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
           )}
         </CardContent>
       </Card>
+
+      {/* Overlay de progreso para chunking de PDFs */}
+      {uploading && uploadProgress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <Card className="w-[480px]">
+            <CardContent className="pt-6 flex flex-col items-center gap-4 text-center">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <div className="w-full">
+                <p className="font-medium mb-1">Procesando {uploadProgress.total} PDFs en lotes</p>
+                <p className="text-sm text-muted-foreground mb-3">
+                  {uploadProgress.done} de {uploadProgress.total} archivos procesados
+                </p>
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${(uploadProgress.done / uploadProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Este proceso puede tomar varios minutos. No cierres esta ventana.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Errores de lectura de archivo */}
       {preview && preview.file_errors.length > 0 && (

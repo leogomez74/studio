@@ -134,9 +134,13 @@ class ImportacionFileParser
     {
         $ext = strtolower($file->getClientOriginalExtension());
 
+        if ($ext === 'pdf') {
+            return $this->parseCreditoPdf($file->getRealPath());
+        }
+
         if (!in_array($ext, ['xlsx', 'xls', 'csv'], true)) {
             throw new \InvalidArgumentException(
-                "Importación de créditos solo soporta Excel/CSV en esta fase. Recibido: {$ext}"
+                "Formato no soportado para créditos: {$ext}"
             );
         }
 
@@ -455,5 +459,204 @@ class ImportacionFileParser
             return $normalizedHeader;
         }
         return null;
+    }
+
+    // =======================================================================
+    // PDF de Crédito (formato CREDIPEP "ESTADO DE LA OPERACION")
+    // =======================================================================
+
+    /**
+     * Parsea un PDF de "Estado de la Operación" de CREDIPEP.
+     * Retorna 1 crédito + N pagos extraídos del historial.
+     *
+     * @return array{creditos: array<int, array<string, mixed>>, pagos: array<int, array<string, mixed>>}
+     */
+    private function parseCreditoPdf(string $path): array
+    {
+        $pdf = (new PdfParser())->parseFile($path);
+        $text = $pdf->getText();
+
+        if (!str_contains($text, 'ESTADO DE LA OPERACION')) {
+            throw new \RuntimeException(
+                'El PDF no parece ser un "Estado de la Operación" de CREDIPEP. Verifica el formato.'
+            );
+        }
+
+        $header = $this->parseCreditoPdfHeader($text);
+        $pagos  = $this->parseCreditoPdfPagos($text, $header);
+
+        return [
+            'creditos' => [$header],
+            'pagos'    => $pagos,
+        ];
+    }
+
+    /**
+     * Extrae los datos del header del crédito desde el texto del PDF.
+     * Los valores aparecen en orden fijo antes de los labels:
+     *  1. numero_operacion
+     *  2. cedula
+     *  3. linea (código)
+     *  4. monto
+     *  5. plazo
+     *  6. nombre completo
+     *  7. linea (nombre)
+     *  8. saldo
+     *  9. tasa
+     *
+     * @return array<string, mixed>
+     */
+    private function parseCreditoPdfHeader(string $text): array
+    {
+        $lines = array_values(array_filter(array_map('trim', explode("\n", $text)), fn($l) => $l !== ''));
+
+        $val = fn($i) => $lines[$i] ?? null;
+
+        // Valores principales en posiciones fijas
+        $numeroOperacion = $val(0);
+        $cedula          = preg_replace('/[^0-9]/', '', (string) $val(1)) ?: null;
+        $monto           = $this->parseMoney($val(3));
+        $plazo           = $val(4) !== null ? (int) trim($val(4)) : null;
+        $saldo           = $this->parseMoney($val(7));
+        $tasa            = $val(8) !== null ? (float) trim($val(8)) : null;
+
+        // Fecha de formalización: formato MM/DD/YYYY en el texto (CREDIPEP usa US date)
+        $fechaFormalizacion = null;
+        if (preg_match('/(\d{2}\/\d{2}\/\d{4})/', $text, $m)) {
+            // Convertir MM/DD/YYYY → YYYY-MM-DD
+            $parts = explode('/', $m[1]);
+            if (count($parts) === 3 && checkdate((int)$parts[0], (int)$parts[1], (int)$parts[2])) {
+                $fechaFormalizacion = sprintf('%04d-%02d-%02d', $parts[2], $parts[0], $parts[1]);
+            }
+        }
+
+        // Cuota: aparece como "44,825.90CUOTA" (valor pegado al label)
+        $cuota = null;
+        if (preg_match('/([\d,]+\.\d{2})CUOTA/', $text, $m)) {
+            $cuota = $this->parseMoney($m[1]);
+        }
+
+        // Institución/Deductora: la línea anterior a "GARANTIA" o entre PAGARÉ y los labels
+        $deductora = null;
+        if (preg_match('/PAGAR[ÉE]\s*\([^)]*\)\s*\n([^\n]+)/u', $text, $m)) {
+            $deductora = trim($m[1]);
+        }
+
+        // Divisa: "COL" → "CRC", "USD" → "USD"
+        $divisa = 'CRC';
+        if (preg_match('/\b(COL|CRC|USD|EUR)\b\s*DIVISA/i', $text, $m)) {
+            $divisa = strtoupper($m[1]) === 'COL' ? 'CRC' : strtoupper($m[1]);
+        }
+
+        return [
+            'numero_operacion'    => $numeroOperacion ? (string) $numeroOperacion : null,
+            'cedula'              => $cedula,
+            'monto_credito'       => $monto,
+            'plazo_meses'         => $plazo,
+            'tasa_anual'          => $tasa,
+            'cuota'               => $cuota,
+            'fecha_formalizacion' => $fechaFormalizacion,
+            'deductora_nombre'    => $deductora,
+            'divisa'              => $divisa,
+            'saldo_actual'        => $saldo,
+        ];
+    }
+
+    /**
+     * Extrae las filas de pagos del PDF.
+     * Cada fila aparece como:
+     *  LINEA N.CUOTA PROCESO INT.COR INT.MOR CARGOS FECHA PRINCIPAL SALDO COMPROBANTE USUARIO MONTO POLIZAS
+     *
+     * El COMPROBANTE puede ser:
+     *  - "MIGRA" (con split a "MIG\nRA\n" + número de comprobante) — migración legacy
+     *  - "PLA<proceso>.<deductora>.CRD" — pago por planilla
+     *  - "AJ <texto>" — ajuste manual
+     *
+     * @param array<string, mixed> $header
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseCreditoPdfPagos(string $text, array $header): array
+    {
+        // Normalizar el partido "MIG\nRA\nNUMERO" en "MIGRA NUMERO"
+        $text = preg_replace('/MIG\s*\n+\s*RA\s*\n+\s*(\d+)/', 'MIGRA $1', $text);
+
+        // El comprobante tiene 3 formatos exclusivos:
+        //  - PLA<proceso>.<deductora>.CRD       → pago por planilla
+        //  - MIGRA \d+                          → migración legacy
+        //  - AJ <texto>                         → ajuste manual del sistema viejo
+        // El usuario/caja va inmediatamente después (sin espacio) y termina en `/`.
+        $comprobantePattern = '(PLA\d+\.[A-Z\-]+\.CRD|MIGRA\s+\d+|AJ[^\/]*?(?=[A-Z]+\/))';
+
+        $pattern = '/'
+            . '\s+(\d+\.\d{2})\s+(\d+)\s+(\d{6})\s+'              // 1=linea, 2=n_cuota, 3=proceso
+            . '([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})' // 4=int.cor, 5=int.mor, 6=cargos
+            . '(\d{1,2}\/\d{1,2}\/\d{4})\s+'                       // 7=fecha (d/m/Y)
+            . '([\d,]+\.\d{2})\s+([\d,]+\.\d{2})'                  // 8=principal, 9=saldo
+            . $comprobantePattern                                   // 10=comprobante
+            . '([A-Z]+\/)\s+'                                      // 11=usuario/caja
+            . '([\d,]+\.\d{2})\s+([\d,]+\.\d{2})'                  // 12=monto, 13=polizas
+            . '/u';
+
+        $pagos = [];
+        preg_match_all($pattern, $text, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as $m) {
+            // $m[10] = comprobante (limpio), $m[11] = usuario/caja
+            $comprobante = trim($m[10]);
+            $tipoPago = $this->mapComprobanteToTipoPago($comprobante);
+
+            // Saltar ajustes (no son pagos reales, solo cambios de fecha en el sistema viejo)
+            if ($tipoPago === null) {
+                continue;
+            }
+
+            // Convertir fecha d/m/Y → Y-m-d
+            $fechaParts = explode('/', $m[7]);
+            $fechaPago = null;
+            if (count($fechaParts) === 3 && checkdate((int)$fechaParts[1], (int)$fechaParts[0], (int)$fechaParts[2])) {
+                $fechaPago = sprintf('%04d-%02d-%02d', $fechaParts[2], $fechaParts[1], $fechaParts[0]);
+            }
+
+            $opNum = $header['numero_operacion'] ?? '';
+            $pagos[] = [
+                'cedula'             => $header['cedula'] ?? null,
+                'numero_operacion'   => $opNum ?: null,
+                'fecha_pago'         => $fechaPago,
+                'monto_total'        => $this->parseMoney($m[12]),
+                'capital'            => $this->parseMoney($m[8]),
+                'interes_corriente'  => $this->parseMoney($m[4]),
+                'interes_moratorio'  => $this->parseMoney($m[5]),
+                'otros'              => ($this->parseMoney($m[6]) ?? 0) + ($this->parseMoney($m[13]) ?? 0), // cargos + polizas
+                'tipo_pago'          => $tipoPago,
+                'numero_cuota'       => (int) $m[2],
+                // Referencia única por crédito+linea+comprobante para idempotencia
+                'referencia_pago'    => "OP{$opNum}-L{$m[1]}-{$comprobante}",
+            ];
+        }
+
+        return $pagos;
+    }
+
+    /**
+     * Mapea el COMPROBANTE del PDF a un tipo_pago canónico.
+     * Retorna null si el row debe saltarse (ajuste, no es un pago real).
+     */
+    private function mapComprobanteToTipoPago(string $comprobante): ?string
+    {
+        $c = strtoupper(trim($comprobante));
+        if (str_starts_with($c, 'PLA')) return 'cuota_planilla';
+        if (str_starts_with($c, 'MIGRA')) return 'cuota_planilla'; // migración histórica = planilla
+        if (str_starts_with($c, 'AJ')) return null; // ajuste, no es pago
+        return 'cuota_ventanilla'; // default
+    }
+
+    /**
+     * Parsea un string como "1,250,000.00" a float.
+     */
+    private function parseMoney(mixed $value): ?float
+    {
+        if ($value === null) return null;
+        $clean = preg_replace('/[^0-9.]/', '', (string) $value);
+        return $clean === '' ? null : (float) $clean;
     }
 }

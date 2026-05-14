@@ -464,7 +464,7 @@ class ImportacionController extends Controller
     public function previewCreditos(Request $request): JsonResponse
     {
         $request->validate([
-            'files'   => 'required|array|min:1|max:10',
+            'files'   => 'required|array|min:1|max:100',
             'files.*' => 'file|mimes:xlsx,xls,csv,pdf|max:20480',
         ]);
 
