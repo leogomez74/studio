@@ -3,6 +3,9 @@
 # Local settings (never commit)
 settings.local.json
 
+# Archivos de importación (data sensible de clientes)
+backend/public/importaciones/
+
 # Playwright MCP logs (generados automáticamente por el MCP de Playwright)
 .playwright-mcp/
 
