@@ -44,10 +44,12 @@ class ImportacionFileParser
         'estado_civil'       => ['estadocivil', 'edocivil'],
         'genero'             => ['genero', 'sexo'],
         'nacionalidad'       => ['nacionalidad', 'pais'],
-        'email'              => ['email', 'correo', 'correoelectronico', 'mail', 'emailno1', 'emailprincipal', 'email1'],
-        'phone'              => ['phone', 'telefono', 'tel', 'celular', 'movil', 'numerotelefono', 'telmovil', 'telcelular', 'celularmovil'],
-        'whatsapp'           => ['whatsapp', 'wa', 'numwhatsapp'],
-        'tel_casa'           => ['telcasa', 'telefonocasa', 'telefonohogar', 'telhabitacion', 'telhogar'],
+        'email'              => ['email', 'correo', 'correoelectronico', 'mail', 'emailno1', 'emailprincipal', 'email1', 'emailno2', 'email2'],
+        // 'whatsapp' captura el teléfono móvil/celular (uso primario en CR)
+        'whatsapp'           => ['whatsapp', 'wa', 'numwhatsapp', 'movil', 'celular', 'telmovil', 'telcelular', 'celularmovil', 'numerocelular', 'celular1'],
+        // 'phone' solo captura headers genéricos "Teléfono" / "Phone" o teléfono de trabajo
+        'phone'              => ['phone', 'telefono', 'tel', 'numerotelefono', 'teltrabajo', 'telefonotrabajo'],
+        'tel_casa'           => ['telcasa', 'telefonocasa', 'telefonohogar', 'telhabitacion', 'telhogar', 'habitacion'],
         'province'           => ['provincia', 'province'],
         'canton'             => ['canton'],
         'distrito'           => ['distrito'],
@@ -280,8 +282,9 @@ class ImportacionFileParser
     {
         if (!is_numeric($value)) return null;
         $serial = (float) $value;
-        // Excel serial: 25569 = 1970-01-01, 73050 = 2099-12-31
-        if ($serial < 25569 || $serial > 73050) return null;
+        // Excel serial: 1 = 1900-01-01, 73050 = 2099-12-31
+        // Aceptamos cualquier serial razonable; el campo ya es de tipo fecha por contexto.
+        if ($serial < 1 || $serial > 73050) return null;
         try {
             $dt = ExcelDate::excelToDateTimeObject($serial);
             return $dt->format('Y-m-d');
