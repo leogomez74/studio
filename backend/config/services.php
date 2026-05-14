@@ -45,6 +45,18 @@ return [
         'password'       => env('ERP_API_PASSWORD', ''),
         'service_token'  => env('ERP_SERVICE_TOKEN', ''),
         'service_secret' => env('ERP_SERVICE_SECRET', ''),
+
+        // ─── CRM Federation v1.0 F4 ─────────────────────────────────────
+        // Feature flag para outbound sync Lead/Opportunity al CRM del ERP.
+        // Default OFF — activar solo cuando bridge token está emitido +
+        // company_id confirmado del lado ERP.
+        // Spec: erp2026/docs/plans/v1.0-F4-dsf-pep-spec.md
+        'crm' => [
+            'enabled'     => filter_var(env('ERP_CRM_SYNC_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'company_id'  => env('ERP_COMPANY_ID'),
+            'api_version' => env('ERP_API_VERSION', '2026-05'),
+            'source_slug' => 'pep',
+        ],
     ],
 
     'inversiones' => [

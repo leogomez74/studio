@@ -139,3 +139,18 @@ Schedule::command('automations:run-scheduled')
             ->whereNotNull('cron_expression')
             ->exists();
     });
+
+/*
+|--------------------------------------------------------------------------
+| Scheduled Tasks - ERP CRM Federation (v1.0 F4)
+|--------------------------------------------------------------------------
+|
+| Reconciliación diaria 04:00 CR: re-sincroniza Lead/Opportunity
+| modificados en los últimos 7 días. Atrapa drift cuando jobs fallan
+| silenciosamente. Idempotente del lado ERP por X-Idempotency-Key.
+*/
+Schedule::command('erp:crm-reconcile --days=7')
+    ->dailyAt('04:00')
+    ->timezone('America/Costa_Rica')
+    ->withoutOverlapping()
+    ->onOneServer();
