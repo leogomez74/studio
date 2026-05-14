@@ -66,13 +66,30 @@ class ImportacionCreditoCreator
             $cliente->save();
         }
 
-        // Validar crédito no existe
+        // Validar crédito no existe — chequeo en 2 niveles:
+        //   1. Por numero_operacion (exacto)
+        //   2. Por cedula + monto + plazo + fecha_formalizacion (mismo crédito, distinto numero)
         if (!empty($creditoData['numero_operacion'])) {
             $existe = Credit::where('numero_operacion', $creditoData['numero_operacion'])->exists();
             if ($existe) {
                 return [
                     'success' => false,
                     'error' => "Ya existe un crédito con número de operación {$creditoData['numero_operacion']}",
+                ];
+            }
+        }
+
+        if (!empty($creditoData['fecha_formalizacion']) && !empty($creditoData['monto_credito']) && !empty($creditoData['plazo_meses'])) {
+            $duplicado = Credit::query()
+                ->where('lead_id', $cliente->id)
+                ->where('monto_credito', $creditoData['monto_credito'])
+                ->where('plazo', $creditoData['plazo_meses'])
+                ->whereDate('formalized_at', $creditoData['fecha_formalizacion'])
+                ->first(['id', 'numero_operacion']);
+            if ($duplicado) {
+                return [
+                    'success' => false,
+                    'error' => "Ya existe un crédito #{$duplicado->id} (op: {$duplicado->numero_operacion}) para esta persona con el mismo monto, plazo y fecha de formalización",
                 ];
             }
         }

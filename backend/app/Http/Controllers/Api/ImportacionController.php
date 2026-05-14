@@ -530,12 +530,29 @@ class ImportacionController extends Controller
                         ]);
                 }
 
-                // Crédito ya existe? (columna en BD es `formalized_at`, no `fecha_formalizacion`)
+                // Crédito ya existe? Verificación en 2 niveles:
+                //   1. Por numero_operacion (match exacto del PDF)
+                //   2. Por cedula + monto + plazo + fecha_formalizacion (mismo crédito con distinto numero)
                 $creditoExistente = null;
+                $duplicadoTipo = null; // 'numero_operacion' | 'datos_coinciden'
+
                 if (!empty($sanitized['numero_operacion'])) {
                     $creditoExistente = \App\Models\Credit::query()
                         ->where('numero_operacion', $sanitized['numero_operacion'])
-                        ->first(['id', 'numero_operacion', 'monto_credito', 'formalized_at']);
+                        ->first(['id', 'numero_operacion', 'monto_credito', 'formalized_at', 'lead_id', 'plazo']);
+                    if ($creditoExistente) $duplicadoTipo = 'numero_operacion';
+                }
+
+                // Si no encontró por numero_operacion, buscar por datos coincidentes:
+                // mismo cliente + mismo monto + mismo plazo + misma fecha formalización.
+                if (!$creditoExistente && $cliente && !empty($sanitized['fecha_formalizacion'])) {
+                    $creditoExistente = \App\Models\Credit::query()
+                        ->where('lead_id', $cliente->id)
+                        ->where('monto_credito', $sanitized['monto_credito'])
+                        ->where('plazo', $sanitized['plazo_meses'])
+                        ->whereDate('formalized_at', $sanitized['fecha_formalizacion'])
+                        ->first(['id', 'numero_operacion', 'monto_credito', 'formalized_at', 'lead_id', 'plazo']);
+                    if ($creditoExistente) $duplicadoTipo = 'datos_coinciden';
                 }
 
                 // Detectar pagos duplicados: la `referencia_pago` del archivo se compara
@@ -586,6 +603,7 @@ class ImportacionController extends Controller
                     ] : null,
                     'cliente_existe'     => $cliente !== null,
                     'credito_ya_existe'  => $creditoExistente !== null,
+                    'duplicado_tipo'     => $duplicadoTipo,
                     'credito_existente'  => $creditoExistente ? [
                         'id'                  => $creditoExistente->id,
                         'numero_operacion'    => $creditoExistente->numero_operacion,

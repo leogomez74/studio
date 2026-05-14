@@ -729,6 +729,7 @@ interface CreditoRecord {
   cliente: CreditoCliente | null;
   cliente_existe: boolean;
   credito_ya_existe: boolean;
+  duplicado_tipo: 'numero_operacion' | 'datos_coinciden' | null;
   credito_existente: CreditoExistente | null;
   pagos: PagoPreview[];
   pagos_count: number;
@@ -1435,7 +1436,13 @@ function CreditoStatusBadge({ credito }: { credito: CreditoRecord }) {
       return <Badge variant="destructive" className="text-xs">Sin cliente</Badge>;
     }
     if (credito.credito_ya_existe) {
-      return <Badge variant="destructive" className="text-xs">Ya existe</Badge>;
+      const label = credito.duplicado_tipo === 'datos_coinciden'
+        ? 'Duplicado (datos)'
+        : 'Ya existe';
+      const title = credito.duplicado_tipo === 'datos_coinciden'
+        ? 'Mismo cliente + monto + plazo + fecha de formalización ya registrado'
+        : `Número de operación ${credito.credito_existente?.numero_operacion ?? ''} ya existe`;
+      return <Badge variant="destructive" className="text-xs" title={title}>{label}</Badge>;
     }
     return <Badge variant="outline" className="text-xs border-amber-500 text-amber-700">Errores</Badge>;
   }
