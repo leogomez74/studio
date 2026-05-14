@@ -301,9 +301,32 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
                   {uploading ? 'Procesando...' : `Previsualizar (${files.length})`}
                 </Button>
                 {preview && (
-                  <Button variant="ghost" size="sm" onClick={handleReset}>
-                    Limpiar
-                  </Button>
+                  <>
+                    <Button variant="ghost" size="sm" onClick={handleReset} disabled={creating}>
+                      Limpiar
+                    </Button>
+                    <div className="flex-1" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleReset}
+                      disabled={creating}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={!canCreate || preview.summary.new === 0 || creating}
+                      onClick={handleCreate}
+                      title={
+                        !canCreate ? 'No tienes permiso para crear clientes' :
+                        preview.summary.new === 0 ? 'No hay registros nuevos para crear' : ''
+                      }
+                    >
+                      {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      {creating ? 'Creando...' : `Crear ${preview.summary.new} cliente${preview.summary.new !== 1 ? 's' : ''}`}
+                    </Button>
+                  </>
                 )}
               </div>
             </>
@@ -406,24 +429,6 @@ function ImportarClientesTab({ hasPermission, toast }: { hasPermission: HasPermi
               </Table>
             </CardContent>
           </Card>
-
-          {/* Acción bulk */}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handleReset} disabled={creating}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={!canCreate || preview.summary.new === 0 || creating}
-              onClick={handleCreate}
-              title={
-                !canCreate ? 'No tienes permiso para crear clientes' :
-                preview.summary.new === 0 ? 'No hay registros nuevos para crear' : ''
-              }
-            >
-              {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              {creating ? 'Creando...' : `Crear ${preview.summary.new} cliente${preview.summary.new !== 1 ? 's' : ''}`}
-            </Button>
-          </div>
 
           {/* Overlay de loading durante creación */}
           {creating && (
@@ -851,7 +856,30 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
                   {uploading ? 'Procesando...' : `Previsualizar (${files.length})`}
                 </Button>
                 {preview && (
-                  <Button variant="ghost" size="sm" onClick={handleReset}>Limpiar</Button>
+                  <>
+                    <Button variant="ghost" size="sm" onClick={handleReset} disabled={creating}>Limpiar</Button>
+                    <div className="flex-1" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleReset}
+                      disabled={creating}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={!canCreate || preview.summary.ready === 0 || creating}
+                      onClick={handleCreate}
+                      title={
+                        !canCreate ? 'No tienes permiso para crear créditos' :
+                        preview.summary.ready === 0 ? 'No hay créditos listos para crear' : ''
+                      }
+                    >
+                      {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      {creating ? 'Creando...' : `Crear ${preview.summary.ready} crédito${preview.summary.ready !== 1 ? 's' : ''}`}
+                    </Button>
+                  </>
                 )}
               </div>
             </>
@@ -968,21 +996,6 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
               </Table>
             </CardContent>
           </Card>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handleReset} disabled={creating}>Cancelar</Button>
-            <Button
-              disabled={!canCreate || preview.summary.ready === 0 || creating}
-              onClick={handleCreate}
-              title={
-                !canCreate ? 'No tienes permiso para crear créditos' :
-                preview.summary.ready === 0 ? 'No hay créditos listos para crear' : ''
-              }
-            >
-              {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Crear {preview.summary.ready} crédito{preview.summary.ready !== 1 ? 's' : ''}
-            </Button>
-          </div>
 
           {/* Overlay de loading durante creación */}
           {creating && (
