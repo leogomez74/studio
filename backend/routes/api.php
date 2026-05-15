@@ -425,6 +425,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
             ->middleware(['permission:importacion,view', 'throttle:30,1']);
         Route::post('/crear-creditos', [\App\Http\Controllers\Api\ImportacionController::class, 'crearCreditos'])
             ->middleware(['permission:importacion,create', 'throttle:10,1']);
+        Route::get('/progreso', [\App\Http\Controllers\Api\ImportacionController::class, 'progresoCreditos'])
+            ->middleware('permission:importacion,view');
     });
 
     // --- Bitácora de Auditoría General del Sistema ---

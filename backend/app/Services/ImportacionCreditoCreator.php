@@ -29,6 +29,9 @@ class ImportacionCreditoCreator
 {
     use AccountingTrigger;
 
+    /** Callback invocado tras cada asiento disparado: fn(bool $success): void */
+    private $onAsiento = null;
+
     /**
      * Crea un crédito desde un payload validado en el preview.
      *
@@ -48,8 +51,12 @@ class ImportacionCreditoCreator
      *     error?: string
      * }
      */
-    public function crear(array $creditoData, array $pagosData = []): array
+    public function crear(array $creditoData, array $pagosData = [], ?callable $onAsiento = null): array
     {
+        // Callback opcional: se invoca tras cada asiento disparado (para progreso en vivo).
+        // Recibe (bool $success). Si es null, no hace nada.
+        $this->onAsiento = $onAsiento;
+
         // Validar cliente
         $cliente = Person::query()
             ->withoutGlobalScopes()
@@ -199,6 +206,7 @@ class ImportacionCreditoCreator
                     'reference' => $credit->reference,
                     'error'     => $formResult['error'] ?? null,
                 ];
+                if ($this->onAsiento) ($this->onAsiento)((bool) ($formResult['success'] ?? false));
 
                 // 5. Aplicar pagos del archivo
                 foreach ($pagosData as $pago) {
@@ -216,6 +224,7 @@ class ImportacionCreditoCreator
                     $pagoResult = $this->aplicarPago($credit, $cliente, $pago, $pagoDeductoraId);
                     if ($pagoResult['accounting']) {
                         $accountingResults[] = $pagoResult['accounting'];
+                        if ($this->onAsiento) ($this->onAsiento)((bool) ($pagoResult['accounting']['success'] ?? false));
                     }
                     $pagosCreados++;
                 }

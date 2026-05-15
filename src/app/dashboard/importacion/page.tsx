@@ -785,7 +785,7 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [creating, setCreating] = useState(false);
-  const [createProgress, setCreateProgress] = useState<{ done: number; total: number; asientos: number } | null>(null);
+  const [createProgress, setCreateProgress] = useState<{ done: number; total: number; asientos: number; asientosTotal: number } | null>(null);
   const [preview, setPreview] = useState<CreditoPreviewResponse | null>(null);
   const [detailCredito, setDetailCredito] = useState<CreditoRecord | null>(null);
   const [createResult, setCreateResult] = useState<CreateResponse | null>(null);
@@ -921,8 +921,16 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
       chunks.push(creditosReady.slice(i, i + CREATE_CHUNK_SIZE));
     }
 
+    // Total de asientos esperados = sum(pagos a importar + 1 formalización por crédito)
+    const totalAsientosEsperados = preview.creditos
+      .filter(c => c.ready_to_import)
+      .reduce((acc, c) => acc + c.pagos_a_importar + 1, 0);
+
+    // Token único para trackear progreso en vivo (polling)
+    const progresoToken = `imp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
     setCreating(true);
-    setCreateProgress({ done: 0, total: creditosReady.length, asientos: 0 });
+    setCreateProgress({ done: 0, total: creditosReady.length, asientos: 0, asientosTotal: totalAsientosEsperados });
 
     const accumulated: CreateResponse = {
       success: true,
@@ -930,10 +938,29 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
       results: [],
     };
 
+    // Polling del progreso de asientos cada 1.5s mientras se procesa
+    let creditosDone = 0;
+    const pollInterval = setInterval(async () => {
+      try {
+        const p = await api.get<{ asientos: number }>(`/api/importacion/progreso?token=${progresoToken}`);
+        setCreateProgress({
+          done: creditosDone,
+          total: creditosReady.length,
+          asientos: p.data.asientos ?? 0,
+          asientosTotal: totalAsientosEsperados,
+        });
+      } catch {
+        // Silencioso: si el poll falla, seguimos sin actualizar
+      }
+    }, 1500);
+
     try {
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
-        const res = await api.post<CreateResponse>('/api/importacion/crear-creditos', { creditos: chunk });
+        const res = await api.post<CreateResponse>('/api/importacion/crear-creditos', {
+          creditos: chunk,
+          progreso_token: progresoToken,
+        });
 
         // Acumular
         accumulated.results.push(...res.data.results);
@@ -942,17 +969,12 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
         accumulated.stats.pagos_creados  += res.data.stats.pagos_creados;
         accumulated.stats.pagos_saltados += res.data.stats.pagos_saltados;
 
-        // Contar asientos disparados en este chunk
-        const asientosChunk = res.data.results.reduce(
-          (acc, r) => acc + (r.accounting?.filter(a => a.success).length ?? 0),
-          0
-        );
-
-        const processed = Math.min((i + 1) * CREATE_CHUNK_SIZE, creditosReady.length);
+        creditosDone = Math.min((i + 1) * CREATE_CHUNK_SIZE, creditosReady.length);
         setCreateProgress(prev => ({
-          done: processed,
+          done: creditosDone,
           total: creditosReady.length,
-          asientos: (prev?.asientos ?? 0) + asientosChunk,
+          asientos: prev?.asientos ?? 0,
+          asientosTotal: totalAsientosEsperados,
         }));
       }
 
@@ -966,6 +988,7 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
         || 'No se pudo crear los créditos.';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
     } finally {
+      clearInterval(pollInterval);
       setCreating(false);
       setCreateProgress(null);
     }
@@ -1215,15 +1238,15 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
                     {createProgress ? (
                       <>
                         <p className="text-sm text-muted-foreground mb-1">
-                          {createProgress.done} de {createProgress.total} créditos procesados
+                          {createProgress.done} de {createProgress.total} crédito{createProgress.total !== 1 ? 's' : ''} procesado{createProgress.total !== 1 ? 's' : ''}
                         </p>
                         <p className="text-xs text-muted-foreground mb-3">
-                          {createProgress.asientos} asiento{createProgress.asientos !== 1 ? 's' : ''} contable{createProgress.asientos !== 1 ? 's' : ''} generado{createProgress.asientos !== 1 ? 's' : ''} hasta ahora
+                          {createProgress.asientos} / {createProgress.asientosTotal} asientos contables generados
                         </p>
                         <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                           <div
                             className="h-full bg-primary transition-all duration-300"
-                            style={{ width: `${(createProgress.done / createProgress.total) * 100}%` }}
+                            style={{ width: `${createProgress.asientosTotal > 0 ? Math.min(100, (createProgress.asientos / createProgress.asientosTotal) * 100) : 0}%` }}
                           />
                         </div>
                       </>
