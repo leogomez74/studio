@@ -247,9 +247,11 @@ class ErpAccountingService
     }
 
     /**
-     * Enviar request con reintento automático en caso de 401
+     * Enviar request con reintento automático.
+     * @param bool|int $isRetry  false/0 = primer intento. bool true = retry de 401.
+     *                           int >= 1 = número de reintento por 429.
      */
-    private function sendWithRetry(array $payload, bool $isRetry = false): array
+    private function sendWithRetry(array $payload, bool|int $isRetry = false): array
     {
         try {
             $endpoint = $this->baseUrl . '/journal-entry';
@@ -282,6 +284,25 @@ class ErpAccountingService
 
             if ($response->status() === 401 && $this->usesServiceToken()) {
                 Log::error('ERP: 401 con ERP_SERVICE_TOKEN — verificar validez del token en .env');
+            }
+
+            // 429 = Too Many Requests (rate limit). Esperar y reintentar inline
+            // hasta 3 veces respetando el header Retry-After si viene.
+            // Antes esto era falla dura, así que cualquier reintento es mejora.
+            if ($response->status() === 429) {
+                $retryAttempt = is_int($isRetry) ? $isRetry : 0;
+                if ($retryAttempt < 3) {
+                    $retryAfter = (int) ($response->header('Retry-After') ?: 0);
+                    // Backoff: header Retry-After, o exponencial 2/4/8 seg
+                    $waitSeconds = $retryAfter > 0 ? min($retryAfter, 30) : (2 ** ($retryAttempt + 1));
+                    Log::warning('ERP: 429 rate limit, esperando para reintentar', [
+                        'attempt'      => $retryAttempt + 1,
+                        'wait_seconds' => $waitSeconds,
+                    ]);
+                    sleep($waitSeconds);
+                    return $this->sendWithRetry($payload, $retryAttempt + 1);
+                }
+                Log::error('ERP: 429 persistente tras 3 reintentos, se marca como error para retry programado');
             }
 
             // 422 = Error de validación
