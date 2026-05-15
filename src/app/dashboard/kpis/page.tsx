@@ -84,6 +84,7 @@ interface KPIData {
   target?: number;
   unit?: string;
   count?: number;
+  available?: boolean;
 }
 
 interface LeadKPIs {
@@ -240,6 +241,22 @@ interface VentasTendencias {
   };
 }
 
+interface ComercialKPIs {
+  period: { start: string; end: string };
+  leadsPorDia: { fecha: string; total: number }[];
+  leadToOppPorDia: { fecha: string; total: number }[];
+  creditosAprobados: { count: number; monto: number; countChange: number; montoChange: number };
+  concentracionInstitucion: { institucion: string; total: number }[];
+  carteraNueva: { value: number; change: number; unit: string };
+  tasaNoAceptacion: { value: number; count: number; total: number; unit: string };
+  tasaDenegados: { value: number; count: number; total: number; unit: string };
+  motivosNoAprobacion: { motivo: string; total: number; origen: string }[];
+  diasPromedioFormalizacion: number;
+  colocacionVendedor: { user_id: number; name: string; aprobados: number; denegados: number; pendientes: number; monto_total: number }[];
+  tasaRefinanciacion: { value: number; count: number; total: number; unit: string };
+  tasaRecolocacion: { value: number; count: number; total: number; unit: string };
+}
+
 // ============ COMPONENTS ============
 function StatCard({
   title,
@@ -312,7 +329,7 @@ function StatCard({
           <div className="mt-2">
             <div className="flex justify-between text-xs text-muted-foreground mb-1">
               <span>Meta: {target}{unit}</span>
-              <span>{typeof value === 'number' ? Math.round((value / target) * 100) : 0}%</span>
+              <span>{typeof value === 'number' ? Math.min(Math.round((value / target) * 100), 100) : 0}%</span>
             </div>
             <Progress value={typeof value === 'number' ? Math.min((value / target) * 100, 100) : 0} className="h-1.5" />
           </div>
@@ -609,6 +626,8 @@ export default function KPIsPage() {
   const [trendData, setTrendData] = useState<TrendData | null>(null);
   const [trendsLoading, setTrendsLoading] = useState(true);
   const [trendsError, setTrendsError] = useState<string | null>(null);
+  const [comercialKPIs, setComercialKPIs] = useState<ComercialKPIs | null>(null);
+  const [comercialLoading, setComercialLoading] = useState(true);
 
   // Ventas KPI State
   const [ventasKPIs, setVentasKPIs] = useState<VentasKPIs | null>(null);
@@ -664,6 +683,19 @@ export default function KPIsPage() {
     }
   }, [period]);
 
+  const fetchComercial = useCallback(async () => {
+    setComercialLoading(true);
+    try {
+      const response = await api.get(`/api/kpis/comercial?period=${period}`);
+      setComercialKPIs(response.data as ComercialKPIs);
+    } catch (err) {
+      console.error('Error fetching comercial KPIs:', err);
+      setComercialKPIs(null);
+    } finally {
+      setComercialLoading(false);
+    }
+  }, [period]);
+
   const fetchVentasKPIs = useCallback(async () => {
     setVentasLoading(true);
     try {
@@ -688,7 +720,8 @@ export default function KPIsPage() {
     fetchKPIs();
     fetchTrends();
     fetchVentasKPIs();
-  }, [fetchKPIs, fetchTrends, fetchVentasKPIs]);
+    fetchComercial();
+  }, [fetchKPIs, fetchTrends, fetchVentasKPIs, fetchComercial]);
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000000) {
@@ -1003,11 +1036,13 @@ export default function KPIsPage() {
 
         const businessContent = (
           <>
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+            <div className={cn("grid gap-3 grid-cols-2", (Number(businessHealthKPIs?.nps?.value) || 0) > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
               <StatCard title="Valor de Vida del Cliente" value={formatCurrency(Number(businessHealthKPIs?.clv?.value) || 0)} change={businessHealthKPIs?.clv?.change} icon={DollarSign} description="Valor total por cliente" colorClass="text-green-500" isLoading={isLoading} />
-              <StatCard title="Costo de Adquisición" value={formatCurrency(Number(businessHealthKPIs?.cac?.value) || 0)} change={businessHealthKPIs?.cac?.change} icon={TrendingDown} description="Costo por cliente adquirido" colorClass="text-blue-500" isLoading={isLoading} />
-              <StatCard title="Crecimiento de Cartera" value={businessHealthKPIs?.portfolioGrowth?.value ?? 0} unit={businessHealthKPIs?.portfolioGrowth?.unit} change={businessHealthKPIs?.portfolioGrowth?.change} target={businessHealthKPIs?.portfolioGrowth?.target} icon={TrendingUp} description="Crecimiento mes a mes" colorClass="text-emerald-500" isLoading={isLoading} />
-              <StatCard title="NPS" value={businessHealthKPIs?.nps?.value ?? 0} unit={businessHealthKPIs?.nps?.unit} change={businessHealthKPIs?.nps?.change} icon={Star} description="Satisfacción del cliente" colorClass="text-yellow-500" isLoading={isLoading} />
+              <StatCard title="Costo de Adquisición" value={businessHealthKPIs?.cac?.available ? formatCurrency(Number(businessHealthKPIs?.cac?.value) || 0) : 'N/D'} change={businessHealthKPIs?.cac?.available ? businessHealthKPIs?.cac?.change : undefined} icon={TrendingDown} description={businessHealthKPIs?.cac?.available ? "Costo por cliente adquirido" : "Sin datos de gasto en marketing"} colorClass="text-blue-500" isLoading={isLoading} />
+              <StatCard title="Cartera Nueva del Periodo" value={businessHealthKPIs?.portfolioGrowth?.value ?? 0} unit={businessHealthKPIs?.portfolioGrowth?.unit} change={businessHealthKPIs?.portfolioGrowth?.change} target={businessHealthKPIs?.portfolioGrowth?.target} icon={TrendingUp} description="Saldo de créditos creados en el periodo" colorClass="text-emerald-500" isLoading={isLoading} />
+              {(Number(businessHealthKPIs?.nps?.value) || 0) > 0 && (
+                <StatCard title="NPS" value={businessHealthKPIs?.nps?.value ?? 0} unit={businessHealthKPIs?.nps?.unit} change={businessHealthKPIs?.nps?.change} icon={Star} description="Satisfacción del cliente" colorClass="text-yellow-500" isLoading={isLoading} />
+              )}
               <StatCard title="Ingreso por Empleado" value={formatCurrency(Number(businessHealthKPIs?.revenuePerEmployee?.value) || 0)} change={businessHealthKPIs?.revenuePerEmployee?.change} icon={Users} description="Eficiencia de personal" colorClass="text-purple-500" isLoading={isLoading} />
             </div>
             {businessHealthKPIs && (
@@ -1037,6 +1072,250 @@ export default function KPIsPage() {
                 </CardContent>
               </Card>
             )}
+          </>
+        );
+
+        const comercialContent = (
+          <>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                title="Créditos Aprobados"
+                value={comercialKPIs?.creditosAprobados?.count ?? 0}
+                change={comercialKPIs?.creditosAprobados?.countChange}
+                icon={CheckCircle}
+                description="Cantidad en el periodo"
+                colorClass="text-green-500"
+                isLoading={comercialLoading}
+              />
+              <StatCard
+                title="Monto Aprobado"
+                value={formatCurrency(comercialKPIs?.creditosAprobados?.monto ?? 0)}
+                change={comercialKPIs?.creditosAprobados?.montoChange}
+                icon={DollarSign}
+                description="Monto colocado en el periodo"
+                colorClass="text-emerald-500"
+                isLoading={comercialLoading}
+              />
+              <StatCard
+                title="Cartera Nueva del Periodo"
+                value={formatCurrency(comercialKPIs?.carteraNueva?.value ?? 0)}
+                change={comercialKPIs?.carteraNueva?.change}
+                icon={TrendingUp}
+                description="Saldo de créditos creados"
+                colorClass="text-blue-500"
+                isLoading={comercialLoading}
+              />
+              <StatCard
+                title="Días Promedio Formalización"
+                value={comercialKPIs?.diasPromedioFormalizacion ?? 0}
+                unit="días"
+                icon={Hourglass}
+                description="Desde ingreso del lead"
+                colorClass="text-amber-500"
+                isLoading={comercialLoading}
+              />
+            </div>
+
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                title="Tasa de No Aceptación"
+                value={comercialKPIs?.tasaNoAceptacion?.value ?? 0}
+                unit="%"
+                icon={AlertCircle}
+                description={`${comercialKPIs?.tasaNoAceptacion?.count ?? 0} de ${comercialKPIs?.tasaNoAceptacion?.total ?? 0} propuestas`}
+                colorClass="text-orange-500"
+                isLoading={comercialLoading}
+              />
+              <StatCard
+                title="Tasa de Denegados"
+                value={comercialKPIs?.tasaDenegados?.value ?? 0}
+                unit="%"
+                icon={ShieldAlert}
+                description={`${comercialKPIs?.tasaDenegados?.count ?? 0} de ${comercialKPIs?.tasaDenegados?.total ?? 0} oportunidades`}
+                colorClass="text-red-500"
+                isLoading={comercialLoading}
+              />
+              <StatCard
+                title="Tasa de Refinanciación"
+                value={comercialKPIs?.tasaRefinanciacion?.value ?? 0}
+                unit="%"
+                icon={RotateCcw}
+                description={`${comercialKPIs?.tasaRefinanciacion?.count ?? 0} refundiciones`}
+                colorClass="text-purple-500"
+                isLoading={comercialLoading}
+              />
+              <StatCard
+                title="Tasa de Recolocación"
+                value={comercialKPIs?.tasaRecolocacion?.value ?? 0}
+                unit="%"
+                icon={Award}
+                description={`${comercialKPIs?.tasaRecolocacion?.count ?? 0} clientes recurrentes`}
+                colorClass="text-cyan-500"
+                isLoading={comercialLoading}
+              />
+            </div>
+
+            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Leads por Día
+                  </CardTitle>
+                  <CardDescription>Captación diaria en el periodo</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {comercialLoading ? (
+                    <Skeleton className="h-64 w-full" />
+                  ) : (comercialKPIs?.leadsPorDia?.length ?? 0) === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">Sin leads en el periodo.</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <AreaChart data={comercialKPIs!.leadsPorDia}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="fecha" className="text-xs" />
+                        <YAxis className="text-xs" allowDecimals={false} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="total" stroke="#3b82f6" fill="#3b82f680" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Leads → Oportunidad por Día
+                  </CardTitle>
+                  <CardDescription>Avance del funnel diario</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {comercialLoading ? (
+                    <Skeleton className="h-64 w-full" />
+                  ) : (comercialKPIs?.leadToOppPorDia?.length ?? 0) === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">Sin conversiones a oportunidad.</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <LineChart data={comercialKPIs!.leadToOppPorDia}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="fecha" className="text-xs" />
+                        <YAxis className="text-xs" allowDecimals={false} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="total" stroke="#22c55e" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    Concentración de Leads por Institución
+                  </CardTitle>
+                  <CardDescription>Top 15 instituciones del periodo</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {comercialLoading ? (
+                    <Skeleton className="h-64 w-full" />
+                  ) : (comercialKPIs?.concentracionInstitucion?.length ?? 0) === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">Sin datos de institución.</div>
+                  ) : (
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
+                      {comercialKPIs!.concentracionInstitucion.map((it) => {
+                        const max = Math.max(...comercialKPIs!.concentracionInstitucion.map(x => x.total));
+                        const pct = max > 0 ? (it.total / max) * 100 : 0;
+                        return (
+                          <div key={it.institucion} className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="truncate flex-1 mr-2">{it.institucion}</span>
+                              <span className="font-medium">{it.total}</span>
+                            </div>
+                            <Progress value={pct} className="h-1.5" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" />
+                    Motivos de No Aprobación
+                  </CardTitle>
+                  <CardDescription>Oportunidades perdidas + propuestas rechazadas</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {comercialLoading ? (
+                    <Skeleton className="h-64 w-full" />
+                  ) : (comercialKPIs?.motivosNoAprobacion?.length ?? 0) === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">Sin motivos registrados.</div>
+                  ) : (
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
+                      {comercialKPIs!.motivosNoAprobacion.map((m, i) => (
+                        <div key={i} className="flex justify-between items-center p-2 rounded-md bg-muted/40">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">{m.motivo}</p>
+                            <Badge variant="outline" className="text-xs mt-1">{m.origen}</Badge>
+                          </div>
+                          <span className="font-bold text-sm ml-2">{m.total}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5" />
+                  Colocación por Vendedor
+                </CardTitle>
+                <CardDescription>Créditos creados en el periodo agrupados por agente</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {comercialLoading ? (
+                  <Skeleton className="h-48 w-full" />
+                ) : (comercialKPIs?.colocacionVendedor?.length ?? 0) === 0 ? (
+                  <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">Sin colocación en el periodo.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left border-b">
+                          <th className="p-2">Vendedor</th>
+                          <th className="p-2 text-right">Aprobados</th>
+                          <th className="p-2 text-right">Pendientes</th>
+                          <th className="p-2 text-right">Cancelados</th>
+                          <th className="p-2 text-right">Monto Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comercialKPIs!.colocacionVendedor.map(v => (
+                          <tr key={v.user_id} className="border-b hover:bg-muted/40">
+                            <td className="p-2 font-medium">{v.name}</td>
+                            <td className="p-2 text-right text-green-600 font-semibold">{v.aprobados}</td>
+                            <td className="p-2 text-right text-amber-600">{v.pendientes}</td>
+                            <td className="p-2 text-right text-red-600">{v.denegados}</td>
+                            <td className="p-2 text-right">{formatCurrency(v.monto_total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </>
         );
 
@@ -1308,6 +1587,7 @@ export default function KPIsPage() {
           { id: "collections",  label: "Cobros",        icon: Wallet,         content: collectionsContent,   module: "cobros" },
           { id: "agents",       label: "Agentes",       icon: UserCheck,      content: agentsContent,        module: "staff" },
           { id: "gamification", label: "Gamificación",  icon: Gamepad2,       content: gamificationContent,  module: "recompensas" },
+          { id: "comercial",    label: "Comercial",     icon: Briefcase,      content: comercialContent,     module: "kpis" },
           { id: "business",     label: "Negocio",       icon: Building2,      content: businessContent,      module: null },
           { id: "trends",       label: "Tendencias",    icon: LineChartIcon,  content: trendsContent,        module: null },
         ].filter(({ module }) =>

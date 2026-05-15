@@ -4,6 +4,14 @@
 
 | Fecha | Mejora |
 |-------|--------|
+| May 2026 | **KPIs — Pestaña Comercial nueva**: endpoint `/api/kpis/comercial` con 13 KPIs (leads/día, leads→opp/día, créditos aprobados qty+monto, concentración por institución, cartera nueva, tasa no aceptación, tasa denegados, motivos no aprobación, días promedio formalización, colocación por vendedor, tasa refinanciación, tasa recolocación). Frontend: 8 StatCards + 2 charts + 2 listas + 1 tabla |
+| May 2026 | **KPIs — Tiempo de Respuesta real**: migración `add_first_contacted_at_to_persons_table` + tracking en `CommentController::store()` (primer comentario raíz sobre Lead). Fórmula nueva en `getLeadKpis::responseTime` con `Schema::hasColumn` guard |
+| May 2026 | **KPIs — CAC real**: tabla `marketing_costs` (period_month, channel, amount), modelo + `MarketingCostController` (CRUD admin /api/marketing-costs). Fórmula: `Σ costos / clientes adquiridos`. Flag `available` para que frontend muestre "N/D" si no hay datos |
+| May 2026 | **KPIs — NPS oculto**: card NPS solo visible si value>0 (grid pasa de 5 a 4 columnas). Bug previo: mostraba "0" como si fuera dato real |
+| May 2026 | **KPIs — Portfolio Growth renombrado**: "Crecimiento de Cartera" → "Cartera Nueva del Periodo". Lógica mantenida (suma saldos del periodo) pero el label nuevo refleja qué mide realmente |
+| May 2026 | **KPIs Leads — Bug Tasa de Conversión 101,700%**: fórmula corregida en `KpiController::getLeadKpis` — antes `clients/leads` (cohorts distintos por STI), ahora `clients/(leads+clients)` del periodo. Acotada a 100%. |
+| May 2026 | **KPIs Frontend — Clamp del porcentaje vs meta**: `StatCard` mostraba `value/target*100` sin límite (ej. 339,000%). Aplicado `Math.min(..., 100)` también en el texto, alineado con la barra Progress que ya tenía clamp. |
+| May 2026 | **KPIs Leads — Lead Aging global**: antes filtraba leads creados *en el periodo* Y con >7 días, vaciaba resultado en rangos cortos. Ahora cuenta leads activos creados +7 días antes del cierre del periodo (sin filtro inferior). |
 | Mar 2026 | **Verificación Bancaria — UX Interactiva**: Tarjeta en chat/comunicaciones ahora permite aprobación/rechazo con notas, fuentes optimizadas (título lg, monto xl font-black), callback de refresco sin reload y ancho 85% en burbuja. |
 | Mar 2026 | **Cobros — Refinamiento UI**: Botón principal renombrado a "Ingresar Abono"; título y acción de diálogo estandarizados a "Solicitar Abono" bajo flujo de verificación. |
 | Mar 2026 | **Comunicaciones — Fixes críticos**: Corrección de carga de hilos directos (targetId dinámico según contacto), eliminación de chats vacíos propios y agrupación de comentarios por entidad (única entrada por Crédito/Lead). |

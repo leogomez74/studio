@@ -23,8 +23,10 @@ use App\Models\Rewards\RewardTransaction;
 use App\Models\Rewards\RewardUserBadge;
 use App\Models\Rewards\RewardChallengeParticipation;
 use App\Models\Rewards\RewardRedemption;
+use App\Models\MarketingCost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class KpiController extends Controller
@@ -354,17 +356,21 @@ class KpiController extends Controller
             $totalClients = Client::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])->count();
             $prevTotalClients = Client::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])->count();
 
-            // Conversion rate for the period (leads that became clients)
-            $conversionRate = $totalLeads > 0 ? round(($totalClients / $totalLeads) * 100, 1) : 0;
-            $prevConversionRate = $prevTotalLeads > 0 ? round(($prevTotalClients / $prevTotalLeads) * 100, 1) : 0;
+            // Conversion rate: clientes / total personas adquiridas (leads + clientes) del periodo.
+            // Why: leads y clients son cohorts distintos (STI: person_type_id 1→2 deja de aparecer como Lead).
+            // Cliente/(Lead+Cliente) representa "% de prospectos del periodo que ya son clientes" — acotado a 100%.
+            $totalAdquiridos = $totalLeads + $totalClients;
+            $prevTotalAdquiridos = $prevTotalLeads + $prevTotalClients;
+            $conversionRate = $totalAdquiridos > 0 ? round(($totalClients / $totalAdquiridos) * 100, 1) : 0;
+            $prevConversionRate = $prevTotalAdquiridos > 0 ? round(($prevTotalClients / $prevTotalAdquiridos) * 100, 1) : 0;
 
-            // Lead aging (leads created in period that are still pending > 7 days)
+            // Lead aging: leads activos creados hace +7 días al cierre del periodo (global, no acotado al rango).
+            // Why: "envejecido" describe el estado del lead, no un evento del periodo — el filtro por periodo
+            // vaciaba el resultado cuando el rango era menor a 7 días.
             $leadAging = Lead::where('is_active', true)
-                ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                ->where('created_at', '<', Carbon::now()->subDays(7))
+                ->where('created_at', '<', $dateRange['end']->copy()->subDays(7))
                 ->count();
             $prevLeadAging = Lead::where('is_active', true)
-                ->whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])
                 ->where('created_at', '<', $dateRange['prev_end']->copy()->subDays(7))
                 ->count();
 
@@ -417,24 +423,28 @@ class KpiController extends Controller
                 // Fallback to empty
             }
 
-            // Calculate response time from first activity/update if available
+            // Tiempo de respuesta: AVG(first_contacted_at - created_at) sobre leads creados en el periodo.
+            // Why: first_contacted_at se setea explícitamente en el primer comentario del lead, evitando el ruido
+            // de updated_at (que cambia con cualquier edición administrativa, sync, etc.).
             $responseTime = 0;
             $prevResponseTime = 0;
             try {
-                // Try to calculate from updated_at - created_at as a proxy for first response
-                $avgResponse = Lead::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
-                    ->whereColumn('updated_at', '>', 'created_at')
-                    ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, created_at, updated_at)) as avg_hours')
-                    ->value('avg_hours');
-                $responseTime = $avgResponse ? round($avgResponse, 1) : 0;
+                $hasColumn = \Schema::hasColumn('persons', 'first_contacted_at');
+                if ($hasColumn) {
+                    $avgResponse = Lead::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+                        ->whereNotNull('first_contacted_at')
+                        ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, created_at, first_contacted_at)) as avg_hours')
+                        ->value('avg_hours');
+                    $responseTime = $avgResponse ? round($avgResponse, 1) : 0;
 
-                $prevAvgResponse = Lead::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])
-                    ->whereColumn('updated_at', '>', 'created_at')
-                    ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, created_at, updated_at)) as avg_hours')
-                    ->value('avg_hours');
-                $prevResponseTime = $prevAvgResponse ? round($prevAvgResponse, 1) : 0;
+                    $prevAvgResponse = Lead::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])
+                        ->whereNotNull('first_contacted_at')
+                        ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, created_at, first_contacted_at)) as avg_hours')
+                        ->value('avg_hours');
+                    $prevResponseTime = $prevAvgResponse ? round($prevAvgResponse, 1) : 0;
+                }
             } catch (\Exception $e) {
-                // Fallback to 0
+                // Fallback a 0 si la columna aún no existe en este ambiente.
             }
 
             return [
@@ -1544,31 +1554,32 @@ class KpiController extends Controller
             $prevAvgCreditsPerClient = $prevCredits / $prevClients;
             $prevClv = round($prevAvgCreditAmount * $prevAvgCreditsPerClient, 0);
 
-            // Customer Acquisition Cost (CAC) - approximate from leads converted
-            // CAC = Marketing spend / New customers (approximated from lead-to-client conversion)
+            // Customer Acquisition Cost (CAC) — Σ costos marketing del periodo / nuevos clientes adquiridos.
+            // Why: usa datos reales de `marketing_costs` (tabla nueva). Si no hay registros, devuelve 0
+            // y el frontend muestra "N/D" en lugar de un valor inventado.
             $cac = 0;
             $prevCac = 0;
+            $cacAvailable = false;
             try {
-                // Approximate CAC based on leads processed vs clients acquired
-                $leadsProcessed = Lead::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])->count();
-                $clientsAcquired = Client::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])->count();
+                if (Schema::hasTable('marketing_costs')) {
+                    $marketingSpend = (float) (MarketingCost::whereBetween('period_month', [$dateRange['start']->copy()->startOfMonth(), $dateRange['end']])
+                        ->sum('amount') ?? 0);
+                    $clientsAcquired = Client::whereBetween('created_at', [$dateRange['start'], $dateRange['end']])->count();
 
-                // If we have clients, calculate average acquisition effort
-                if ($clientsAcquired > 0 && $leadsProcessed > 0) {
-                    // Rough approximation: avg credit amount / conversion ratio gives CAC indicator
-                    $conversionRatio = $clientsAcquired / $leadsProcessed;
-                    $cac = round($avgCreditAmountInPeriod * 0.1 / max($conversionRatio, 0.1), 0); // 10% of credit as acquisition cost baseline
-                }
+                    if ($marketingSpend > 0 && $clientsAcquired > 0) {
+                        $cac = round($marketingSpend / $clientsAcquired, 0);
+                        $cacAvailable = true;
+                    }
 
-                // Previous period CAC
-                $prevLeadsProcessed = Lead::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])->count();
-                $prevClientsAcquired = Client::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])->count();
-                if ($prevClientsAcquired > 0 && $prevLeadsProcessed > 0) {
-                    $prevConversionRatio = $prevClientsAcquired / $prevLeadsProcessed;
-                    $prevCac = round($prevAvgCreditAmount * 0.1 / max($prevConversionRatio, 0.1), 0);
+                    $prevMarketingSpend = (float) (MarketingCost::whereBetween('period_month', [$dateRange['prev_start']->copy()->startOfMonth(), $dateRange['prev_end']])
+                        ->sum('amount') ?? 0);
+                    $prevClientsAcquired = Client::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])->count();
+                    if ($prevMarketingSpend > 0 && $prevClientsAcquired > 0) {
+                        $prevCac = round($prevMarketingSpend / $prevClientsAcquired, 0);
+                    }
                 }
             } catch (\Exception $e) {
-                // Fallback
+                // Fallback a 0 si la tabla aún no existe.
             }
 
             // Portfolio Growth Rate - period over period
@@ -1646,6 +1657,7 @@ class KpiController extends Controller
                     'value' => $cac,
                     'change' => $prevCac > 0 ? $this->calculateChange((float)$cac, (float)$prevCac) : 0,
                     'unit' => '₡',
+                    'available' => $cacAvailable,
                 ],
                 'portfolioGrowth' => [
                     'value' => $portfolioGrowth,
@@ -2270,5 +2282,251 @@ class KpiController extends Controller
             ],
             'reward_points' => (int) $rewardPoints,
         ];
+    }
+
+    // ============================================================
+    //  COMERCIAL — KPIs de gestión de leads, conversión y colocación
+    //  Endpoint: GET /api/kpis/comercial?period=month
+    // ============================================================
+    public function comercial(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $period    = $request->input('period', 'month');
+        $dateRange = $this->getDateRange($period);
+        $start     = $dateRange['start'];
+        $end       = $dateRange['end'];
+
+        try {
+            $aprobadosStatuses = ['Aprobado', 'Por firmar', 'Formalizado', 'Activo', 'En Mora', 'Cerrado'];
+
+            // 1. Leads por día (timeseries)
+            $leadsPorDia = Lead::whereBetween('created_at', [$start, $end])
+                ->selectRaw('DATE(created_at) as fecha, COUNT(*) as total')
+                ->groupBy('fecha')
+                ->orderBy('fecha')
+                ->get()
+                ->map(fn($r) => ['fecha' => $r->fecha, 'total' => (int) $r->total]);
+
+            // 2. Leads → Oportunidad por día (oportunidades creadas en el periodo cuyo lead_cedula existe en leads)
+            $leadToOppPorDia = Opportunity::whereBetween('opportunities.created_at', [$start, $end])
+                ->whereNotNull('lead_cedula')
+                ->whereExists(function ($q) {
+                    $q->select(DB::raw(1))
+                        ->from('persons')
+                        ->whereColumn('persons.cedula', 'opportunities.lead_cedula');
+                })
+                ->selectRaw('DATE(opportunities.created_at) as fecha, COUNT(*) as total')
+                ->groupBy('fecha')
+                ->orderBy('fecha')
+                ->get()
+                ->map(fn($r) => ['fecha' => $r->fecha, 'total' => (int) $r->total]);
+
+            // 3-4. Créditos aprobados — cantidad y monto en el periodo
+            $creditosAprobados = Credit::whereBetween('created_at', [$start, $end])
+                ->whereIn('status', $aprobadosStatuses);
+            $creditosAprobadosCount  = (clone $creditosAprobados)->count();
+            $creditosAprobadosMonto  = (clone $creditosAprobados)->sum('monto_credito') ?? 0;
+
+            $prevCreditosAprobados = Credit::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])
+                ->whereIn('status', $aprobadosStatuses);
+            $prevCount = (clone $prevCreditosAprobados)->count();
+            $prevMonto = (clone $prevCreditosAprobados)->sum('monto_credito') ?? 0;
+
+            // 5. Concentración leads por institución
+            $concentracionInstitucion = DB::table('persons')
+                ->where('person_type_id', 1)
+                ->whereNotNull('institucion_labora')
+                ->where('institucion_labora', '!=', '')
+                ->whereBetween('created_at', [$start, $end])
+                ->select('institucion_labora', DB::raw('COUNT(*) as total'))
+                ->groupBy('institucion_labora')
+                ->orderByDesc('total')
+                ->limit(15)
+                ->get()
+                ->map(fn($r) => ['institucion' => $r->institucion_labora, 'total' => (int) $r->total]);
+
+            // 6. Crecimiento de cartera nueva (monto desembolsado del periodo vs anterior)
+            $carteraNueva     = (float) (Credit::whereBetween('created_at', [$start, $end])->sum('monto_credito') ?? 0);
+            $carteraNuevaPrev = (float) (Credit::whereBetween('created_at', [$dateRange['prev_start'], $dateRange['prev_end']])->sum('monto_credito') ?? 0);
+
+            // 7. Tasa de no aceptación — propuestas con motivo_rechazo / total propuestas del periodo
+            $totalPropuestas = 0;
+            $propuestasRechazadas = 0;
+            try {
+                $totalPropuestas = DB::table('propuestas')
+                    ->whereBetween('created_at', [$start, $end])
+                    ->count();
+                $propuestasRechazadas = DB::table('propuestas')
+                    ->whereBetween('created_at', [$start, $end])
+                    ->whereNotNull('motivo_rechazo')
+                    ->where('motivo_rechazo', '!=', '')
+                    ->count();
+            } catch (\Exception $e) {
+                // Fallback silencioso si la tabla no existe en este ambiente.
+            }
+            $tasaNoAceptacion = $totalPropuestas > 0
+                ? round(($propuestasRechazadas / $totalPropuestas) * 100, 1)
+                : 0;
+
+            // 8. Tasa de denegados — oportunidades 'Perdida' / total cerradas
+            $oppsCerradas = Opportunity::whereBetween('updated_at', [$start, $end])
+                ->whereIn('status', ['Analizada', 'Perdida'])
+                ->count();
+            $oppsPerdidas = Opportunity::whereBetween('updated_at', [$start, $end])
+                ->where('status', 'Perdida')
+                ->count();
+            $tasaDenegados = $oppsCerradas > 0
+                ? round(($oppsPerdidas / $oppsCerradas) * 100, 1)
+                : 0;
+
+            // 9. Motivos de no aprobación — combina lost_reason (opps) + motivo_rechazo (propuestas)
+            $motivosOpps = Opportunity::whereBetween('updated_at', [$start, $end])
+                ->whereNotNull('lost_reason')
+                ->where('lost_reason', '!=', '')
+                ->select('lost_reason as motivo', DB::raw('COUNT(*) as total'))
+                ->groupBy('lost_reason')
+                ->get()
+                ->map(fn($r) => ['motivo' => $r->motivo, 'total' => (int) $r->total, 'origen' => 'Oportunidad']);
+
+            $motivosPropuestas = collect();
+            try {
+                $motivosPropuestas = DB::table('propuestas')
+                    ->whereBetween('created_at', [$start, $end])
+                    ->whereNotNull('motivo_rechazo')
+                    ->where('motivo_rechazo', '!=', '')
+                    ->select('motivo_rechazo as motivo', DB::raw('COUNT(*) as total'))
+                    ->groupBy('motivo_rechazo')
+                    ->get()
+                    ->map(fn($r) => ['motivo' => $r->motivo, 'total' => (int) $r->total, 'origen' => 'Propuesta']);
+            } catch (\Exception $e) {
+                // Tabla puede no existir en algunos ambientes.
+            }
+            $motivosNoAprobacion = $motivosOpps->concat($motivosPropuestas)
+                ->sortByDesc('total')
+                ->values()
+                ->take(15);
+
+            // 10. Día promedio ingreso (lead) → formalización (crédito)
+            $diasPromedio = 0;
+            try {
+                $avgDays = Credit::whereNotNull('credits.formalized_at')
+                    ->whereBetween('credits.formalized_at', [$start, $end])
+                    ->whereNotNull('credits.lead_id')
+                    ->join('persons', 'credits.lead_id', '=', 'persons.id')
+                    ->selectRaw('AVG(GREATEST(0, DATEDIFF(credits.formalized_at, persons.created_at))) as avg_days')
+                    ->value('avg_days');
+                $diasPromedio = $avgDays ? round($avgDays, 1) : 0;
+            } catch (\Exception $e) {
+                // Fallback
+            }
+
+            // 11. Colocación por vendedor — aprobados / denegados / rechazados por cliente
+            $colocacionVendedor = User::join('credits', 'credits.assigned_to', '=', 'users.id')
+                ->whereBetween('credits.created_at', [$start, $end])
+                ->select(
+                    'users.id',
+                    'users.name',
+                    DB::raw("SUM(CASE WHEN credits.status IN ('Formalizado','Activo','En Mora','Cerrado') THEN 1 ELSE 0 END) as aprobados"),
+                    DB::raw("SUM(CASE WHEN credits.status = 'Cancelado' THEN 1 ELSE 0 END) as denegados"),
+                    DB::raw("SUM(CASE WHEN credits.status IN ('Aprobado','Por firmar') THEN 1 ELSE 0 END) as pendientes"),
+                    DB::raw('SUM(credits.monto_credito) as monto_total')
+                )
+                ->groupBy('users.id', 'users.name')
+                ->orderByDesc('aprobados')
+                ->get()
+                ->map(fn($r) => [
+                    'user_id'     => (int) $r->id,
+                    'name'        => $r->name,
+                    'aprobados'   => (int) $r->aprobados,
+                    'denegados'   => (int) $r->denegados,
+                    'pendientes'  => (int) $r->pendientes,
+                    'monto_total' => (float) ($r->monto_total ?? 0),
+                ]);
+
+            // 12. Tasa de refinanciación — créditos del periodo que son refundición de otro
+            $creditosPeriodo = Credit::whereBetween('created_at', [$start, $end])->count();
+            $refinanciados = Credit::whereBetween('created_at', [$start, $end])
+                ->whereNotNull('refundicion_parent_id')
+                ->count();
+            $tasaRefinanciacion = $creditosPeriodo > 0
+                ? round(($refinanciados / $creditosPeriodo) * 100, 1)
+                : 0;
+
+            // 13. Tasa de recolocación — clientes con >1 crédito formalizado, segundo crédito en el periodo
+            $recolocados = Credit::whereBetween('formalized_at', [$start, $end])
+                ->whereNotNull('lead_id')
+                ->whereNotNull('formalized_at')
+                ->whereExists(function ($q) use ($start) {
+                    $q->select(DB::raw(1))
+                        ->from('credits as prev')
+                        ->whereColumn('prev.lead_id', 'credits.lead_id')
+                        ->whereColumn('prev.id', '!=', 'credits.id')
+                        ->whereNotNull('prev.formalized_at')
+                        ->whereColumn('prev.formalized_at', '<', 'credits.formalized_at');
+                })
+                ->count();
+            $totalFormalizadosPeriodo = Credit::whereNotNull('formalized_at')
+                ->whereBetween('formalized_at', [$start, $end])
+                ->count();
+            $tasaRecolocacion = $totalFormalizadosPeriodo > 0
+                ? round(($recolocados / $totalFormalizadosPeriodo) * 100, 1)
+                : 0;
+
+            return response()->json([
+                'period' => [
+                    'start' => $start->toDateString(),
+                    'end'   => $end->toDateString(),
+                ],
+                'leadsPorDia'            => $leadsPorDia,
+                'leadToOppPorDia'        => $leadToOppPorDia,
+                'creditosAprobados'      => [
+                    'count'      => $creditosAprobadosCount,
+                    'monto'      => round($creditosAprobadosMonto, 0),
+                    'countChange' => $this->calculateChange((float) $creditosAprobadosCount, (float) $prevCount),
+                    'montoChange' => $this->calculateChange((float) $creditosAprobadosMonto, (float) $prevMonto),
+                ],
+                'concentracionInstitucion' => $concentracionInstitucion,
+                'carteraNueva' => [
+                    'value'  => round($carteraNueva, 0),
+                    'change' => $this->calculateChange($carteraNueva, $carteraNuevaPrev),
+                    'unit'   => '₡',
+                ],
+                'tasaNoAceptacion' => [
+                    'value' => $tasaNoAceptacion,
+                    'count' => $propuestasRechazadas,
+                    'total' => $totalPropuestas,
+                    'unit'  => '%',
+                ],
+                'tasaDenegados' => [
+                    'value' => $tasaDenegados,
+                    'count' => $oppsPerdidas,
+                    'total' => $oppsCerradas,
+                    'unit'  => '%',
+                ],
+                'motivosNoAprobacion' => $motivosNoAprobacion,
+                'diasPromedioFormalizacion' => $diasPromedio,
+                'colocacionVendedor'        => $colocacionVendedor,
+                'tasaRefinanciacion' => [
+                    'value' => $tasaRefinanciacion,
+                    'count' => $refinanciados,
+                    'total' => $creditosPeriodo,
+                    'unit'  => '%',
+                ],
+                'tasaRecolocacion' => [
+                    'value' => $tasaRecolocacion,
+                    'count' => $recolocados,
+                    'total' => $totalFormalizadosPeriodo,
+                    'unit'  => '%',
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('KPIs comercial error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'error' => 'Error al cargar KPIs comerciales',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Comment;
 use App\Models\Notification;
+use App\Models\Person;
 use App\Models\User;
 use App\Traits\LogsActivity;
 use Illuminate\Http\Request;
@@ -94,6 +95,14 @@ class CommentController extends Controller
         ]);
 
         $this->logActivity('create', 'Comentarios', $comment, 'Comentario #' . $comment->id, [], $request);
+
+        // Tracking de primer contacto del lead — solo en comentarios raíz sobre Lead.
+        // Why: alimenta el KPI "Tiempo de Respuesta" sin depender de updated_at (que cambia con cualquier edición).
+        if (!$request->parent_id && $type === \App\Models\Lead::class) {
+            Person::where('id', $request->commentable_id)
+                ->whereNull('first_contacted_at')
+                ->update(['first_contacted_at' => now()]);
+        }
 
         // Unarchive parent if this reply mentions someone
         if ($request->parent_id) {

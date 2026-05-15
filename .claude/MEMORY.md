@@ -298,6 +298,61 @@ class MiController extends Controller {
 
 ---
 
+## KPIs Leads — Bugs corregidos (May 2026)
+
+### Tasa de Conversión (antes 101,700%)
+- **Fórmula anterior**: `clients / leads` del periodo — matemáticamente rota porque por STI (`person_type_id` 1→2) un Lead convertido deja de aparecer como Lead. Numerador y denominador son cohorts distintos.
+- **Fórmula nueva**: `clients / (leads + clients)` del periodo — acotada a 100%, representa "% de prospectos adquiridos en el periodo que ya son clientes"
+- **Limitación**: no es cohort real. Para tasa cohort verdadera ("de los leads del mes X, cuántos se convirtieron") se requiere columna `converted_at` en `persons` y tracking en los 6 puntos de conversión: `LeadController:497`, `CreditController:273,832`, `AnalisisController:373`, `ImportacionCreditoCreator:65`, `Client.php:99` (boot)
+- **Defensa frontend**: `StatCard` clampea texto del porcentaje vs meta con `Math.min(..., 100)` (línea 315 de `kpis/page.tsx`)
+
+### Lead Aging
+- Antes: doble filtro `whereBetween(created_at, periodo)` + `where(created_at, '<', now-7d)` → vacío en periodos <7 días
+- Ahora: solo `where(created_at, '<', end-7d)` con `is_active=true` — refleja estado global del lead, no evento del periodo
+
+### Bugs Fase 2 resueltos (May 2026)
+- **Tiempo de Respuesta**: migración `add_first_contacted_at_to_persons_table` (columna timestamp + índice). Tracking en `CommentController::store()` — se setea solo en primer comentario raíz sobre un Lead (no edita si ya tiene valor). Cálculo nuevo en `getLeadKpis`: `AVG(first_contacted_at - created_at)` con guard de `Schema::hasColumn`
+- **Cartera Nueva del Periodo** (antes "Portfolio Growth"): label renombrado en frontend, lógica mantenida (suma saldos de créditos del periodo). El nombre nuevo refleja qué mide realmente
+- **CAC real**: tabla nueva `marketing_costs` (period_month, channel, amount, notes, created_by). Modelo `MarketingCost` + `MarketingCostController` con CRUD admin en `/api/marketing-costs` (admin + throttle:30,1). Fórmula nueva: `Σ marketing_costs.amount / clientes adquiridos`. Si no hay datos → `available=false` → frontend muestra "N/D"
+- **NPS**: frontend oculta condicionalmente la card cuando `value=0` (grid pasa de 5 a 4 columnas)
+- **Tasa de Conversión Lead Aging + clamp UI**: ver entrada Mar 2026 (May 2026 fix anterior)
+
+---
+
+## Módulo KPIs — Pestaña Comercial (May 2026)
+
+Nueva pestaña `/dashboard/kpis` (módulo `kpis`) con 13 KPIs avanzados.
+
+### Endpoint
+- `GET /api/kpis/comercial?period=month|week|quarter|year`
+- Implementado en `KpiController::comercial()` (~190 líneas)
+- Devuelve: `leadsPorDia`, `leadToOppPorDia`, `creditosAprobados`, `concentracionInstitucion`, `carteraNueva`, `tasaNoAceptacion`, `tasaDenegados`, `motivosNoAprobacion`, `diasPromedioFormalizacion`, `colocacionVendedor`, `tasaRefinanciacion`, `tasaRecolocacion`
+
+### Mapeo de fuentes
+| KPI | Fuente |
+|---|---|
+| Leads por día | `persons.created_at` (person_type_id=1), GROUP BY DATE |
+| Leads → Opp por día | join `opportunities.lead_cedula` ↔ `persons.cedula` |
+| Créditos aprobados (qty/monto) | `credits.status IN ('Aprobado','Por firmar','Formalizado','Activo','En Mora','Cerrado')` |
+| Concentración por institución | `persons.institucion_labora` top 15 |
+| Cartera Nueva | suma `credits.monto_credito` del periodo |
+| Tasa No Aceptación | `propuestas.motivo_rechazo NOT NULL` / total propuestas |
+| Tasa Denegados | `opportunities.status='Perdida'` / cerradas (Analizada+Perdida) |
+| Motivos No Aprobación | `opportunities.lost_reason` + `propuestas.motivo_rechazo` combinados |
+| Días promedio formalización | `AVG(credits.formalized_at - persons.created_at)` con join por lead_id |
+| Colocación por vendedor | GROUP BY `credits.assigned_to` con CASE WHEN por status |
+| Tasa Refinanciación | `credits.refundicion_parent_id NOT NULL` / total credits periodo |
+| Tasa Recolocación | clientes con crédito previo formalizado antes del actual |
+
+### Frontend
+- 8 StatCards (Aprobados, Monto, Cartera Nueva, Días, 4 tasas)
+- 2 charts time-series (AreaChart Leads/día, LineChart Leads→Opp/día)
+- 2 listas (Concentración instituciones con Progress, Motivos no aprobación)
+- 1 tabla (Colocación por vendedor)
+- Visible solo si `canViewModule('kpis')` o `full_access`
+
+---
+
 ## Deuda técnica pendiente (ver mejoras.md)
 
 ### 🔴 Alta

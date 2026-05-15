@@ -637,9 +637,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/ventas', [\App\Http\Controllers\Api\KpiController::class, 'ventas']);
         Route::get('/ventas/tendencias', [\App\Http\Controllers\Api\KpiController::class, 'ventasTendencias']);
         Route::get('/ventas/equipo', [\App\Http\Controllers\Api\KpiController::class, 'ventasEquipo'])->middleware('admin');
+        Route::get('/comercial', [\App\Http\Controllers\Api\KpiController::class, 'comercial']);
     });
 
     Route::get('/dashboard/summary', [\App\Http\Controllers\Api\KpiController::class, 'dashboardSummary']);
+
+    // --- Marketing Costs (admin) ---
+    Route::middleware('admin')->group(function () {
+        Route::get('/marketing-costs', [\App\Http\Controllers\Api\MarketingCostController::class, 'index']);
+        Route::post('/marketing-costs', [\App\Http\Controllers\Api\MarketingCostController::class, 'store'])->middleware('throttle:30,1');
+        Route::put('/marketing-costs/{marketingCost}', [\App\Http\Controllers\Api\MarketingCostController::class, 'update'])->middleware('throttle:30,1');
+        Route::delete('/marketing-costs/{marketingCost}', [\App\Http\Controllers\Api\MarketingCostController::class, 'destroy'])->middleware('throttle:30,1');
+    });
 
     // --- Enterprises ---
     Route::apiResource('enterprises', \App\Http\Controllers\Api\EnterpriseEmployeeDocumentController::class);
