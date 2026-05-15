@@ -382,6 +382,7 @@ Nueva pestaña `/dashboard/kpis` (módulo `kpis`) con 13 KPIs avanzados.
 - Commits y push: solo cuando el usuario lo pida explícitamente
 - Si el push es rechazado: `git pull origin main --rebase` antes de reintentar
 - **Siempre actualizar `.claude/MEMORY.md` y archivos de memoria del repo** al completar cada tarea
+- **Trabajar directamente en `dev`** — NO crear ramas `fix/*` o `feature/*` salvo que el usuario lo pida explícitamente. La regla "siempre crear rama" en `.claude/CLAUDE.md` está desactualizada respecto al flujo real. Confirmado May 2026 después de crear `fix/kpis-tasa-conversion` innecesariamente — el usuario corrigió "el branch debió ser dev". Excepción: para trabajo realmente experimental o de larga duración, preguntar primero.
 
 ---
 
