@@ -4,104 +4,58 @@ namespace App\Services;
 
 use App\Models\Lead;
 use App\Models\Opportunity;
-use Exception;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * v1.0 F4 — Outbound sync PEP → ERP CRM central.
  *
- * Mismo bridge user que ErpAccountingService (ERP_API_EMAIL/ERP_API_PASSWORD).
+ * Auth: Sanctum personal access token con ability `crm:ingest`, emitido en el
+ * ERP via `php artisan crm:issue-ingestion-token --company=<slug> --source=pep`.
+ * El token es estático en `ERP_INGESTION_TOKEN` (.env). Sin login flow — las
+ * rutas /api/external/crm/{source}/* requieren el middleware
+ * `abilities:crm:ingest` que SOLO valida tokens con esa ability específica.
+ *
  * Endpoints:
- *   POST {ERP_API_URL}/auth/login           → bearer token (cache 1h)
  *   POST {ERP_API_URL}/api/external/crm/pep/contacts  → upsert lead/cliente
  *   POST {ERP_API_URL}/api/external/crm/pep/deals     → upsert opportunity
  *
  * Headers requeridos:
- *   Authorization:      Bearer <token>
- *   X-Company-ID:       <ERP_COMPANY_ID>
+ *   Authorization:      Bearer {ERP_INGESTION_TOKEN}
+ *   X-Company-ID:       {ERP_COMPANY_ID}
  *   X-Erp-Api-Version:  2026-05
  *   X-Idempotency-Key:  pep-{resource}-{entityId}-{updatedAtUnix}
  *
- * El ERP usa PepFieldMapper para mapear:
- *   nombre_completo → name+apellido1+apellido2
- *   lead_cedula     → cedula
- *   lead_email      → email
- *   lead_telefono   → phone
- *   estado          → status
+ * Si el ERP devuelve 401, el token fue revocado/expirado — no hay re-auth posible.
+ * El job hace fail() y el sysadmin re-emite token via crm:issue-ingestion-token.
+ *
+ * El ERP usa PepFieldMapper para mapear el payload a CrmContact/CrmDeal.
  */
 class ErpCrmService
 {
-    private const TOKEN_CACHE_KEY = 'erp_crm_token';
-    private const TOKEN_TTL = 3600;
+    private const REQUEST_TIMEOUT = 30;
 
     private string $baseUrl;
-    private string $email;
-    private string $password;
+    private string $ingestionToken;
     private int $companyId;
     private string $apiVersion;
     private string $sourceSlug;
 
     public function __construct()
     {
-        $this->baseUrl    = rtrim((string) config('services.erp.url', ''), '/');
-        $this->email      = (string) config('services.erp.email', '');
-        $this->password   = (string) config('services.erp.password', '');
-        $this->companyId  = (int) config('services.erp.crm.company_id', 0);
-        $this->apiVersion = (string) config('services.erp.crm.api_version', '2026-05');
-        $this->sourceSlug = (string) config('services.erp.crm.source_slug', 'pep');
+        $this->baseUrl        = rtrim((string) config('services.erp.url', ''), '/');
+        $this->ingestionToken = (string) config('services.erp.crm.ingestion_token', '');
+        $this->companyId      = (int) config('services.erp.crm.company_id', 0);
+        $this->apiVersion     = (string) config('services.erp.crm.api_version', '2026-05');
+        $this->sourceSlug     = (string) config('services.erp.crm.source_slug', 'pep');
     }
 
     public function isConfigured(): bool
     {
         return (bool) config('services.erp.crm.enabled', false)
             && $this->baseUrl !== ''
-            && $this->email !== ''
-            && $this->password !== ''
+            && $this->ingestionToken !== ''
             && $this->companyId > 0;
-    }
-
-    public function getToken(): string
-    {
-        $cached = Cache::get(self::TOKEN_CACHE_KEY);
-        if ($cached) {
-            return $cached;
-        }
-
-        return $this->authenticate();
-    }
-
-    public function authenticate(): string
-    {
-        $response = Http::timeout(15)->post($this->baseUrl . '/auth/login', [
-            'email' => $this->email,
-            'password' => $this->password,
-        ]);
-
-        if (! $response->successful()) {
-            Log::error('ERP CRM Auth: login fallido', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-            throw new Exception('ERP CRM: no se pudo autenticar. Status: ' . $response->status());
-        }
-
-        $data = $response->json();
-        $token = $data['data']['token'] ?? null;
-
-        if (! $token) {
-            throw new Exception('ERP CRM: respuesta de auth inesperada — ' . ($data['message'] ?? 'sin mensaje'));
-        }
-
-        Cache::put(self::TOKEN_CACHE_KEY, $token, self::TOKEN_TTL);
-
-        return $token;
-    }
-
-    public function clearToken(): void
-    {
-        Cache::forget(self::TOKEN_CACHE_KEY);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -117,7 +71,7 @@ class ErpCrmService
         $payload = $this->mapLeadPayload($lead);
         $idempotencyKey = "pep-contacts-{$lead->id}-" . optional($lead->updated_at)->timestamp;
 
-        return $this->sendWithRetry(
+        return $this->send(
             endpoint: '/api/external/crm/' . $this->sourceSlug . '/contacts',
             payload: $payload,
             idempotencyKey: $idempotencyKey,
@@ -170,7 +124,7 @@ class ErpCrmService
         $payload = $this->mapOpportunityPayload($opp);
         $idempotencyKey = "pep-deals-{$opp->id}-" . optional($opp->updated_at)->timestamp;
 
-        return $this->sendWithRetry(
+        return $this->send(
             endpoint: '/api/external/crm/' . $this->sourceSlug . '/deals',
             payload: $payload,
             idempotencyKey: $idempotencyKey,
@@ -198,21 +152,15 @@ class ErpCrmService
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // HTTP CON RETRY 401
+    // HTTP layer
     // ════════════════════════════════════════════════════════════════════
 
-    private function sendWithRetry(string $endpoint, array $payload, string $idempotencyKey): array
+    private function send(string $endpoint, array $payload, string $idempotencyKey): array
     {
-        $attempts = 0;
-        $maxAttempts = 2;
-
-        while ($attempts < $maxAttempts) {
-            $attempts++;
-            $token = $this->getToken();
-
-            $response = Http::timeout(30)
+        try {
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
                 ->withHeaders([
-                    'Authorization'     => "Bearer {$token}",
+                    'Authorization'     => 'Bearer ' . $this->ingestionToken,
                     'X-Company-ID'      => (string) $this->companyId,
                     'X-Erp-Api-Version' => $this->apiVersion,
                     'X-Idempotency-Key' => $idempotencyKey,
@@ -220,34 +168,41 @@ class ErpCrmService
                 ])
                 ->post($this->baseUrl . $endpoint, $payload);
 
-            if ($response->status() === 401 && $attempts < $maxAttempts) {
-                Log::warning('ERP CRM: 401, reautenticando', ['endpoint' => $endpoint]);
-                $this->clearToken();
-                continue;
-            }
-
-            if (! $response->successful()) {
-                Log::error('ERP CRM: respuesta no exitosa', [
-                    'endpoint' => $endpoint,
-                    'status'   => $response->status(),
-                    'body'     => $response->body(),
-                ]);
-
+            if ($response->successful()) {
                 return [
-                    'success' => false,
+                    'success' => true,
                     'status'  => $response->status(),
-                    'error'   => $response->body(),
+                    'data'    => $response->json(),
                 ];
             }
 
-            return [
-                'success' => true,
-                'status'  => $response->status(),
-                'data'    => $response->json(),
-            ];
-        }
+            // 401 = token revocado/expirado. Sin reauth posible (token estático).
+            // El job retry via ShouldQueue tries=5. Si persiste, sysadmin re-emite.
+            if ($response->status() === 401) {
+                Log::error('erp.crm.token_invalid', [
+                    'endpoint' => $endpoint,
+                    'hint' => 'Re-emit token via: php artisan crm:issue-ingestion-token --company=<slug> --source=pep',
+                ]);
+            } else {
+                Log::warning('ERP CRM: respuesta no exitosa', [
+                    'endpoint' => $endpoint,
+                    'status'   => $response->status(),
+                    'body'     => substr((string) $response->body(), 0, 500),
+                ]);
+            }
 
-        return ['success' => false, 'error' => 'max_retries_exceeded'];
+            return [
+                'success'     => false,
+                'http_status' => $response->status(),
+                'error'       => substr((string) $response->body(), 0, 200),
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('ERP CRM: exception', [
+                'endpoint' => $endpoint,
+                'error'    => $e->getMessage(),
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
     }
 
     private function inferIdType(?string $cedula): string
