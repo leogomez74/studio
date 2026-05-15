@@ -1271,6 +1271,7 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
                     {createResult.results.map((r) => {
                       const asientosOk = r.accounting?.filter(a => a.success).length ?? 0;
                       const asientosFail = r.accounting?.filter(a => !a.success).length ?? 0;
+                      const asientosTotal = (r.accounting?.length ?? 0);
                       return (
                         <TableRow key={r.index}>
                           <TableCell className="text-xs text-muted-foreground">{r.index + 1}</TableCell>
@@ -1285,9 +1286,15 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
                             {r.success ? `${r.pagos_creados ?? 0}${r.pagos_saltados ? ` (${r.pagos_saltados} dup)` : ''}` : '—'}
                           </TableCell>
                           <TableCell className="text-center text-xs">
-                            <span className="text-green-600">{asientosOk}</span>
+                            <span className="font-medium">{asientosTotal}</span> generados
                             {asientosFail > 0 && (
-                              <> / <span className="text-red-600">{asientosFail} con error</span></>
+                              <div className="text-[11px] mt-0.5">
+                                <span className="text-green-600">{asientosOk} ok</span>
+                                {' · '}
+                                <span className="text-amber-600" title="Fallaron por rate limit del ERP. Se reintentan automáticamente desde Auditoría Asientos.">
+                                  {asientosFail} en reintento
+                                </span>
+                              </div>
                             )}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
