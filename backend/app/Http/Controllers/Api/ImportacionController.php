@@ -10,6 +10,7 @@ use App\Models\Person;
 use App\Services\ImportacionFileParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ImportacionController extends Controller
@@ -735,20 +736,38 @@ class ImportacionController extends Controller
             'creditos.*.credito.cuota'          => 'required|numeric|min:0.01',
             'creditos.*.credito.fecha_formalizacion' => 'required|date',
             'creditos.*.pagos'                  => 'sometimes|array',
+            'progreso_token'                    => 'sometimes|string|max:64',
         ]);
 
         @set_time_limit(0);
         @ini_set('memory_limit', '512M');
 
+        $token = $request->input('progreso_token');
+        $cacheKey = $token ? "imp_prog_{$token}" : null;
+
+        // Callback que incrementa el contador de asientos en cache (progreso en vivo)
+        $onAsiento = null;
+        if ($cacheKey) {
+            $onAsiento = function (bool $success) use ($cacheKey) {
+                $prog = Cache::get($cacheKey, []);
+                $prog['asientos_ok']   = ($prog['asientos_ok']   ?? 0) + ($success ? 1 : 0);
+                $prog['asientos_fail'] = ($prog['asientos_fail'] ?? 0) + ($success ? 0 : 1);
+                $prog['asientos']      = ($prog['asientos']      ?? 0) + 1;
+                Cache::put($cacheKey, $prog, 3600);
+            };
+        }
+
         $creator = new \App\Services\ImportacionCreditoCreator();
         $results = [];
         $stats = ['creados' => 0, 'fallidos' => 0, 'pagos_creados' => 0, 'pagos_saltados' => 0];
 
-        foreach ($request->input('creditos', []) as $idx => $item) {
+        $creditosInput = $request->input('creditos', []);
+
+        foreach ($creditosInput as $idx => $item) {
             $creditoData = $item['credito'] ?? [];
             $pagosData   = $item['pagos']   ?? [];
 
-            $result = $creator->crear($creditoData, $pagosData);
+            $result = $creator->crear($creditoData, $pagosData, $onAsiento);
 
             $results[] = array_merge(['index' => $idx, 'cedula' => $creditoData['cedula'] ?? null], $result);
 
@@ -759,6 +778,13 @@ class ImportacionController extends Controller
             } else {
                 $stats['fallidos']++;
             }
+
+            // Actualizar progreso de créditos procesados en este request
+            if ($cacheKey) {
+                $prog = Cache::get($cacheKey, []);
+                $prog['creditos_chunk_done'] = ($prog['creditos_chunk_done'] ?? 0) + 1;
+                Cache::put($cacheKey, $prog, 3600);
+            }
         }
 
         return response()->json([
@@ -766,5 +792,22 @@ class ImportacionController extends Controller
             'stats'   => $stats,
             'results' => $results,
         ]);
+    }
+
+    /**
+     * Devuelve el progreso en vivo de una importación de créditos en curso.
+     * El frontend hace polling de este endpoint cada ~1.5s mientras importa.
+     */
+    public function progresoCreditos(Request $request): JsonResponse
+    {
+        $token = $request->query('token');
+        if (!$token) {
+            return response()->json(['message' => 'Falta token'], 422);
+        }
+        $prog = Cache::get("imp_prog_{$token}", [
+            'asientos' => 0, 'asientos_ok' => 0, 'asientos_fail' => 0,
+            'creditos_chunk_done' => 0,
+        ]);
+        return response()->json($prog);
     }
 }
