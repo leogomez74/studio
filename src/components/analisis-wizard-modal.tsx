@@ -41,8 +41,6 @@ interface AnalisisWizardModalProps {
   onSuccess: () => void;
   onTipoChange?: (newTipo: string) => void;
   datosPreCargados?: DatosPreAnalisis;
-  /** Si se proporciona, el wizard entra en modo edición y actualiza el análisis con PUT */
-  analisisId?: number;
 }
 
 interface FormData {
@@ -112,9 +110,7 @@ export function AnalisisWizardModal({
   onSuccess,
   onTipoChange,
   datosPreCargados,
-  analisisId,
 }: AnalisisWizardModalProps) {
-  const isEditMode = analisisId != null;
   const { toast } = useToast();
   const router = useRouter();
   const { hasPermission } = usePermissions();
@@ -592,9 +588,7 @@ export function AnalisisWizardModal({
         };
       }
 
-      const response = isEditMode
-        ? await api.put(`/api/analisis/${analisisId}`, payload)
-        : await api.post('/api/analisis', payload);
+      const response = await api.post('/api/analisis', payload);
 
       onSuccess();
       onOpenChange(false);
@@ -604,18 +598,18 @@ export function AnalisisWizardModal({
       setSelectedFiles([]);
       setCredidLoaded(false);
 
-      const createdId = response.data?.data?.id || response.data?.id || analisisId;
+      const createdId = response.data?.data?.id || response.data?.id;
       toast({
-        title: isEditMode ? "Análisis actualizado" : "Análisis creado",
-        description: isEditMode ? "Cambios guardados correctamente." : "Redirigiendo al análisis...",
+        title: "Análisis creado",
+        description: "Redirigiendo al análisis...",
         duration: 1500,
       });
-      if (createdId && !isEditMode) {
+      if (createdId) {
         setTimeout(() => router.push(`/dashboard/analisis/${createdId}`), 1500);
       }
     } catch (error: any) {
       console.error('Error completo:', error);
-      const errorMessage = error.response?.data?.message || error.message || (isEditMode ? 'Error al actualizar análisis' : 'Error al crear análisis');
+      const errorMessage = error.response?.data?.message || error.message || 'Error al crear análisis';
       toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
@@ -626,7 +620,7 @@ export function AnalisisWizardModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Editar Análisis' : 'Subir Análisis'} - Paso {currentStep} de 4</DialogTitle>
+          <DialogTitle>Subir Análisis - Paso {currentStep} de 4</DialogTitle>
         </DialogHeader>
 
         {/* Step indicator */}
@@ -1317,9 +1311,7 @@ export function AnalisisWizardModal({
             </Button>
           ) : (
             <Button onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting
-                ? (isEditMode ? 'Guardando...' : 'Creando...')
-                : (isEditMode ? 'Guardar Cambios' : 'Crear Análisis')}
+              {isSubmitting ? 'Creando...' : 'Crear Análisis'}
             </Button>
           )}
         </div>

@@ -32,8 +32,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from '@/components/ui/switch';
 import { CreditFormModal } from '@/components/CreditFormModal';
 import { CertificarConstanciaModal } from '@/components/certificar-constancia-modal';
-import { AnalisisWizardModal } from '@/components/analisis-wizard-modal';
-import type { DatosPreAnalisis } from '@/components/hoja-de-trabajo';
+import { HojaDeTrabajo, type DatosPreAnalisis } from '@/components/hoja-de-trabajo';
 import {
   AnalisisItem,
   AnalisisFile,
@@ -2202,25 +2201,95 @@ export default function AnalisisDetailPage() {
         </Dialog>
       )}
 
-      {/* Wizard en modo edición */}
-      {analisis && (
-        <AnalisisWizardModal
+      {/* Edición del análisis con Hoja de Trabajo */}
+      {analisis && datosPreCargados && (
+        <Dialog
           open={isEditarOpen}
           onOpenChange={(open) => {
             setIsEditarOpen(open);
             if (!open) setDatosPreCargados(undefined);
           }}
-          opportunityId={analisis.opportunity_id ? String(analisis.opportunity_id) : ''}
-          monto_solicitado={analisis.monto_solicitado ? Number(analisis.monto_solicitado) : undefined}
-          producto={analisis.category || 'Micro Crédito'}
-          divisa={analisis.divisa || 'CRC'}
-          datosPreCargados={datosPreCargados}
-          analisisId={analisis.id}
-          onSuccess={async () => {
-            const res = await api.get(`/api/analisis/${analisisId}`);
-            setAnalisis(res.data);
-          }}
-        />
+        >
+          <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto p-6">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil className="h-5 w-5 text-blue-600" />
+                Editar Análisis: {analisis.reference}
+              </DialogTitle>
+              <DialogDescription>
+                Modifica los datos del análisis. Los cambios se guardarán al hacer click en "Guardar Cambios".
+              </DialogDescription>
+            </DialogHeader>
+            <HojaDeTrabajo
+              opportunity={{
+                id: String(analisis.opportunity_id ?? ''),
+                opportunity_type: analisis.category || 'Micro Crédito',
+                lead: analisis.lead,
+              } as any}
+              initialValues={datosPreCargados}
+              submitLabel="Guardar Cambios"
+              onCrearAnalisis={async (datos) => {
+                try {
+                  const payload: any = {
+                    monto_sugerido: parseFloat(datos.monto_sugerido) || null,
+                    plazo: parseInt(datos.plazo) || null,
+                    ingreso_bruto: parseFloat(datos.ingreso_bruto) || null,
+                    ingreso_neto: parseFloat(datos.ingreso_bruto) || null,
+                    ingreso_bruto_2: parseFloat(datos.ingreso_bruto_2) || null,
+                    ingreso_neto_2: parseFloat(datos.ingreso_bruto_2) || null,
+                    ingreso_bruto_3: parseFloat(datos.ingreso_bruto_3) || null,
+                    ingreso_neto_3: parseFloat(datos.ingreso_bruto_3) || null,
+                    ingreso_bruto_4: parseFloat(datos.ingreso_bruto_4) || null,
+                    ingreso_neto_4: parseFloat(datos.ingreso_bruto_4) || null,
+                    ingreso_bruto_5: parseFloat(datos.ingreso_bruto_5) || null,
+                    ingreso_neto_5: parseFloat(datos.ingreso_bruto_5) || null,
+                    ingreso_bruto_6: parseFloat(datos.ingreso_bruto_6) || null,
+                    ingreso_neto_6: parseFloat(datos.ingreso_bruto_6) || null,
+                    ingreso_bruto_7: parseFloat(datos.ingreso_bruto_7) || null,
+                    ingreso_neto_7: parseFloat(datos.ingreso_bruto_7) || null,
+                    ingreso_bruto_8: parseFloat(datos.ingreso_bruto_8) || null,
+                    ingreso_neto_8: parseFloat(datos.ingreso_bruto_8) || null,
+                    ingreso_bruto_9: parseFloat(datos.ingreso_bruto_9) || null,
+                    ingreso_neto_9: parseFloat(datos.ingreso_bruto_9) || null,
+                    ingreso_bruto_10: parseFloat(datos.ingreso_bruto_10) || null,
+                    ingreso_neto_10: parseFloat(datos.ingreso_bruto_10) || null,
+                    ingreso_bruto_11: parseFloat(datos.ingreso_bruto_11) || null,
+                    ingreso_neto_11: parseFloat(datos.ingreso_bruto_11) || null,
+                    ingreso_bruto_12: parseFloat(datos.ingreso_bruto_12) || null,
+                    ingreso_neto_12: parseFloat(datos.ingreso_bruto_12) || null,
+                    numero_manchas: datos.numero_manchas,
+                    numero_juicios: datos.numero_juicios,
+                    numero_embargos: datos.numero_embargos,
+                    cargo: datos.cargo || null,
+                    nombramiento: datos.nombramiento || null,
+                    deducciones_mensuales: datos.deducciones_mensuales,
+                    hoja_trabajo_datos: {
+                      salario_bruto_manual: datos.salario_bruto_manual,
+                      pension_alimenticia: datos.pension_alimenticia,
+                      otro_embargo: datos.otro_embargo,
+                      max_embargable: datos.max_embargable,
+                      min_salario_meses: datos.min_salario_meses,
+                      salario_castigado: datos.salario_castigado,
+                      capacidad_real_25: datos.capacidad_real_25,
+                    },
+                  };
+                  await api.put(`/api/analisis/${analisis.id}`, payload);
+                  toast({ title: 'Análisis actualizado', description: 'Los cambios se guardaron correctamente.' });
+                  setIsEditarOpen(false);
+                  setDatosPreCargados(undefined);
+                  const res = await api.get(`/api/analisis/${analisisId}`);
+                  setAnalisis(res.data);
+                } catch (err: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: err?.response?.data?.message || 'No se pudo actualizar el análisis.',
+                  });
+                }
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
 
       <CreditFormModal

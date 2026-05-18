@@ -105,9 +105,14 @@ function contrastColor(hex: string): string {
 interface HojaDeTrabajoProps {
   opportunity: Opportunity;
   onCrearAnalisis: (datos: DatosPreAnalisis) => void;
+  /** Si se proporciona, el componente entra en modo edición usando estos valores iniciales (en vez de localStorage) */
+  initialValues?: DatosPreAnalisis;
+  /** Etiqueta personalizada del botón final (por defecto "Listo — Crear Análisis") */
+  submitLabel?: string;
 }
 
-export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoProps) {
+export function HojaDeTrabajo({ opportunity, onCrearAnalisis, initialValues, submitLabel }: HojaDeTrabajoProps) {
+  const editMode = !!initialValues;
   const { toast } = useToast();
   const lead = opportunity.lead;
   const esMicro = (opportunity.opportunity_type || '').toLowerCase().includes('micro');
@@ -116,8 +121,32 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
   const DRAFT_KEY = `hoja_trabajo_op_${opportunity.id}`;
 
+  // Helper para inicializar estado: si hay initialValues, los usa; si no, intenta localStorage
+  const fromDraft = <T,>(key: string, fallback: T): T => {
+    try {
+      const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
+      return (draft[key] ?? fallback) as T;
+    } catch { return fallback; }
+  };
+
   // ── Paso 1: Credid ──────────────────────────────────────────────────────────
   const [credidData, setCredidData] = useState<any>(() => {
+    if (initialValues) {
+      return {
+        numero_manchas: initialValues.numero_manchas,
+        numero_juicios: initialValues.numero_juicios,
+        numero_embargos: initialValues.numero_embargos,
+        manchas_detalle: initialValues.manchas_detalle,
+        juicios_detalle: initialValues.juicios_detalle,
+        embargos_detalle: initialValues.embargos_detalle,
+        cargo: initialValues.cargo,
+        nombramiento: initialValues.nombramiento,
+        score: initialValues.score,
+        score_riesgo: initialValues.scoreRiesgo?.score_riesgo,
+        score_riesgo_color: initialValues.scoreRiesgo?.score_riesgo_color,
+        score_riesgo_label: initialValues.scoreRiesgo?.score_riesgo_label,
+      };
+    }
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').credidData ?? null; } catch { return null; }
   });
   const [loadingCredid, setLoadingCredid] = useState(false);
@@ -219,6 +248,12 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
   });
 
   const [ingresos, setIngresos] = useState<{ num: number; liquido: string }[]>(() => {
+    if (initialValues) {
+      return Array.from({ length: 12 }, (_, i) => {
+        const key = `ingreso_bruto${i === 0 ? '' : '_' + (i + 1)}` as keyof DatosPreAnalisis;
+        return { num: i + 1, liquido: String(initialValues[key] ?? '') };
+      });
+    }
     try {
       const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
       if (draft.ingresos) return draft.ingresos as { num: number; liquido: string }[];
@@ -258,12 +293,15 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
   // ── Paso 3: Embargo ──────────────────────────────────────────────────────────
   const [salarioBrutoManual, setSalarioBrutoManual] = useState(() => {
+    if (initialValues) return initialValues.salario_bruto_manual ?? '';
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').salarioBrutoManual || ''; } catch { return ''; }
   });
   const [pensionAlimenticia, setPensionAlimenticia] = useState(() => {
+    if (initialValues) return initialValues.pension_alimenticia ?? '';
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').pensionAlimenticia || ''; } catch { return ''; }
   });
   const [otroEmbargo, setOtroEmbargo] = useState(() => {
+    if (initialValues) return initialValues.otro_embargo ?? '';
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').otroEmbargo || ''; } catch { return ''; }
   });
   const [embargoActual, setEmbargoActual] = useState(() => {
@@ -305,9 +343,11 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
 
   // ── Paso 4: Propuesta ────────────────────────────────────────────────────────
   const [montoSugerido, setMontoSugerido] = useState(() => {
+    if (initialValues) return initialValues.monto_sugerido ?? '';
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').montoSugerido || ''; } catch { return ''; }
   });
   const [plazo, setPlazo] = useState(() => {
+    if (initialValues) return initialValues.plazo ?? '36';
     try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}').plazo || '36'; } catch { return '36'; }
   });
   const [loanConfigs, setLoanConfigs] = useState<Record<string, any>>({});
@@ -331,15 +371,16 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
     return monto * ((r * p) / (p - 1));
   }, [montoSugerido, plazo, tasaAnual]);
 
-  // ── Auto-guardado en localStorage ────────────────────────────────────────────
+  // ── Auto-guardado en localStorage (deshabilitado en edit mode) ───────────────
   useEffect(() => {
+    if (editMode) return; // no contaminar el draft de la oportunidad durante edición
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
         ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData,
         periodoMesInicio, periodoAnioInicio,
       }));
     } catch {}
-  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData, periodoMesInicio, periodoAnioInicio]);
+  }, [ingresos, salarioBrutoManual, pensionAlimenticia, otroEmbargo, embargoActual, montoSugerido, plazo, credidData, periodoMesInicio, periodoAnioInicio, editMode]);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleCrearAnalisis = () => {
@@ -393,8 +434,10 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
       salario_castigado: salarioCastigado,
       capacidad_real_25: capacidadReal,
     });
-    // Limpiar borrador al crear el análisis
-    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    // Limpiar borrador al crear el análisis (no aplica en edit mode porque ahí no se autoguarda)
+    if (!editMode) {
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    }
   };
 
   const desglose = embargableResult?.desglose;
@@ -1165,7 +1208,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis }: HojaDeTrabajoPro
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 disabled:opacity-50"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  Listo — Crear Análisis
+                  {submitLabel ?? 'Listo — Crear Análisis'}
                 </Button>
               </div>
             </div>
