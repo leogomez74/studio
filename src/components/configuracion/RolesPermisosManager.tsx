@@ -226,11 +226,6 @@ const MODULE_GROUPS: ModuleGroup[] = [
         permissions: ['view', 'create', 'edit', 'delete'],
         customPermissionLabels: { create: 'Reportar' },
       },
-      {
-        // Profesiones: catálogo configurable usado en selects de Lead/Cliente
-        key: 'profesiones', label: 'Profesiones',
-        permissions: ['view', 'create', 'edit', 'delete'],
-      },
     ],
   },
   {
@@ -244,6 +239,11 @@ const MODULE_GROUPS: ModuleGroup[] = [
       {
         // Patronos, deductoras, empresas, instituciones
         key: 'config_personas', label: 'Config: Patronos, Deductoras e Instituciones',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
+      {
+        // Profesiones: catálogo configurable usado en selects de Lead/Cliente
+        key: 'profesiones', label: 'Config: Profesiones',
         permissions: ['view', 'create', 'edit', 'delete'],
       },
       {
