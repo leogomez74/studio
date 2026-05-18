@@ -590,8 +590,10 @@ class ImportacionCreditoCreator
                 $nc = (int) ($row['numero_cuota'] ?? 0);
                 if ($nc <= 0) continue;
 
-                $fechaCorte = !empty($row['fecha_corte']) ? Carbon::parse($row['fecha_corte']) : null;
-
+                // Valores financieros + estado de la cuota vencida. NO se toca fecha_corte
+                // al actualizar: la fecha de la fórmula es mensual-cronológica por número
+                // de cuota, y el plan se muestra ordenado por fecha. La FECHA-PAGO del PDF
+                // a veces es anómala (ej. cuota 42 con fecha 2024) y rompería el orden.
                 $datos = [
                     'cuota'             => (float) ($row['cuota'] ?? 0),
                     'poliza'            => (float) ($row['poliza'] ?? 0),
@@ -601,7 +603,6 @@ class ImportacionCreditoCreator
                     'amortizacion'      => (float) ($row['amortizacion'] ?? 0),
                     'estado'            => $row['estado'] ?? 'Vencida',
                     'dias_mora'         => (int) ($row['dias_mora'] ?? 0),
-                    'fecha_corte'       => $fechaCorte,
                 ];
 
                 $plan = PlanDePago::where('credit_id', $credit->id)
@@ -609,15 +610,19 @@ class ImportacionCreditoCreator
                     ->first();
 
                 if ($plan) {
+                    // Mantener fecha_corte de la fórmula (orden correcto por nº de cuota)
                     $plan->update($datos);
                 } else {
-                    // Cuota que excede el plazo de la fórmula (ej. refundición que extendió el plazo)
+                    // Cuota que excede el plazo de la fórmula (ej. refundición que extendió
+                    // el plazo). Le calculamos una fecha_corte cronológica (formalización +
+                    // N meses) para que ordene después de las cuotas previas, NO la del PDF.
                     PlanDePago::create(array_merge($datos, [
                         'credit_id'    => $credit->id,
                         'linea'        => '1',
                         'numero_cuota' => $nc,
                         'proceso'      => $row['proceso'] ?? $fechaFormalizacion->format('Ym'),
                         'fecha_inicio' => $fechaFormalizacion,
+                        'fecha_corte'  => $fechaFormalizacion->copy()->addMonths($nc)->endOfMonth(),
                         'fecha_pago'   => null,
                         'tasa_actual'  => $credit->tasa_anual,
                         'plazo_actual' => $credit->plazo,
