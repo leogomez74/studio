@@ -51,6 +51,17 @@ class UpdateAnalisisRequest extends FormRequest
             'propuesta' => 'nullable|string|max:5000',
             'cargo' => 'nullable|string|max:255',
             'nombramiento' => 'nullable|string|max:255',
+            // Hoja de Trabajo — JSON con datos del workspace (período colillas, embargo, capacidad)
+            'hoja_trabajo_datos' => 'nullable|array',
+            'hoja_trabajo_datos.salario_bruto_manual' => 'nullable|string',
+            'hoja_trabajo_datos.pension_alimenticia' => 'nullable|string',
+            'hoja_trabajo_datos.otro_embargo' => 'nullable|string',
+            'hoja_trabajo_datos.max_embargable' => 'nullable|numeric',
+            'hoja_trabajo_datos.min_salario_meses' => 'nullable|numeric',
+            'hoja_trabajo_datos.salario_castigado' => 'nullable|numeric',
+            'hoja_trabajo_datos.capacidad_real_25' => 'nullable|numeric',
+            'hoja_trabajo_datos.periodo_mes_inicio' => 'nullable|integer|min:0|max:11',
+            'hoja_trabajo_datos.periodo_anio_inicio' => 'nullable|integer|min:2000|max:2100',
             // Deducciones mensuales
             'deducciones_mensuales' => 'nullable|array|max:6',
             'deducciones_mensuales.*.mes' => 'required_with:deducciones_mensuales|integer|min:1|max:6',
