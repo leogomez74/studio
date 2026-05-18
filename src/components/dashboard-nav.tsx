@@ -125,7 +125,7 @@ export function DashboardNav() {
                         isActive={
                           item.href === '/dashboard'
                             ? pathname === item.href
-                            : pathname.startsWith(item.href)
+                            : pathname === item.href || pathname.startsWith(item.href + '/')
                         }
                         tooltip={item.label}
                         className="h-9 px-3 rounded-lg transition-all duration-200 data-[active=true]:bg-blue-900/50 data-[active=true]:text-white hover:bg-blue-900/30"
