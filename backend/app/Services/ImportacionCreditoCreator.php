@@ -172,11 +172,16 @@ class ImportacionCreditoCreator
                 $creditId = $credit->id;
 
                 // 3. Plan de pagos:
-                //    - Si el PDF trae plan_pagos (cuotas en tránsito/vencidas) → usar
-                //      esos renglones EXACTOS (cuota, interés, mora, principal, días).
-                //    - Si no → generar por fórmula con la cuota del archivo.
-                if (!empty($planPagos)) {
-                    $this->generarPlanDePagosDesdeArchivo($credit, $fechaFormalizacion, $planPagos);
+                //    - SIN pagos reales → el plan ES exactamente las cuotas VENCIDAS del PDF.
+                //    - CON pagos reales → plan base por fórmula (estructura/fechas);
+                //      luego se aplican los pagos y se hace overlay de las VENCIDAS
+                //      sobre sus cuotas correspondientes (paso 6).
+                if (empty($pagosData)) {
+                    if (!empty($planPagos)) {
+                        $this->generarPlanDePagosDesdeArchivo($credit, $fechaFormalizacion, $planPagos);
+                    } else {
+                        $this->generarPlanDePagos($credit, $fechaFormalizacion);
+                    }
                 } else {
                     $this->generarPlanDePagos($credit, $fechaFormalizacion);
                 }
@@ -225,6 +230,14 @@ class ImportacionCreditoCreator
                         $asientoSpecs[] = $pagoResult['asiento_spec'];
                     }
                     $pagosCreados++;
+                }
+
+                // 6. Overlay de cuotas VENCIDAS sobre el plan (solo cuando hubo pagos).
+                //    Refleja en el plan_de_pagos el estado real (Vencida + mora + días)
+                //    de las cuotas no pagadas, con los valores EXACTOS del PDF.
+                //    NO genera asientos (no se pagaron).
+                if (!empty($pagosData) && !empty($planPagos)) {
+                    $this->aplicarVencidasAlPlan($credit, $fechaFormalizacion, $planPagos);
                 }
             });
 
@@ -556,6 +569,64 @@ class ImportacionCreditoCreator
                 ]);
 
                 $saldoRestante = $saldoNuevo;
+            }
+        });
+    }
+
+    /**
+     * Overlay de las cuotas VENCIDAS del PDF sobre un plan ya generado por fórmula
+     * (caso créditos CON pagos reales). Para cada renglón VENCIDA:
+     *  - Si existe la cuota con ese numero_cuota → la actualiza con los valores
+     *    EXACTOS del PDF y estado 'Vencida' + días de mora.
+     *  - Si no existe (cuota más allá del plazo de la fórmula) → la crea.
+     * NO genera asientos: estas cuotas no se pagaron.
+     *
+     * @param array<int, array<string, mixed>> $planPagos
+     */
+    private function aplicarVencidasAlPlan(Credit $credit, Carbon $fechaFormalizacion, array $planPagos): void
+    {
+        PlanDePago::withoutEvents(function () use ($credit, $fechaFormalizacion, $planPagos) {
+            foreach ($planPagos as $row) {
+                $nc = (int) ($row['numero_cuota'] ?? 0);
+                if ($nc <= 0) continue;
+
+                $fechaCorte = !empty($row['fecha_corte']) ? Carbon::parse($row['fecha_corte']) : null;
+
+                $datos = [
+                    'cuota'             => (float) ($row['cuota'] ?? 0),
+                    'poliza'            => (float) ($row['poliza'] ?? 0),
+                    'cargos'            => (float) ($row['cargos'] ?? 0),
+                    'interes_corriente' => (float) ($row['interes_corriente'] ?? 0),
+                    'interes_moratorio' => (float) ($row['interes_moratorio'] ?? 0),
+                    'amortizacion'      => (float) ($row['amortizacion'] ?? 0),
+                    'estado'            => $row['estado'] ?? 'Vencida',
+                    'dias_mora'         => (int) ($row['dias_mora'] ?? 0),
+                    'fecha_corte'       => $fechaCorte,
+                ];
+
+                $plan = PlanDePago::where('credit_id', $credit->id)
+                    ->where('numero_cuota', $nc)
+                    ->first();
+
+                if ($plan) {
+                    $plan->update($datos);
+                } else {
+                    // Cuota que excede el plazo de la fórmula (ej. refundición que extendió el plazo)
+                    PlanDePago::create(array_merge($datos, [
+                        'credit_id'    => $credit->id,
+                        'linea'        => '1',
+                        'numero_cuota' => $nc,
+                        'proceso'      => $row['proceso'] ?? $fechaFormalizacion->format('Ym'),
+                        'fecha_inicio' => $fechaFormalizacion,
+                        'fecha_pago'   => null,
+                        'tasa_actual'  => $credit->tasa_anual,
+                        'plazo_actual' => $credit->plazo,
+                        'int_corriente_vencido' => 0,
+                        'saldo_anterior' => 0,
+                        'saldo_nuevo'    => 0,
+                        'dias'           => 0,
+                    ]));
+                }
             }
         });
     }
