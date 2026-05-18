@@ -42,6 +42,7 @@ jobs:
             cd .. &&
             export NVM_DIR=\"\$HOME/.nvm\" &&
             [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\" &&
+            rm -f .next/lock &&
             npm install &&
             npm run build &&
             pm2 restart dev.pep.cr
