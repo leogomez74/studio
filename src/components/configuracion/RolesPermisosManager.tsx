@@ -233,34 +233,25 @@ const MODULE_GROUPS: ModuleGroup[] = [
     modules: [
       {
         // Préstamos, tasas y productos: gestión completa
-        key: 'config_general', label: 'Config: Préstamos, Tasas y Productos',
-        permissions: ['view', 'create', 'edit', 'delete'],
-      },
-      {
-        // Patronos, deductoras, empresas, instituciones
-        key: 'config_personas', label: 'Config: Patronos, Deductoras e Instituciones',
-        permissions: ['view', 'create', 'edit', 'delete'],
-      },
-      {
-        // Profesiones: catálogo configurable usado en selects de Lead/Cliente
-        key: 'profesiones', label: 'Config: Profesiones',
-        permissions: ['view', 'create', 'edit', 'delete'],
-      },
-      {
-        // Usuarios y roles: gestión completa
-        key: 'config_usuarios', label: 'Config: Usuarios y Roles',
-        permissions: ['view', 'create', 'edit', 'delete'],
-      },
-      {
-        // Contabilidad ERP: ver, crear cuentas, editar, eliminar mapeos
-        key: 'config_contabilidad', label: 'Config: Contabilidad ERP',
-        permissions: ['view', 'create', 'edit', 'delete'],
-      },
-      {
-        // Integraciones, API tokens, flujos, etiquetas
-        key: 'config_sistema', label: 'Config: Integraciones, API Tokens, Flujos y Etiquetas',
-        permissions: ['view', 'create', 'edit', 'delete'],
-      },
+        key: 'config_prestamos', label: 'Config: Préstamos', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_tasas', label: 'Config: Tasas', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_productos', label: 'Config: Créditos (Productos)', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_poliza', label: 'Config: Póliza', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_embargo', label: 'Config: Embargo', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_usuarios', label: 'Config: Usuarios', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_roles', label: 'Config: Roles y Permisos', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_patronos', label: 'Config: Patronos', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_deductoras', label: 'Config: Deductoras', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_empresas', label: 'Config: Docs. por Institución', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_instituciones', label: 'Config: Instituciones', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'profesiones', label: 'Config: Profesiones', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_contabilidad', label: 'Config: Contabilidad ERP', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_tareas_auto', label: 'Config: Tareas Automáticas', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_workflows', label: 'Config: Flujos', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_labels', label: 'Config: Etiquetas', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_integraciones', label: 'Config: Integraciones', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_api_tokens', label: 'Config: API Tokens', permissions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'config_whatsapp', label: 'Config: WhatsApp', permissions: ['view', 'create', 'edit', 'delete'] },
     ],
   },
 ];

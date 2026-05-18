@@ -46,8 +46,16 @@ class Role extends Model
                 'rutas', 'comunicaciones', 'staff', 'entrenamiento',
                 'recompensas', 'tareas', 'auditoria', 'auditoria_asientos',
                 'importacion', 'incidencias', 'profesiones',
-                'config_general', 'config_personas', 'config_usuarios',
-                'config_contabilidad', 'config_sistema',
+                // Tabs individuales de configuración
+                'config_prestamos', 'config_tasas', 'config_productos',
+                'config_poliza', 'config_embargo',
+                'config_usuarios', 'config_roles',
+                'config_patronos', 'config_deductoras', 'config_empresas', 'config_instituciones',
+                'config_contabilidad',
+                'config_tareas_auto', 'config_workflows', 'config_labels',
+                'config_integraciones', 'config_api_tokens', 'config_whatsapp',
+                // Legacy (compatibilidad con roles existentes que tienen estos grupos)
+                'config_general', 'config_personas', 'config_sistema',
             ];
 
             $permissions = [];

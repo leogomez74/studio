@@ -8,8 +8,18 @@ import { usePermissions } from '@/contexts/PermissionsContext';
 export function ConfigurationMenuItem() {
   const { canViewModule } = usePermissions();
 
-  // Only show configuration if user has permission
-  const canSeeConfig = ['config_general', 'config_personas', 'config_usuarios', 'config_contabilidad', 'config_sistema'].some(m => canViewModule(m));
+  // Only show configuration if user has permission to ANY config tab
+  const CONFIG_MODULES = [
+    'config_prestamos', 'config_tasas', 'config_productos', 'config_poliza', 'config_embargo',
+    'config_usuarios', 'config_roles',
+    'config_patronos', 'config_deductoras', 'config_empresas', 'config_instituciones',
+    'profesiones', 'config_contabilidad',
+    'config_tareas_auto', 'config_workflows', 'config_labels',
+    'config_integraciones', 'config_api_tokens', 'config_whatsapp',
+    // Legacy keys
+    'config_general', 'config_personas', 'config_sistema',
+  ];
+  const canSeeConfig = CONFIG_MODULES.some(m => canViewModule(m));
   if (!canSeeConfig) {
     return null;
   }
