@@ -26,7 +26,6 @@ interface Profesion {
   name: string;
   slug?: string;
   is_active: boolean;
-  order_column: number;
 }
 
 const PAGE_SIZE = 15;
@@ -49,7 +48,6 @@ const ProfesionesCRUD: React.FC = () => {
   const [form, setForm] = useState<Profesion>({
     name: '',
     is_active: true,
-    order_column: 0,
   });
 
   const fetchProfesiones = async () => {
@@ -80,7 +78,7 @@ const ProfesionesCRUD: React.FC = () => {
 
   const openCreateDialog = () => {
     setEditing(null);
-    setForm({ name: '', is_active: true, order_column: profesiones.length + 1 });
+    setForm({ name: '', is_active: true });
     setIsDialogOpen(true);
   };
 
@@ -93,7 +91,7 @@ const ProfesionesCRUD: React.FC = () => {
   const closeDialog = () => {
     setIsDialogOpen(false);
     setEditing(null);
-    setForm({ name: '', is_active: true, order_column: 0 });
+    setForm({ name: '', is_active: true });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -108,7 +106,6 @@ const ProfesionesCRUD: React.FC = () => {
       const payload = {
         name: form.name.trim(),
         is_active: form.is_active,
-        order_column: form.order_column,
       };
 
       if (editing) {
@@ -159,7 +156,7 @@ const ProfesionesCRUD: React.FC = () => {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{editing ? 'Editar Profesión' : 'Crear Profesión'}</DialogTitle>
-                  <DialogDescription>Define el nombre de la profesión y su orden en el selector.</DialogDescription>
+                  <DialogDescription>Define el nombre de la profesión.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
@@ -170,17 +167,6 @@ const ProfesionesCRUD: React.FC = () => {
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       placeholder="Ej: Ingeniero(a) Industrial"
                       required
-                      disabled={saving}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="prof-order">Orden</Label>
-                    <Input
-                      id="prof-order"
-                      type="number"
-                      min="0"
-                      value={form.order_column}
-                      onChange={(e) => setForm({ ...form, order_column: parseInt(e.target.value) || 0 })}
                       disabled={saving}
                     />
                   </div>
@@ -234,7 +220,6 @@ const ProfesionesCRUD: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[80px]">Orden</TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead className="w-[100px]">Activa</TableHead>
                   <TableHead className="text-right w-[100px]">Acciones</TableHead>
@@ -243,14 +228,13 @@ const ProfesionesCRUD: React.FC = () => {
               <TableBody>
                 {pageData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
                       {busqueda ? 'No se encontraron profesiones con ese criterio.' : 'No hay profesiones registradas.'}
                     </TableCell>
                   </TableRow>
                 ) : (
                   pageData.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-mono text-xs">{p.order_column}</TableCell>
                       <TableCell className="font-medium">{p.name}</TableCell>
                       <TableCell>
                         {p.is_active ? (

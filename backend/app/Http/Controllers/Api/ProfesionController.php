@@ -15,7 +15,7 @@ class ProfesionController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Profesion::query()->orderBy('order_column')->orderBy('name');
+        $query = Profesion::query()->orderBy('name');
         if ($request->boolean('active')) {
             $query->where('is_active', true);
         }
