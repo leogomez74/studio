@@ -490,7 +490,7 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis, initialValues, sub
   return (
     <div className="space-y-4">
 
-      {tieneBorrador && (
+      {tieneBorrador && !editMode && (
         <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
           <span>Borrador guardado automáticamente</span>
           <button
