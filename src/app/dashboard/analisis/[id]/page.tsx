@@ -32,6 +32,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from '@/components/ui/switch';
 import { CreditFormModal } from '@/components/CreditFormModal';
 import { CertificarConstanciaModal } from '@/components/certificar-constancia-modal';
+import { AnalisisWizardModal } from '@/components/analisis-wizard-modal';
+import type { DatosPreAnalisis } from '@/components/hoja-de-trabajo';
 import {
   AnalisisItem,
   AnalisisFile,
@@ -170,6 +172,12 @@ export default function AnalisisDetailPage() {
   // Estado del modal de certificación de constancia
   const [isCertificarOpen, setIsCertificarOpen] = useState(false);
   const [isDetalleCertOpen, setIsDetalleCertOpen] = useState(false);
+
+  // Modal de edición del análisis (abre wizard en modo edit)
+  const [isEditarOpen, setIsEditarOpen] = useState(false);
+  const [datosPreCargados, setDatosPreCargados] = useState<DatosPreAnalisis | undefined>(undefined);
+
+  const canEditarAnalisis = hasPermission('analizados', 'formalizar');
 
   // Estado del modal de crédito
   const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false);
@@ -873,6 +881,59 @@ export default function AnalisisDetailPage() {
             <h1 className="text-lg sm:text-2xl font-bold text-gray-800">Análisis: {analisis.reference}</h1>
             <p className="text-xs sm:text-sm text-gray-500">Revisión de datos financieros y laborales del cliente</p>
           </div>
+          {canEditarAnalisis && !analisis.has_credit && !analisis.credit_id && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Mapear el análisis actual a DatosPreAnalisis y abrir el wizard en modo edit
+                setDatosPreCargados({
+                  numero_manchas: analisis.numero_manchas ?? 0,
+                  numero_juicios: analisis.numero_juicios ?? 0,
+                  numero_embargos: analisis.numero_embargos ?? 0,
+                  manchas_detalle: analisis.mancha_detalles ?? [],
+                  juicios_detalle: analisis.juicio_detalles ?? [],
+                  embargos_detalle: analisis.embargo_detalles ?? [],
+                  cargo: analisis.cargo ?? '',
+                  nombramiento: analisis.nombramiento ?? '',
+                  score: null,
+                  scoreRiesgo: analisis.score_riesgo != null
+                    ? {
+                        score_riesgo: analisis.score_riesgo,
+                        score_riesgo_color: analisis.score_riesgo_color ?? 'green',
+                        score_riesgo_label: analisis.score_riesgo_label ?? '',
+                      }
+                    : null,
+                  ingreso_bruto: analisis.ingreso_bruto != null ? String(analisis.ingreso_bruto) : '',
+                  ingreso_bruto_2: analisis.ingreso_bruto_2 != null ? String(analisis.ingreso_bruto_2) : '',
+                  ingreso_bruto_3: analisis.ingreso_bruto_3 != null ? String(analisis.ingreso_bruto_3) : '',
+                  ingreso_bruto_4: analisis.ingreso_bruto_4 != null ? String(analisis.ingreso_bruto_4) : '',
+                  ingreso_bruto_5: analisis.ingreso_bruto_5 != null ? String(analisis.ingreso_bruto_5) : '',
+                  ingreso_bruto_6: analisis.ingreso_bruto_6 != null ? String(analisis.ingreso_bruto_6) : '',
+                  ingreso_bruto_7: analisis.ingreso_bruto_7 != null ? String(analisis.ingreso_bruto_7) : '',
+                  ingreso_bruto_8: analisis.ingreso_bruto_8 != null ? String(analisis.ingreso_bruto_8) : '',
+                  ingreso_bruto_9: analisis.ingreso_bruto_9 != null ? String(analisis.ingreso_bruto_9) : '',
+                  ingreso_bruto_10: analisis.ingreso_bruto_10 != null ? String(analisis.ingreso_bruto_10) : '',
+                  ingreso_bruto_11: analisis.ingreso_bruto_11 != null ? String(analisis.ingreso_bruto_11) : '',
+                  ingreso_bruto_12: analisis.ingreso_bruto_12 != null ? String(analisis.ingreso_bruto_12) : '',
+                  deducciones_mensuales: analisis.deducciones_mensuales ?? [],
+                  monto_sugerido: analisis.monto_sugerido != null ? String(analisis.monto_sugerido) : '',
+                  plazo: analisis.plazo != null ? String(analisis.plazo) : '36',
+                  salario_bruto_manual: analisis.hoja_trabajo_datos?.salario_bruto_manual ?? '',
+                  pension_alimenticia: analisis.hoja_trabajo_datos?.pension_alimenticia ?? '',
+                  otro_embargo: analisis.hoja_trabajo_datos?.otro_embargo ?? '',
+                  max_embargable: analisis.hoja_trabajo_datos?.max_embargable ?? 0,
+                  min_salario_meses: analisis.hoja_trabajo_datos?.min_salario_meses ?? 0,
+                  salario_castigado: analisis.hoja_trabajo_datos?.salario_castigado ?? 0,
+                  capacidad_real_25: analisis.hoja_trabajo_datos?.capacidad_real_25 ?? 0,
+                });
+                setIsEditarOpen(true);
+              }}
+              className="self-start sm:ml-auto"
+            >
+              <Pencil className="h-4 w-4 mr-2" /> Editar Análisis
+            </Button>
+          )}
         </div>
 
         {/* Fila 2: Botones de Estado - PEP izquierda, Cliente derecha */}
@@ -2139,6 +2200,27 @@ export default function AnalisisDetailPage() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Wizard en modo edición */}
+      {analisis && (
+        <AnalisisWizardModal
+          open={isEditarOpen}
+          onOpenChange={(open) => {
+            setIsEditarOpen(open);
+            if (!open) setDatosPreCargados(undefined);
+          }}
+          opportunityId={analisis.opportunity_id ? String(analisis.opportunity_id) : ''}
+          monto_solicitado={analisis.monto_solicitado ? Number(analisis.monto_solicitado) : undefined}
+          producto={analisis.category || 'Micro Crédito'}
+          divisa={analisis.divisa || 'CRC'}
+          datosPreCargados={datosPreCargados}
+          analisisId={analisis.id}
+          onSuccess={async () => {
+            const res = await api.get(`/api/analisis/${analisisId}`);
+            setAnalisis(res.data);
+          }}
+        />
       )}
 
       <CreditFormModal

@@ -90,10 +90,15 @@ const MODULE_GROUPS: ModuleGroup[] = [
         customPermissionLabels: { archive: 'Archivar' },
       },
       {
-        // Permisos repropósito: delete=Estado PEP, archive=Estado Cliente, assign=Responsable
+        // Permisos repropósito: delete=Estado PEP, archive=Estado Cliente, assign=Responsable, formalizar=Editar Análisis
         key: 'analizados', label: 'Analizados',
-        permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign'],
-        customPermissionLabels: { delete: 'Estado PEP', archive: 'Estado Cliente', assign: 'Responsable' },
+        permissions: ['view', 'create', 'edit', 'delete', 'archive', 'assign', 'formalizar'],
+        customPermissionLabels: {
+          delete: 'Estado PEP',
+          archive: 'Estado Cliente',
+          assign: 'Responsable',
+          formalizar: 'Editar Análisis',
+        },
       },
       {
         // Ver, crear, editar créditos — eliminar no aplica (registro financiero permanente)
