@@ -485,11 +485,69 @@ class ImportacionFileParser
 
         $header = $this->parseCreditoPdfHeader($text);
         $pagos  = $this->parseCreditoPdfPagos($text, $header);
+        $planPagos = $this->parseCreditoPdfPlan($text);
+
+        // El plan de pagos (cuotas en tránsito/vencidas) viaja dentro del credito
+        $header['plan_pagos'] = $planPagos;
 
         return [
             'creditos' => [$header],
             'pagos'    => $pagos,
         ];
+    }
+
+    /**
+     * Extrae la sección "CUOTAS EN TRANSITO Y VENCIDAS" del PDF.
+     * Estas son cuotas del plan de pagos (vencidas/pendientes), NO pagos reales.
+     * Estructura de cada fila:
+     *  linea n_cuota proceso fecha cuota poliza cargos int.cor int.mor principal ESTADO dias_vencidos total_compromiso
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseCreditoPdfPlan(string $text): array
+    {
+        // Solo procesar lo que está después del título de la sección
+        $pos = strpos($text, 'CUOTAS EN TRANSITO Y VENCIDAS');
+        if ($pos === false) return [];
+        $section = substr($text, $pos);
+
+        $pattern = '/'
+            . '\s+(\d+\.\d{2})\s+(\d+)\s+(\d{6})\s+'              // 1=linea, 2=n_cuota, 3=proceso
+            . '(\d{1,2}\/\d{1,2}\/\d{4})\s+'                       // 4=fecha (d/m/Y)
+            . '([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})' // 5=cuota, 6=poliza, 7=cargos
+            . '\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})' // 8=int.cor, 9=int.mor, 10=principal
+            . '\s+([A-ZÁÉÍÓÚ]+)\s+'                                // 11=estado (VENCIDA/PENDIENTE)
+            . '([\d,]+)\s+'                                        // 12=dias_vencidos
+            . '([\d,]+\.\d{2})'                                    // 13=total_compromiso
+            . '/u';
+
+        $plan = [];
+        preg_match_all($pattern, $section, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as $m) {
+            // Convertir fecha d/m/Y → Y-m-d
+            $fp = explode('/', $m[4]);
+            $fecha = (count($fp) === 3 && checkdate((int)$fp[1], (int)$fp[0], (int)$fp[2]))
+                ? sprintf('%04d-%02d-%02d', $fp[2], $fp[1], $fp[0])
+                : null;
+
+            $plan[] = [
+                'numero_cuota'      => (int) $m[2],
+                'proceso'           => $m[3],
+                'fecha_corte'       => $fecha,
+                'cuota'             => $this->parseMoney($m[5]),
+                'poliza'            => $this->parseMoney($m[6]) ?? 0,
+                'cargos'            => $this->parseMoney($m[7]) ?? 0,
+                'interes_corriente' => $this->parseMoney($m[8]) ?? 0,
+                'interes_moratorio' => $this->parseMoney($m[9]) ?? 0,
+                'amortizacion'      => $this->parseMoney($m[10]) ?? 0,
+                'estado'            => ucfirst(strtolower(trim($m[11]))), // VENCIDA → Vencida
+                'dias_mora'         => (int) str_replace(',', '', $m[12]),
+                'total_compromiso'  => $this->parseMoney($m[13]),
+            ];
+        }
+
+        return $plan;
     }
 
     /**

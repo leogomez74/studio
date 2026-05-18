@@ -737,6 +737,8 @@ interface CreditoRecord {
   pagos_duplicados: string[];
   pagos_a_importar: number;
   pago_errors: Record<number, string[]>;
+  plan_pagos?: Array<Record<string, unknown>>;
+  plan_pagos_count?: number;
   errors: string[];
   ready_to_import: boolean;
 }
@@ -908,7 +910,7 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
     if (!preview) return;
     const creditosReady = preview.creditos
       .filter(c => c.ready_to_import)
-      .map(c => ({ credito: c.extracted, pagos: c.pagos }));
+      .map(c => ({ credito: c.extracted, pagos: c.pagos, plan_pagos: c.plan_pagos ?? [] }));
 
     if (creditosReady.length === 0) {
       toast({ title: 'Sin créditos listos', description: 'No hay créditos válidos para crear.' });
@@ -1414,7 +1416,14 @@ function ImportarCreditosTab({ hasPermission, toast }: { hasPermission: HasPermi
                 </CardHeader>
                 <CardContent className="p-0">
                   {detailCredito.pagos.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">Sin pagos vinculados</p>
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      Sin pagos reales en este crédito.
+                      {(detailCredito.plan_pagos_count ?? 0) > 0 && (
+                        <span className="block mt-1 text-amber-700">
+                          Se importarán <strong>{detailCredito.plan_pagos_count}</strong> cuota(s) del plan de pagos (vencidas/en tránsito) tal cual el PDF — sin asientos de pago, solo FORMALIZACIÓN.
+                        </span>
+                      )}
+                    </p>
                   ) : (
                     <Table>
                       <TableHeader>

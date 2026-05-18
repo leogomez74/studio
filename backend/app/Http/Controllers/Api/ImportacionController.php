@@ -616,6 +616,10 @@ class ImportacionController extends Controller
                     'pagos_duplicados'   => array_values($pagosDuplicados),
                     'pagos_a_importar'   => count($pagosVinculados) - count($pagosDuplicados),
                     'pago_errors'        => $pagoErrors,
+                    // Plan de pagos del PDF (cuotas en tránsito/vencidas) — NO son pagos,
+                    // se usan como el plan de pagos exacto si no hay pagos reales.
+                    'plan_pagos'         => $credito['plan_pagos'] ?? [],
+                    'plan_pagos_count'   => count($credito['plan_pagos'] ?? []),
                     'errors'             => $errors,
                     'ready_to_import'    => empty($errors) && $cliente !== null && $creditoExistente === null,
                 ];
@@ -736,6 +740,7 @@ class ImportacionController extends Controller
             'creditos.*.credito.cuota'          => 'required|numeric|min:0.01',
             'creditos.*.credito.fecha_formalizacion' => 'required|date',
             'creditos.*.pagos'                  => 'sometimes|array',
+            'creditos.*.plan_pagos'             => 'sometimes|array',
             'progreso_token'                    => 'sometimes|string|max:64',
         ]);
 
@@ -766,8 +771,9 @@ class ImportacionController extends Controller
         foreach ($creditosInput as $idx => $item) {
             $creditoData = $item['credito'] ?? [];
             $pagosData   = $item['pagos']   ?? [];
+            $planPagos   = $item['plan_pagos'] ?? [];
 
-            $result = $creator->crear($creditoData, $pagosData, $onAsiento);
+            $result = $creator->crear($creditoData, $pagosData, $onAsiento, $planPagos);
 
             $results[] = array_merge(['index' => $idx, 'cedula' => $creditoData['cedula'] ?? null], $result);
 

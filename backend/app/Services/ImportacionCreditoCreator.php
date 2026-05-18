@@ -51,7 +51,7 @@ class ImportacionCreditoCreator
      *     error?: string
      * }
      */
-    public function crear(array $creditoData, array $pagosData = [], ?callable $onAsiento = null): array
+    public function crear(array $creditoData, array $pagosData = [], ?callable $onAsiento = null, array $planPagos = []): array
     {
         // Callback opcional: se invoca tras cada asiento disparado (para progreso en vivo).
         // Recibe (bool $success). Si es null, no hace nada.
@@ -140,7 +140,7 @@ class ImportacionCreditoCreator
 
         try {
             DB::transaction(function () use (
-                $creditoData, $pagosData, $cliente, $tasa, $deductoraId, $fechaFormalizacion,
+                $creditoData, $pagosData, $planPagos, $cliente, $tasa, $deductoraId, $fechaFormalizacion,
                 $deductoraIdPrimerPago, $deductoraMap,
                 &$asientoSpecs, &$pagosCreados, &$pagosSaltados, &$creditId, &$reference
             ) {
@@ -171,8 +171,15 @@ class ImportacionCreditoCreator
 
                 $creditId = $credit->id;
 
-                // 3. Generar plan de pagos con la cuota del archivo (override de fórmula francesa)
-                $this->generarPlanDePagos($credit, $fechaFormalizacion);
+                // 3. Plan de pagos:
+                //    - Si el PDF trae plan_pagos (cuotas en tránsito/vencidas) → usar
+                //      esos renglones EXACTOS (cuota, interés, mora, principal, días).
+                //    - Si no → generar por fórmula con la cuota del archivo.
+                if (!empty($planPagos)) {
+                    $this->generarPlanDePagosDesdeArchivo($credit, $fechaFormalizacion, $planPagos);
+                } else {
+                    $this->generarPlanDePagos($credit, $fechaFormalizacion);
+                }
 
                 // 4. Recolectar spec del asiento FORMALIZACION (se dispara post-commit)
                 $asientoSpecs[] = [
@@ -466,6 +473,86 @@ class ImportacionCreditoCreator
                     'dias'             => 0,
                     'estado'           => 'Pendiente',
                     'dias_mora'        => 0,
+                ]);
+
+                $saldoRestante = $saldoNuevo;
+            }
+        });
+    }
+
+    /**
+     * Genera el plan de pagos usando EXACTAMENTE los renglones del PDF
+     * (sección "CUOTAS EN TRANSITO Y VENCIDAS"). No recalcula nada:
+     * cuota, interés corriente, interés moratorio, principal, días de mora
+     * y estado salen tal cual del documento. NO genera asientos (no se pagaron).
+     *
+     * @param array<int, array<string, mixed>> $planPagos
+     */
+    private function generarPlanDePagosDesdeArchivo(Credit $credit, Carbon $fechaFormalizacion, array $planPagos): void
+    {
+        $capital = (float) $credit->monto_credito;
+
+        PlanDePago::withoutEvents(function () use ($credit, $capital, $fechaFormalizacion, $planPagos) {
+            // Línea 0: Inicialización (desembolso)
+            PlanDePago::create([
+                'credit_id'        => $credit->id,
+                'linea'            => '1',
+                'numero_cuota'     => 0,
+                'proceso'          => $fechaFormalizacion->format('Ym'),
+                'fecha_inicio'     => $fechaFormalizacion,
+                'fecha_corte'      => null,
+                'fecha_pago'       => null,
+                'tasa_actual'      => $credit->tasa_anual,
+                'plazo_actual'     => $credit->plazo,
+                'cuota'            => 0,
+                'poliza'           => 0,
+                'interes_corriente'=> 0,
+                'interes_moratorio'=> 0,
+                'amortizacion'     => 0,
+                'saldo_anterior'   => 0,
+                'saldo_nuevo'      => $capital,
+                'dias'             => 0,
+                'estado'           => 'Vigente',
+                'dias_mora'        => 0,
+                'fecha_movimiento' => $fechaFormalizacion,
+                'movimiento_total' => $capital,
+                'movimiento_principal' => $capital,
+                'movimiento_caja_usuario' => 'Importación',
+                'tipo_documento'   => 'Formalización',
+                'numero_documento' => $credit->numero_operacion,
+                'concepto'         => 'Desembolso Inicial (Importado)',
+            ]);
+
+            // Cuotas 1..N exactas del PDF
+            $saldoRestante = $capital;
+            foreach ($planPagos as $row) {
+                $amortizacion   = (float) ($row['amortizacion'] ?? 0);
+                $saldoAnterior  = round($saldoRestante, 2);
+                $saldoNuevo     = max(0, round($saldoAnterior - $amortizacion, 2));
+                $fechaCorte     = !empty($row['fecha_corte']) ? Carbon::parse($row['fecha_corte']) : null;
+
+                PlanDePago::create([
+                    'credit_id'         => $credit->id,
+                    'linea'             => '1',
+                    'numero_cuota'      => (int) ($row['numero_cuota'] ?? 0),
+                    'proceso'           => $row['proceso'] ?? $fechaFormalizacion->format('Ym'),
+                    'fecha_inicio'      => $fechaFormalizacion,
+                    'fecha_corte'       => $fechaCorte,
+                    'fecha_pago'        => null, // NO pagada
+                    'tasa_actual'       => $credit->tasa_anual,
+                    'plazo_actual'      => $credit->plazo,
+                    'cuota'             => (float) ($row['cuota'] ?? 0),
+                    'poliza'            => (float) ($row['poliza'] ?? 0),
+                    'cargos'            => (float) ($row['cargos'] ?? 0),
+                    'interes_corriente' => (float) ($row['interes_corriente'] ?? 0),
+                    'int_corriente_vencido' => 0,
+                    'interes_moratorio' => (float) ($row['interes_moratorio'] ?? 0),
+                    'amortizacion'      => $amortizacion,
+                    'saldo_anterior'    => $saldoAnterior,
+                    'saldo_nuevo'       => $saldoNuevo,
+                    'dias'              => 0,
+                    'estado'            => $row['estado'] ?? 'Vencida',
+                    'dias_mora'         => (int) ($row['dias_mora'] ?? 0),
                 ]);
 
                 $saldoRestante = $saldoNuevo;
