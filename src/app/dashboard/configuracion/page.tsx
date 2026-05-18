@@ -15,6 +15,7 @@ import PrestamosTab from '@/components/configuracion/PrestamosTab';
 import PolizaTab from '@/components/configuracion/PolizaTab';
 import PatronosTab from '@/components/configuracion/PatronosTab';
 import DeductorasTab from '@/components/configuracion/DeductorasTab';
+import ProfesionesCRUD from '@/components/configuracion/ProfesionesCRUD';
 import TareasAutomationTab from '@/components/configuracion/TareasAutomationTab';
 import { WorkflowsTab } from '@/components/configuracion/WorkflowsTab';
 import { LabelManager } from '@/components/configuracion/LabelManager';
@@ -34,6 +35,7 @@ export default function ConfiguracionPage() {
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           <TabsTrigger value="roles-permisos">Roles y Permisos</TabsTrigger>
           <TabsTrigger value="patronos">Patronos</TabsTrigger>
+          <TabsTrigger value="profesiones">Profesiones</TabsTrigger>
           <TabsTrigger value="deductoras">Deductoras</TabsTrigger>
           <TabsTrigger value="empresas">Docs. por Institución</TabsTrigger>
           <TabsTrigger value="instituciones">Instituciones</TabsTrigger>
@@ -67,6 +69,10 @@ export default function ConfiguracionPage() {
 
         <TabsContent value="patronos">
           <PatronosTab />
+        </TabsContent>
+
+        <TabsContent value="profesiones">
+          <ProfesionesCRUD />
         </TabsContent>
 
         <TabsContent value="deductoras">

@@ -226,6 +226,11 @@ const MODULE_GROUPS: ModuleGroup[] = [
         permissions: ['view', 'create', 'edit', 'delete'],
         customPermissionLabels: { create: 'Reportar' },
       },
+      {
+        // Profesiones: catálogo configurable usado en selects de Lead/Cliente
+        key: 'profesiones', label: 'Profesiones',
+        permissions: ['view', 'create', 'edit', 'delete'],
+      },
     ],
   },
   {

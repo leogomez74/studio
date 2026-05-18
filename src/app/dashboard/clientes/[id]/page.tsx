@@ -33,118 +33,7 @@ import { Client, Credit, CreditPayment, chatMessages, Lead, Opportunity, OPPORTU
 import { PROVINCES, Province, Canton, Location } from "@/lib/cr-locations";
 import { hasActiveOpportunity, getActiveOpportunityMessage } from "@/lib/opportunity-helpers";
 
-const PROFESIONES_LIST = [
-  "Abogado(a)",
-  "Actor/Actriz",
-  "Administrador(a) de Empresas",
-  "Administrador(a) de Fincas",
-  "Administrador(a) Público",
-  "Agrónomo(a)",
-  "Analista de Datos",
-  "Analista de Sistemas",
-  "Antropólogo(a)",
-  "Archivista",
-  "Arquitecto(a)",
-  "Asistente Administrativo(a)",
-  "Asistente Dental",
-  "Asistente Legal",
-  "Auditor(a)",
-  "Bibliotecólogo(a)",
-  "Biólogo(a)",
-  "Bombero(a)",
-  "Cajero(a)",
-  "Chef / Cocinero(a)",
-  "Chofer / Conductor(a)",
-  "Comunicador(a) Social",
-  "Conserje",
-  "Contador(a)",
-  "Criminólogo(a)",
-  "Dentista / Odontólogo(a)",
-  "Desarrollador(a) de Software",
-  "Diseñador(a) Gráfico",
-  "Diseñador(a) Industrial",
-  "Economista",
-  "Educador(a)",
-  "Electricista",
-  "Enfermero(a)",
-  "Escritor(a)",
-  "Estadístico(a)",
-  "Farmacéutico(a)",
-  "Filólogo(a)",
-  "Filósofo(a)",
-  "Físico(a)",
-  "Fisioterapeuta",
-  "Fotógrafo(a)",
-  "Funcionario(a) Público",
-  "Geógrafo(a)",
-  "Geólogo(a)",
-  "Gestor(a) Ambiental",
-  "Guarda de Seguridad",
-  "Historiador(a)",
-  "Ingeniero(a) Agrícola",
-  "Ingeniero(a) Ambiental",
-  "Ingeniero(a) Civil",
-  "Ingeniero(a) Eléctrico",
-  "Ingeniero(a) Electrónico",
-  "Ingeniero(a) en Computación",
-  "Ingeniero(a) en Sistemas",
-  "Ingeniero(a) Industrial",
-  "Ingeniero(a) Mecánico",
-  "Ingeniero(a) Químico",
-  "Investigador(a)",
-  "Laboratorista",
-  "Locutor(a)",
-  "Matemático(a)",
-  "Mecánico(a)",
-  "Médico(a)",
-  "Mercadólogo(a)",
-  "Meteorólogo(a)",
-  "Microbiólogo(a)",
-  "Misceláneo(a)",
-  "Músico(a)",
-  "Notario(a)",
-  "Nutricionista",
-  "Obrero(a)",
-  "Oficial de Seguridad",
-  "Operador(a) de Maquinaria",
-  "Optometrista",
-  "Orientador(a)",
-  "Paramédico(a)",
-  "Pediatra",
-  "Periodista",
-  "Piloto",
-  "Planificador(a)",
-  "Policía",
-  "Politólogo(a)",
-  "Profesor(a)",
-  "Profesor(a) Universitario",
-  "Programador(a)",
-  "Promotor(a) Social",
-  "Psicólogo(a)",
-  "Psiquiatra",
-  "Publicista",
-  "Químico(a)",
-  "Radiólogo(a)",
-  "Recepcionista",
-  "Relacionista Público",
-  "Secretario(a)",
-  "Sociólogo(a)",
-  "Soldador(a)",
-  "Técnico(a) en Electrónica",
-  "Técnico(a) en Enfermería",
-  "Técnico(a) en Informática",
-  "Técnico(a) en Mantenimiento",
-  "Técnico(a) en Refrigeración",
-  "Tecnólogo(a) Médico",
-  "Teólogo(a)",
-  "Terapeuta Ocupacional",
-  "Topógrafo(a)",
-  "Trabajador(a) Social",
-  "Traductor(a)",
-  "Vendedor(a)",
-  "Veterinario(a)",
-  "Otro",
-].sort();
+// profesionesList ahora se carga desde /api/profesiones?active=true (configurable en Configuración → Profesiones)
 
 
 export default function ClientDetailPage() {
@@ -170,6 +59,7 @@ export default function ClientDetailPage() {
   const [instituciones, setInstituciones] = useState<{id: number, nombre: string}[]>([]);
   const [institucionSearch, setInstitucionSearch] = useState("");
   const [institucionOpen, setInstitucionOpen] = useState(false);
+  const [profesionesList, setProfesionesList] = useState<string[]>([]);
   const [profesionSearch, setProfesionSearch] = useState("");
   const [profesionOpen, setProfesionOpen] = useState(false);
   const [provinciaOpen, setProvinciaOpen] = useState(false);
@@ -302,6 +192,15 @@ export default function ClientDetailPage() {
         }
     };
 
+    const fetchProfesiones = async () => {
+        try {
+            const response = await api.get('/api/profesiones?active=true');
+            setProfesionesList((response.data || []).map((p: { name: string }) => p.name));
+        } catch (error) {
+            console.error("Error fetching profesiones:", error);
+        }
+    };
+
     const fetchCredits = async () => {
         setLoadingCredits(true);
         try {
@@ -340,6 +239,7 @@ export default function ClientDetailPage() {
       fetchDeductoras();
       fetchLeads();
       fetchInstituciones();
+      fetchProfesiones();
       fetchCredits();
       fetchPayments();
     }
@@ -1139,7 +1039,7 @@ export default function ClientDetailPage() {
                         />
                       </div>
                       <div className="max-h-[200px] overflow-y-auto">
-                        {PROFESIONES_LIST
+                        {profesionesList
                           .filter(p => p.toLowerCase().includes(profesionSearch.toLowerCase()))
                           .map((prof) => (
                             <div
@@ -1157,7 +1057,7 @@ export default function ClientDetailPage() {
                             </div>
                           ))
                         }
-                        {PROFESIONES_LIST.filter(p => p.toLowerCase().includes(profesionSearch.toLowerCase())).length === 0 && (
+                        {profesionesList.filter(p => p.toLowerCase().includes(profesionSearch.toLowerCase())).length === 0 && (
                           <div className="px-3 py-2 text-sm text-muted-foreground">No se encontraron resultados</div>
                         )}
                       </div>

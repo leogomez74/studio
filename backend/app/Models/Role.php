@@ -45,7 +45,7 @@ class Role extends Model
                 'calculos', 'cobros', 'cobro_judicial', 'ventas', 'inversiones',
                 'rutas', 'comunicaciones', 'staff', 'entrenamiento',
                 'recompensas', 'tareas', 'auditoria', 'auditoria_asientos',
-                'importacion', 'incidencias',
+                'importacion', 'incidencias', 'profesiones',
                 'config_general', 'config_personas', 'config_usuarios',
                 'config_contabilidad', 'config_sistema',
             ];

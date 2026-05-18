@@ -60,7 +60,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               Envolvemos children en Suspense para permitir que componentes cliente
               que usan hooks como useSearchParams se hidraten correctamente durante
               el prerender y evitar el error de "missing suspense with csr bailout". */}
-          <div className="flex flex-1 flex-col p-4 lg:p-6 w-full min-w-0 overflow-x-hidden">
+          <div className="flex flex-1 flex-col p-4 lg:p-6 pb-24 lg:pb-24 w-full min-w-0 overflow-x-hidden">
             <React.Suspense fallback={<div />}>{children}</React.Suspense>
           </div>
           <ChatBubbleWrapper />

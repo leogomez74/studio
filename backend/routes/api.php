@@ -252,6 +252,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // --- Productos e Instituciones ---
     Route::apiResource('products', ProductController::class);
     Route::apiResource('instituciones', InstitucionController::class)->except(['index']);
+    Route::apiResource('profesiones', \App\Http\Controllers\Api\ProfesionController::class);
 
     // --- Leads ---
     Route::patch('/leads/{id}/toggle-active', [LeadController::class, 'toggleActive']);
