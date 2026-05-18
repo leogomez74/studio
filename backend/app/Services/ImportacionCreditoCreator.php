@@ -136,12 +136,13 @@ class ImportacionCreditoCreator
         $pagosSaltados = 0;
         $creditId = null;
         $reference = null;
+        $asientoSpecs = []; // se llenan en la transacción, se disparan después
 
         try {
             DB::transaction(function () use (
                 $creditoData, $pagosData, $cliente, $tasa, $deductoraId, $fechaFormalizacion,
                 $deductoraIdPrimerPago, $deductoraMap,
-                &$accountingResults, &$pagosCreados, &$pagosSaltados, &$creditId, &$reference
+                &$asientoSpecs, &$pagosCreados, &$pagosSaltados, &$creditId, &$reference
             ) {
                 // 1. Crear opportunity si no existe (necesario para el flujo del sistema)
                 $opportunity = $this->crearOpportunity($cliente, $creditoData, $fechaFormalizacion);
@@ -173,19 +174,18 @@ class ImportacionCreditoCreator
                 // 3. Generar plan de pagos con la cuota del archivo (override de fórmula francesa)
                 $this->generarPlanDePagos($credit, $fechaFormalizacion);
 
-                // 4. Disparar asiento FORMALIZACION en fecha histórica
-                $formResult = $this->triggerAccountingEntry(
-                    'FORMALIZACION',
-                    (float) $credit->monto_credito,
-                    $credit->reference,
-                    [
+                // 4. Recolectar spec del asiento FORMALIZACION (se dispara post-commit)
+                $asientoSpecs[] = [
+                    'type'      => 'FORMALIZACION',
+                    'amount'    => (float) $credit->monto_credito,
+                    'reference' => $credit->reference,
+                    'context'   => [
                         'reference'        => $credit->reference,
                         'credit_id'        => $credit->reference,
                         'credit_numeric_id'=> $credit->id,
                         'cedula'           => $cliente->cedula,
                         'clienteNombre'    => $cliente->name,
                         // FORMALIZACION usa la deductora del PRIMER pago del archivo
-                        // (representa la coope vigente al momento de formalizar el crédito)
                         'deductora_id'     => $deductoraIdPrimerPago,
                         'entry_date'       => $fechaFormalizacion->format('Y-m-d'),
                         'amount_breakdown' => [
@@ -198,17 +198,10 @@ class ImportacionCreditoCreator
                             'cargos_adicionales_total' => 0,
                             'cargos_adicionales' => [],
                         ],
-                    ]
-                );
-                $accountingResults[] = [
-                    'type'      => 'FORMALIZACION',
-                    'success'   => (bool) ($formResult['success'] ?? false),
-                    'reference' => $credit->reference,
-                    'error'     => $formResult['error'] ?? null,
+                    ],
                 ];
-                if ($this->onAsiento) ($this->onAsiento)((bool) ($formResult['success'] ?? false));
 
-                // 5. Aplicar pagos del archivo
+                // 5. Crear pagos del archivo y recolectar sus specs de asiento
                 foreach ($pagosData as $pago) {
                     if (!empty($pago['referencia_pago'])) {
                         $dup = CreditPayment::where('referencia', $pago['referencia_pago'])->exists();
@@ -219,16 +212,39 @@ class ImportacionCreditoCreator
                     }
 
                     // Cada pago usa su PROPIA deductora según el sufijo del comprobante.
-                    // Si el sufijo NO es CSG/CS/CN, el pago es PAGO_VENTANILLA sin deductora.
                     $pagoDeductoraId = $this->extraerDeductoraIdDePago($pago, $deductoraMap);
                     $pagoResult = $this->aplicarPago($credit, $cliente, $pago, $pagoDeductoraId);
-                    if ($pagoResult['accounting']) {
-                        $accountingResults[] = $pagoResult['accounting'];
-                        if ($this->onAsiento) ($this->onAsiento)((bool) ($pagoResult['accounting']['success'] ?? false));
+                    if (!empty($pagoResult['asiento_spec'])) {
+                        $asientoSpecs[] = $pagoResult['asiento_spec'];
                     }
                     $pagosCreados++;
                 }
             });
+
+            // ── FASE 2 (post-commit): disparar asientos con pacing ──
+            // La transacción ya cerró: las llamadas HTTP + retries de 429
+            // ya NO mantienen la transacción abierta.
+            $delayMs = (int) config('services.erp.asiento_delay_ms', 250);
+            foreach ($asientoSpecs as $spec) {
+                $res = $this->triggerAccountingEntry(
+                    $spec['type'],
+                    $spec['amount'],
+                    $spec['reference'],
+                    $spec['context']
+                );
+                $accountingResults[] = [
+                    'type'      => $spec['type'],
+                    'success'   => (bool) ($res['success'] ?? false),
+                    'reference' => $spec['reference'],
+                    'error'     => $res['error'] ?? null,
+                ];
+                if ($this->onAsiento) ($this->onAsiento)((bool) ($res['success'] ?? false));
+
+                // Pacing entre asientos para no saturar el ERP (seguro: sin transacción abierta)
+                if ($delayMs > 0) {
+                    usleep($delayMs * 1000);
+                }
+            }
         } catch (\Throwable $e) {
             Log::error('ImportacionCreditoCreator: error creando crédito', [
                 'cedula' => $creditoData['cedula'],
@@ -250,10 +266,12 @@ class ImportacionCreditoCreator
     }
 
     /**
-     * Aplica un pago: crea CreditPayment, ajusta saldo del crédito y dispara asiento.
+     * Crea el CreditPayment y ajusta saldo/plan. NO dispara el asiento:
+     * devuelve la "spec" del asiento para dispararlo DESPUÉS de la transacción
+     * (así el pacing/retry no mantiene la transacción abierta).
      *
      * @param array<string, mixed> $pago
-     * @return array{accounting: array<string, mixed>|null}
+     * @return array{asiento_spec: array<string, mixed>}
      */
     private function aplicarPago(Credit $credit, Person $cliente, array $pago, ?int $deductoraId): array
     {
@@ -308,41 +326,36 @@ class ImportacionCreditoCreator
         }
 
         // Tipo del asiento según si hay deductora válida (CSG/CS/CN):
-        //  - Con deductora → PAGO_PLANILLA (la cuenta dinámica de la deductora se resuelve en el trigger)
+        //  - Con deductora → PAGO_PLANILLA (cuenta dinámica de la deductora)
         //  - Sin deductora → PAGO_VENTANILLA (cuenta fija de Caja General)
         $entryType = $deductoraId ? 'PAGO_PLANILLA' : 'PAGO_VENTANILLA';
-        $accountingResult = $this->triggerAccountingEntry(
-            $entryType,
-            $montoTotal,
-            "{$credit->reference}-PAY-{$payment->id}",
-            [
-                'reference'         => $credit->reference,
-                'credit_id'         => $credit->reference,
-                'credit_numeric_id' => $credit->id,
-                'payment_id'        => $payment->id,
-                'cedula'            => $cliente->cedula,
-                'clienteNombre'     => $cliente->name,
-                'deductora_id'      => $deductoraId,
-                'entry_date'        => $fechaPago->format('Y-m-d'),
-                'amount_breakdown'  => [
-                    'total'             => $montoTotal,
-                    'interes_corriente' => $interesCorriente,
-                    'interes_moratorio' => $interesMoratorio,
-                    'poliza'            => $poliza,  // ← ahora real, no 0 hardcoded
-                    'capital'           => $capital,
-                    'sobrante'          => 0,
-                    'cargos_adicionales_total' => $otros,
-                    'cargos_adicionales' => $otros > 0 ? ['otros' => $otros] : [],
-                ],
-            ]
-        );
 
+        // Devolver la spec del asiento — se dispara DESPUÉS de la transacción
         return [
-            'accounting' => [
+            'asiento_spec' => [
                 'type'      => $entryType,
-                'success'   => (bool) ($accountingResult['success'] ?? false),
+                'amount'    => $montoTotal,
                 'reference' => "{$credit->reference}-PAY-{$payment->id}",
-                'error'     => $accountingResult['error'] ?? null,
+                'context'   => [
+                    'reference'         => $credit->reference,
+                    'credit_id'         => $credit->reference,
+                    'credit_numeric_id' => $credit->id,
+                    'payment_id'        => $payment->id,
+                    'cedula'            => $cliente->cedula,
+                    'clienteNombre'     => $cliente->name,
+                    'deductora_id'      => $deductoraId,
+                    'entry_date'        => $fechaPago->format('Y-m-d'),
+                    'amount_breakdown'  => [
+                        'total'             => $montoTotal,
+                        'interes_corriente' => $interesCorriente,
+                        'interes_moratorio' => $interesMoratorio,
+                        'poliza'            => $poliza,
+                        'capital'           => $capital,
+                        'sobrante'          => 0,
+                        'cargos_adicionales_total' => $otros,
+                        'cargos_adicionales' => $otros > 0 ? ['otros' => $otros] : [],
+                    ],
+                ],
             ],
         ];
     }

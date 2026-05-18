@@ -291,10 +291,22 @@ class ErpAccountingService
             // Antes esto era falla dura, así que cualquier reintento es mejora.
             if ($response->status() === 429) {
                 $retryAttempt = is_int($isRetry) ? $isRetry : 0;
-                if ($retryAttempt < 3) {
+
+                // DIAGNÓSTICO: registrar de dónde viene el 429 (Laravel throttle vs nginx/proxy)
+                // y todos los headers de rate limit para entender el límite real.
+                Log::warning('ERP: 429 recibido — diagnóstico', [
+                    'attempt'              => $retryAttempt + 1,
+                    'server_header'        => $response->header('Server'),
+                    'retry_after'          => $response->header('Retry-After'),
+                    'x_ratelimit_limit'    => $response->header('X-RateLimit-Limit'),
+                    'x_ratelimit_remaining'=> $response->header('X-RateLimit-Remaining'),
+                    'body'                 => mb_substr((string) $response->body(), 0, 500),
+                ]);
+
+                if ($retryAttempt < 5) {
                     $retryAfter = (int) ($response->header('Retry-After') ?: 0);
-                    // Backoff: header Retry-After, o exponencial 2/4/8 seg
-                    $waitSeconds = $retryAfter > 0 ? min($retryAfter, 30) : (2 ** ($retryAttempt + 1));
+                    // Backoff: header Retry-After, o exponencial 3/6/12/24/48 seg
+                    $waitSeconds = $retryAfter > 0 ? min($retryAfter, 60) : (3 * (2 ** $retryAttempt));
                     Log::warning('ERP: 429 rate limit, esperando para reintentar', [
                         'attempt'      => $retryAttempt + 1,
                         'wait_seconds' => $waitSeconds,
@@ -302,7 +314,7 @@ class ErpAccountingService
                     sleep($waitSeconds);
                     return $this->sendWithRetry($payload, $retryAttempt + 1);
                 }
-                Log::error('ERP: 429 persistente tras 3 reintentos, se marca como error para retry programado');
+                Log::error('ERP: 429 persistente tras 5 reintentos, se marca como error para retry programado');
             }
 
             // 422 = Error de validación

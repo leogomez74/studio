@@ -46,6 +46,10 @@ return [
         'service_token'  => env('ERP_SERVICE_TOKEN', ''),
         'service_secret' => env('ERP_SERVICE_SECRET', ''),
 
+        // Pacing (ms) entre asientos en importación masiva para no saturar el ERP.
+        // Subir si hay 429; bajar a 0 para máxima velocidad si el ERP aguanta.
+        'asiento_delay_ms' => (int) env('IMPORT_ASIENTO_DELAY_MS', 250),
+
         // ─── CRM Federation v1.0 F4 ─────────────────────────────────────
         // Feature flag para outbound sync Lead/Opportunity al CRM del ERP.
         // Default OFF — activar solo cuando ingestion_token está emitido +
