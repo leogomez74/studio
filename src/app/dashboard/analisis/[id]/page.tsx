@@ -925,6 +925,8 @@ export default function AnalisisDetailPage() {
                   min_salario_meses: analisis.hoja_trabajo_datos?.min_salario_meses ?? 0,
                   salario_castigado: analisis.hoja_trabajo_datos?.salario_castigado ?? 0,
                   capacidad_real_25: analisis.hoja_trabajo_datos?.capacidad_real_25 ?? 0,
+                  periodo_mes_inicio: (analisis.hoja_trabajo_datos as any)?.periodo_mes_inicio,
+                  periodo_anio_inicio: (analisis.hoja_trabajo_datos as any)?.periodo_anio_inicio,
                 });
                 setIsEditarOpen(true);
               }}
@@ -1469,18 +1471,33 @@ export default function AnalisisDetailPage() {
                 const esPerQuincena = totalPeriodos === 6 || totalPeriodos === 12;
                 const totalMeses = esPerQuincena ? totalPeriodos / 2 : totalPeriodos;
 
+                // Usa el periodo guardado del análisis si existe, si no fallback al created_at
+                const periodoMesInicio = (analisis.hoja_trabajo_datos as any)?.periodo_mes_inicio;
+                const periodoAnioInicio = (analisis.hoja_trabajo_datos as any)?.periodo_anio_inicio;
+                const usaPeriodoGuardado = typeof periodoMesInicio === 'number' && typeof periodoAnioInicio === 'number';
+
                 const getLabelFor = (idx: number): string => {
+                  if (usaPeriodoGuardado) {
+                    const mesIdx = esPerQuincena ? Math.floor(idx / 2) : idx;
+                    let mes  = periodoMesInicio + mesIdx;
+                    let anio = periodoAnioInicio;
+                    while (mes > 11) { mes -= 12; anio += 1; }
+                    if (esPerQuincena) {
+                      const quincena = (idx % 2) + 1;
+                      return `${MESES[mes]} ${quincena}Q`;
+                    }
+                    return MESES[mes];
+                  }
+                  // Fallback: hacia atrás desde refDate
                   const d = new Date(refDate);
                   if (esPerQuincena) {
                     const mesIdx = Math.floor(idx / 2);
                     const quincena = (idx % 2) + 1;
                     d.setMonth(d.getMonth() - (totalMeses - mesIdx));
                     return `${MESES[d.getMonth()]} ${quincena}Q`;
-                  } else {
-                    // Por mes: solo mostrar el nombre del mes
-                    d.setMonth(d.getMonth() - (totalMeses - idx));
-                    return MESES[d.getMonth()];
                   }
+                  d.setMonth(d.getMonth() - (totalMeses - idx));
+                  return MESES[d.getMonth()];
                 };
 
                 // Promedio mensual adaptado al modo
@@ -2271,6 +2288,8 @@ export default function AnalisisDetailPage() {
                       min_salario_meses: datos.min_salario_meses,
                       salario_castigado: datos.salario_castigado,
                       capacidad_real_25: datos.capacidad_real_25,
+                      periodo_mes_inicio: datos.periodo_mes_inicio,
+                      periodo_anio_inicio: datos.periodo_anio_inicio,
                     },
                   };
                   await api.put(`/api/analisis/${analisis.id}`, payload);

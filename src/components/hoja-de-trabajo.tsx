@@ -54,6 +54,9 @@ export interface DatosPreAnalisis {
   min_salario_meses?: number;
   salario_castigado?: number;
   capacidad_real_25?: number;
+  // Período de las colillas (mes inicial 0-11 + año)
+  periodo_mes_inicio?: number;
+  periodo_anio_inicio?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -225,9 +228,11 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis, initialValues, sub
   const anioInicioDefault = hoy.getMonth() < totalMeses ? hoy.getFullYear() - 1 : hoy.getFullYear();
 
   const [periodoMesInicio, setPeriodoMesInicio] = useState<number>(() => {
+    if (initialValues?.periodo_mes_inicio !== undefined) return initialValues.periodo_mes_inicio;
     try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); return d.periodoMesInicio ?? mesInicioDefault; } catch { return mesInicioDefault; }
   });
   const [periodoAnioInicio, setPeriodoAnioInicio] = useState<number>(() => {
+    if (initialValues?.periodo_anio_inicio !== undefined) return initialValues.periodo_anio_inicio;
     try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}'); return d.periodoAnioInicio ?? anioInicioDefault; } catch { return anioInicioDefault; }
   });
 
@@ -433,6 +438,8 @@ export function HojaDeTrabajo({ opportunity, onCrearAnalisis, initialValues, sub
       min_salario_meses: minSalarioMeses,
       salario_castigado: salarioCastigado,
       capacidad_real_25: capacidadReal,
+      periodo_mes_inicio: periodoMesInicio,
+      periodo_anio_inicio: periodoAnioInicio,
     });
     // Limpiar borrador al crear el análisis (no aplica en edit mode porque ahí no se autoguarda)
     if (!editMode) {
