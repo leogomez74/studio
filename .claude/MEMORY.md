@@ -377,6 +377,12 @@ Nueva pestaña `/dashboard/kpis` (módulo `kpis`) con 13 KPIs avanzados.
 
 ---
 
+## Migración legacy CrediPEP (May 2026)
+
+Comando Artisan `migrar:creditos-legacy` (`backend/app/Console/Commands/MigrarCreditosLegacy.php`) migra créditos+plan+pagos+asientos históricos desde la BD legacy `progrex_new` al sistema. **Reusa `ImportacionCreditoCreator::crear()` sin tocar el motor.** Conexión `legacy` aditiva en `config/database.php` (env `LEGACY_DB_*`). Detalle completo y decisiones en memoria `modulo-importacion.md`. Alcance: 2.926 créditos A+C, 408 anómalos saltados, 2.518 migrables. Validado en dry-run. **Pendiente ejecutar** (requiere ventana ERP `SERVICE_TOKEN_RATE_LIMIT=0`).
+
+---
+
 ## Preferencias del usuario
 - Comunicarse siempre en **español**
 - Commits y push: solo cuando el usuario lo pida explícitamente
