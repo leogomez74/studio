@@ -334,60 +334,72 @@ class MigrarCreditosLegacy extends Command
             ]);
             $creditId = $credit->id;
 
-            // 3) Plan de pagos — COPIA 1:1 DEL SQL (1 fila por sub-línea ID_SEQ)
-            PlanDePago::withoutEvents(function () use ($planRows, $transacByIdSeq, $credit, &$stats) {
-                foreach ($planRows as $p) {
-                    $idSeq = $this->formatIdSeq($p->id_seq);
-                    $t = $transacByIdSeq->get($idSeq);
+            // 3) Plan de pagos — COPIA 1:1 DEL SQL (1 fila por sub-línea ID_SEQ).
+            // USO DB::table()->insert() para BYPASSEAR el ORM y SUS OBSERVERS.
+            // Esto es crítico: PlanDePago tiene un observer en `static::created`
+            // que cuando ve numero_cuota=0 auto-genera N cuotas con fórmula
+            // francesa. `Model::withoutEvents()` debería suprimirlo pero en
+            // algunos servidores (PHP/Laravel/instancia) no funciona. Con
+            // DB::table->insert el observer NUNCA dispara — bypass del ORM
+            // 100% garantizado.
+            $now = now();
+            $planInsert = [];
+            foreach ($planRows as $p) {
+                $idSeq = $this->formatIdSeq($p->id_seq);
+                $t = $transacByIdSeq->get($idSeq);
 
-                    $estado = match (trim((string) $p->estado)) {
-                        'C'     => 'Pagada',
-                        'P'     => 'Pendiente',
-                        'A'     => 'Vencida',
-                        'N'     => 'Anulada',
-                        default => 'Pendiente',
-                    };
+                $estado = match (trim((string) $p->estado)) {
+                    'C'     => 'Pagada',
+                    'P'     => 'Pendiente',
+                    'A'     => 'Vencida',
+                    'N'     => 'Anulada',
+                    default => 'Pendiente',
+                };
 
-                    $row = new PlanDePago();
-                    $row->forceFill([
-                        'credit_id'         => $credit->id,
-                        'linea'             => $idSeq,
-                        'numero_cuota'      => (int) $p->num_cuota,
-                        'proceso'           => $p->fecha_proceso ? (string) $p->fecha_proceso : null,
-                        'fecha_inicio'      => $this->fechaValida($p->fecha_inicio),
-                        'fecha_corte'       => $this->fechaValida($p->fecha_corte),
-                        'fecha_pago'        => $t ? $this->fechaValida($t->mov_fecha) : $this->fechaValida($p->fecha_pago),
-                        'tasa_actual'       => (float) ($p->tasa ?? 0),
-                        'plazo_actual'      => (int) ($p->plazo ?? 0),
-                        'cuota'             => (float) ($p->cuota ?? 0),
-                        'cargos'            => (float) ($p->cargos ?? 0),
-                        'poliza'            => (float) ($p->poliza ?? 0),
-                        'interes_corriente' => (float) ($p->intcor ?? 0),
-                        'interes_moratorio' => (float) ($p->intmor ?? 0),
-                        'amortizacion'      => (float) ($p->principal ?? 0),
-                        'saldo_anterior'    => (float) ($p->saldo_ANTERIOR ?? 0),
-                        'saldo_nuevo'       => (float) ($p->saldo_ACTUAL ?? 0),
-                        'dias'              => (int) ($p->dias_calculo ?? 0),
-                        'estado'            => $estado,
-                        'dias_mora'         => (int) ($p->mora_dias ?? 0),
-                        // ── MOVIMIENTO (lado derecho del UI legacy) ──
-                        'fecha_movimiento'             => $t ? $this->fechaValida($t->mov_fecha) : null,
-                        'movimiento_total'             => $t ? (float) $t->mov_monto : 0,
-                        'movimiento_cargos'            => $t ? (float) $t->mov_cargos : 0,
-                        'movimiento_poliza'            => $t ? (float) $t->mov_poliza : 0,
-                        'movimiento_interes_corriente' => $t ? (float) $t->mov_intcor : 0,
-                        'movimiento_interes_moratorio' => $t ? (float) $t->mov_intmor : 0,
-                        'movimiento_principal'         => $t ? (float) $t->mov_principal : 0,
-                        'movimiento_amortizacion'      => $t ? (float) $t->mov_principal : 0,
-                        'movimiento_caja_usuario'      => $t ? ($t->mov_usuario ?: 'Migración Legacy') : null,
-                        'tipo_documento'               => $p->tipo_documento ? trim((string) $p->tipo_documento) : null,
-                        'numero_documento'             => $t ? $t->num_comprobante : $p->num_comprobante,
-                        'concepto'                     => $p->cod_concepto ? trim((string) $p->cod_concepto) : null,
-                    ]);
-                    $row->save();
-                    $stats['plan_lineas']++;
+                $planInsert[] = [
+                    'credit_id'         => $credit->id,
+                    'linea'             => $idSeq,
+                    'numero_cuota'      => (int) $p->num_cuota,
+                    'proceso'           => $p->fecha_proceso ? (string) $p->fecha_proceso : null,
+                    'fecha_inicio'      => $this->fechaValida($p->fecha_inicio),
+                    'fecha_corte'       => $this->fechaValida($p->fecha_corte),
+                    'fecha_pago'        => $t ? $this->fechaValida($t->mov_fecha) : $this->fechaValida($p->fecha_pago),
+                    'tasa_actual'       => (float) ($p->tasa ?? 0),
+                    'plazo_actual'      => (int) ($p->plazo ?? 0),
+                    'cuota'             => (float) ($p->cuota ?? 0),
+                    'cargos'            => (float) ($p->cargos ?? 0),
+                    'poliza'            => (float) ($p->poliza ?? 0),
+                    'interes_corriente' => (float) ($p->intcor ?? 0),
+                    'interes_moratorio' => (float) ($p->intmor ?? 0),
+                    'amortizacion'      => (float) ($p->principal ?? 0),
+                    'saldo_anterior'    => (float) ($p->saldo_anterior ?? 0),
+                    'saldo_nuevo'       => (float) ($p->saldo_actual ?? 0),
+                    'dias'              => (int) ($p->dias_calculo ?? 0),
+                    'estado'            => $estado,
+                    'dias_mora'         => (int) ($p->mora_dias ?? 0),
+                    'fecha_movimiento'             => $t ? $this->fechaValida($t->mov_fecha) : null,
+                    'movimiento_total'             => $t ? (float) $t->mov_monto : 0,
+                    'movimiento_cargos'            => $t ? (float) $t->mov_cargos : 0,
+                    'movimiento_poliza'            => $t ? (float) $t->mov_poliza : 0,
+                    'movimiento_interes_corriente' => $t ? (float) $t->mov_intcor : 0,
+                    'movimiento_interes_moratorio' => $t ? (float) $t->mov_intmor : 0,
+                    'movimiento_principal'         => $t ? (float) $t->mov_principal : 0,
+                    'movimiento_amortizacion'      => $t ? (float) $t->mov_principal : 0,
+                    'movimiento_caja_usuario'      => $t ? ($t->mov_usuario ?: 'Migración Legacy') : null,
+                    'tipo_documento'               => $p->tipo_documento ? trim((string) $p->tipo_documento) : null,
+                    'numero_documento'             => $t ? $t->num_comprobante : $p->num_comprobante,
+                    'concepto'                     => $p->cod_concepto ? trim((string) $p->cod_concepto) : null,
+                    'created_at'                   => $now,
+                    'updated_at'                   => $now,
+                ];
+                $stats['plan_lineas']++;
+            }
+            if (!empty($planInsert)) {
+                // Insert masivo en chunks (MySQL tiene límite de placeholders)
+                foreach (array_chunk($planInsert, 100) as $chunk) {
+                    DB::table('plan_de_pagos')->insert($chunk);
                 }
-            });
+            }
 
             // 4) FORMALIZACION — asiento histórico en fecha de desembolso
             $sufijoFormalizacion = $pagosReales->isNotEmpty()
