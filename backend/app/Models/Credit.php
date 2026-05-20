@@ -67,6 +67,7 @@ class Credit extends Model
         'refundicion_monto_entregado',
         'refundicion_at',
         'cierre_motivo',
+        'progrex',
     ];
 
     protected $casts = [
@@ -85,6 +86,7 @@ class Credit extends Model
         'refundicion_saldo_absorbido' => 'decimal:2',
         'refundicion_monto_entregado' => 'decimal:2',
         'refundicion_at' => 'datetime',
+        'progrex' => 'boolean',
     ];
 
     /**
