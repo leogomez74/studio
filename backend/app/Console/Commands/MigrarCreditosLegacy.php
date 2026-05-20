@@ -74,6 +74,32 @@ class MigrarCreditosLegacy extends Command
         10036 => 'CN',
     ];
 
+    /**
+     * Topes de usura anuales en COLONES, Costa Rica (Ley de Usura, vigente 2020-07-01+).
+     * Clave 'YYYY-S': S=1 (enero-junio) / S=2 (julio-diciembre).
+     * Solo COLONES (decisión usuario): no se usan dólares ni otras monedas.
+     */
+    private const USURA_COLONES = [
+        '2020-2' => ['gral' => 37.69, 'micro' => 53.18],
+        '2021-1' => ['gral' => 35.56, 'micro' => 50.22],
+        '2021-2' => ['gral' => 33.66, 'micro' => 47.58],
+        '2022-1' => ['gral' => 33.44, 'micro' => 47.27],
+        '2022-2' => ['gral' => 33.41, 'micro' => 47.23],
+        '2023-1' => ['gral' => 35.51, 'micro' => 50.16],
+        '2023-2' => ['gral' => 38.16, 'micro' => 53.83],
+        '2024-1' => ['gral' => 38.55, 'micro' => 54.37],
+        '2024-2' => ['gral' => 38.98, 'micro' => 54.98],
+        '2025-1' => ['gral' => 38.36, 'micro' => 54.11],
+        '2025-2' => ['gral' => 36.65, 'micro' => 51.74],
+        '2026-1' => ['gral' => 36.27, 'micro' => 51.21],
+    ];
+
+    /** Umbral monto: > 690.000 = gral; <= 690.000 = micro (decisión usuario). */
+    private const MONTO_UMBRAL_GRAL = 690000.0;
+
+    /** Días de gracia (calendario, en meses) antes de generar mora. */
+    private const MORA_GRACIA_MESES = 2;
+
     /** Cache deductora_id por sufijo (CSG/CS/CN), resuelto de la tabla Studio. */
     private array $deductoraIdPorSufijo = [];
 
@@ -191,6 +217,87 @@ class MigrarCreditosLegacy extends Command
     }
 
     /**
+     * Determina si un crédito está dentro del scope del NUEVO cálculo de mora.
+     *  - ESTADO='A' (Activo)
+     *  - Formaliza >= 2020-07-01 (post Ley de Usura)
+     *  - Tasa corriente > 0 (los 6 créditos con tasa 0% quedan fuera)
+     *
+     * Para créditos FUERA del scope, se preservan los valores legacy de
+     * mora_dias e interes_moratorio tal cual.
+     */
+    private function aplicaNuevaMora(object $rc, string $fechaForm): bool
+    {
+        if (trim((string) $rc->estado) !== 'A') return false;
+        if (Carbon::parse($fechaForm)->lt('2020-07-01')) return false;
+        if ((float) $rc->tasa <= 0) return false;
+        return true;
+    }
+
+    /**
+     * Devuelve el tope de usura anual (%) en colones aplicable a un crédito
+     * según su fecha de formalización (semestre) y su monto (gral/micro).
+     * Si la fecha no está en la tabla, usa el semestre conocido más cercano.
+     */
+    private function usuraMaxParaCredito(string $fechaForm, float $monto): float
+    {
+        $d = Carbon::parse($fechaForm);
+        $year = (int) $d->year;
+        $half = (int) $d->month <= 6 ? 1 : 2;
+        $key = "{$year}-{$half}";
+
+        $tabla = self::USURA_COLONES;
+        if (!isset($tabla[$key])) {
+            ksort($tabla);
+            $keys = array_keys($tabla);
+            $key = $key < $keys[0] ? $keys[0] : end($keys);
+        }
+        $tipo = $monto > self::MONTO_UMBRAL_GRAL ? 'gral' : 'micro';
+        return (float) $tabla[$key][$tipo];
+    }
+
+    /**
+     * Calcula días de mora e interés moratorio para una fila del plan según:
+     *  - Regla 1 (prioridad): si y_max <= 0 (x = N) → 0
+     *  - Regla 2: gracia de 2 meses calendario desde fecha_pago
+     *  - Estados Pagada/Anulada: siempre 0
+     *  - Estados Vencida/Pendiente: aplicar grace + cálculo
+     *
+     * Fórmula:
+     *   mora = saldo_anterior × (y_max / 100) × (dias_mora / 360)
+     *
+     * @return array{0:int, 1:float} [dias_mora, interes_moratorio]
+     */
+    private function calcularMora(?string $fechaPagoLegacy, string $estadoStudio, float $saldoVencido, float $yMax, Carbon $ref): array
+    {
+        // Estados sin mora (pagadas o anuladas)
+        if (in_array($estadoStudio, ['Pagada', 'Anulada'], true)) {
+            return [0, 0.0];
+        }
+        // Regla 1: x = N (o x > N) → y = 0
+        if ($yMax <= 0) {
+            return [0, 0.0];
+        }
+        // Sin fecha de pago válida → sin mora
+        $fp = $this->fechaValida($fechaPagoLegacy);
+        if (!$fp) {
+            return [0, 0.0];
+        }
+        $fechaPago = Carbon::parse($fp);
+        $finGracia = $fechaPago->copy()->addMonths(self::MORA_GRACIA_MESES);
+
+        // Aún dentro del período de gracia
+        if ($ref->lessThanOrEqualTo($finGracia)) {
+            return [0, 0.0];
+        }
+
+        $diasMora = (int) $finGracia->diffInDays($ref);
+        if ($diasMora <= 0) return [0, 0.0];
+
+        $intMor = round($saldoVencido * ($yMax / 100) * ($diasMora / 360), 2);
+        return [$diasMora, $intMor];
+    }
+
+    /**
      * Normaliza las propiedades de una fila stdClass para que sean accesibles
      * con el case que el código espera. MySQL en Linux suele devolver columnas
      * en minúsculas o respetando el case del CREATE TABLE; MySQL en Windows
@@ -301,9 +408,20 @@ class MigrarCreditosLegacy extends Command
         $reference = null;
         $monto = (float) ($rc->montoapr ?: $rc->monto_girado);
 
+        // ── Cálculo de mora: determinar si aplica la nueva regla a este crédito ──
+        // Si SÍ aplica: calcular yMax una vez (= N - x). Si y_max <= 0 (x=N), todo el plan tendrá mora=0.
+        // Si NO aplica (pre-Ley, tasa 0%, cancelado, anulado): se preservan los valores legacy.
+        $aplicaMoraNueva = $this->aplicaNuevaMora($rc, $fechaForm);
+        $yMaxCredito = 0.0;
+        if ($aplicaMoraNueva) {
+            $N = $this->usuraMaxParaCredito($fechaForm, $monto);
+            $yMaxCredito = max(0.0, $N - (float) $rc->tasa);
+        }
+
         DB::transaction(function () use (
             $rc, $persona, $cedula, $fechaForm, $tasa, $deductoraId, $sufijoCredito,
             $planRows, $transacByIdSeq, $pagosReales, $monto, $nuOp,
+            $aplicaMoraNueva, $yMaxCredito,
             &$asientoSpecs, &$creditId, &$reference, &$stats
         ) {
             // 1) Opportunity placeholder (mismo patrón que el creator existente)
@@ -360,6 +478,21 @@ class MigrarCreditosLegacy extends Command
                     default => 'Pendiente',
                 };
 
+                // Mora: si el crédito aplica nueva regla, recalcular; si no, preservar legacy
+                $saldoAnterior = (float) ($p->saldo_anterior ?? 0);
+                if ($aplicaMoraNueva) {
+                    [$diasMoraFinal, $intMorFinal] = $this->calcularMora(
+                        $p->fecha_pago,
+                        $estado,
+                        $saldoAnterior,
+                        $yMaxCredito,
+                        $now
+                    );
+                } else {
+                    $diasMoraFinal = (int) ($p->mora_dias ?? 0);
+                    $intMorFinal = (float) ($p->intmor ?? 0);
+                }
+
                 $planInsert[] = [
                     'credit_id'         => $credit->id,
                     'linea'             => $idSeq,
@@ -374,13 +507,13 @@ class MigrarCreditosLegacy extends Command
                     'cargos'            => (float) ($p->cargos ?? 0),
                     'poliza'            => (float) ($p->poliza ?? 0),
                     'interes_corriente' => (float) ($p->intcor ?? 0),
-                    'interes_moratorio' => (float) ($p->intmor ?? 0),
+                    'interes_moratorio' => $intMorFinal,
                     'amortizacion'      => (float) ($p->principal ?? 0),
-                    'saldo_anterior'    => (float) ($p->saldo_anterior ?? 0),
+                    'saldo_anterior'    => $saldoAnterior,
                     'saldo_nuevo'       => (float) ($p->saldo_actual ?? 0),
                     'dias'              => (int) ($p->dias_calculo ?? 0),
                     'estado'            => $estado,
-                    'dias_mora'         => (int) ($p->mora_dias ?? 0),
+                    'dias_mora'         => $diasMoraFinal,
                     'fecha_movimiento'             => $t ? $this->fechaValida($t->mov_fecha) : null,
                     'movimiento_total'             => $t ? (float) $t->mov_monto : 0,
                     'movimiento_cargos'            => $t ? (float) $t->mov_cargos : 0,

@@ -70,3 +70,7 @@ CLAUDE.md
 !.claude/modulo-inversiones.md
 !.claude/skills/
 !.claude/skills/update-accounting-docs.md
+
+# Backups locales (NO subir a github)
+_backups/
+**/_backups/
