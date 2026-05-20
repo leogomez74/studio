@@ -93,9 +93,13 @@ class MigrarCreditosLegacy extends Command
         $this->cargarDeductorasStudio();
 
         // Query base
+        // EXCLUSIÓN FIJA: créditos cuya FECHA_REGISTRO cae en 2026 NO se migran
+        // (decisión del usuario, May 2026). Los créditos del 2026 se manejan
+        // directamente en Studio, no vienen de la BD legacy.
         $q = DB::connection('legacy')->table('reg_creditos')
             ->selectRaw("CODIGO, ID_SOLICITUD, TRIM(CEDULA) AS ced, MONTOAPR, MONTO_GIRADO, PLAZO, `INT` AS tasa, CUOTA, SALDO, TRIM(ESTADO) AS estado, COD_DEDUCTORA, FECHA_REGISTRO, FECHAFORF, FECHASOL, OBSERVACION, CATEGORIA_PERSONA")
             ->whereRaw('TRIM(ESTADO) IN (' . implode(',', array_fill(0, count($estados), '?')) . ')', $estados)
+            ->whereRaw('(FECHA_REGISTRO IS NULL OR YEAR(FECHA_REGISTRO) < 2026)')
             ->orderBy('CODIGO')->orderBy('ID_SOLICITUD');
 
         if ($this->option('codigo'))       $q->where('CODIGO', $this->option('codigo'));
