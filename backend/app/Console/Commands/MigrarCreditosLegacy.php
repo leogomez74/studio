@@ -108,7 +108,7 @@ class MigrarCreditosLegacy extends Command
         if ($this->option('offset'))       $q->offset((int) $this->option('offset'));
         if ($this->option('limit'))        $q->limit((int) $this->option('limit'));
 
-        $creditos = $q->get();
+        $creditos = $q->get()->map(fn ($r) => $this->normRow($r));
         $this->info("Créditos en alcance: {$creditos->count()}");
         if ($creditos->isEmpty()) {
             $this->warn('Nada que migrar con esos filtros.');
@@ -132,7 +132,7 @@ class MigrarCreditosLegacy extends Command
         $bar->start();
 
         foreach ($creditos as $rc) {
-            $opLabel = "{$rc->CODIGO}/{$rc->ID_SOLICITUD}";
+            $opLabel = "{$rc->codigo}/{$rc->id_solicitud}";
             try {
                 $res = $this->procesarCredito($rc, $stats, $dryRun);
                 if ($res['saltado'] ?? false) {
@@ -187,6 +187,30 @@ class MigrarCreditosLegacy extends Command
     }
 
     /**
+     * Normaliza las propiedades de una fila stdClass para que sean accesibles
+     * con el case que el código espera. MySQL en Linux suele devolver columnas
+     * en minúsculas o respetando el case del CREATE TABLE; MySQL en Windows
+     * (Laragon) suele ser case-insensitive. Para no depender de eso:
+     *
+     *  - Los aliases que el código accede en lowercase (`ced`, `estado`,
+     *    `tasa`, `inst`, `pref`) se preservan en lowercase.
+     *  - Todas las demás columnas se normalizan a UPPERCASE.
+     *
+     * Aplicar via ->map() sobre el resultado de cada ->get() legacy.
+     */
+    private function normRow(object $row): object
+    {
+        // Normaliza TODAS las propiedades a LOWERCASE. La BD legacy en Linux
+        // tiene columnas en minúsculas (id_seq, codigo, id_solicitud…); este
+        // mapeo garantiza acceso uniforme en cualquier OS.
+        $out = new \stdClass();
+        foreach (get_object_vars($row) as $k => $v) {
+            $out->{strtolower($k)} = $v;
+        }
+        return $out;
+    }
+
+    /**
      * Procesa un crédito legacy: crea (o reemplaza) Credit + plan_de_pagos
      * + credit_payments + dispara asientos.
      */
@@ -202,7 +226,7 @@ class MigrarCreditosLegacy extends Command
             $persona->save();
         }
 
-        $nuOp = (string) $rc->ID_SOLICITUD;
+        $nuOp = (string) $rc->id_solicitud;
 
         // Dedup / reemplazo
         $existente = Credit::where('numero_operacion', $nuOp)->first();
@@ -220,38 +244,41 @@ class MigrarCreditosLegacy extends Command
             }
         }
 
-        // Cargar plan + transac legacy (TODAS las filas)
+        // Cargar plan + transac legacy (TODAS las filas) — normalizar case
+        // de propiedades porque MySQL Linux puede devolver columnas en minúsculas.
         $planRows = DB::connection('legacy')->table('crd_operacion_plan_pagos')
-            ->where('CODIGO', $rc->CODIGO)->where('ID_SOLICITUD', $rc->ID_SOLICITUD)
+            ->where('CODIGO', $rc->codigo)->where('ID_SOLICITUD', $rc->id_solicitud)
             ->orderByRaw('CAST(ID_SEQ AS DECIMAL(10,2))')
-            ->get();
+            ->get()
+            ->map(fn ($r) => $this->normRow($r));
 
         $transacRows = DB::connection('legacy')->table('crd_operacion_transac')
-            ->where('CODIGO', $rc->CODIGO)->where('ID_SOLICITUD', $rc->ID_SOLICITUD)
+            ->where('CODIGO', $rc->codigo)->where('ID_SOLICITUD', $rc->id_solicitud)
             ->orderByRaw('CAST(ID_SEQ AS DECIMAL(10,2))')
-            ->get();
+            ->get()
+            ->map(fn ($r) => $this->normRow($r));
         // Para JOIN plan↔transac (incluye filas con MOV_MONTO=0, ej. desembolso)
-        $transacByIdSeq = $transacRows->keyBy(fn ($t) => $this->formatIdSeq($t->ID_SEQ));
+        $transacByIdSeq = $transacRows->keyBy(fn ($t) => $this->formatIdSeq($t->id_seq));
         // Para crear los CreditPayment + asientos: solo pagos reales
-        $pagosReales = $transacRows->where('MOV_MONTO', '>', 0)->values();
+        $pagosReales = $transacRows->where('mov_monto', '>', 0)->values();
 
         if ($dryRun) {
-            $cuotasDistintas = $planRows->pluck('NUM_CUOTA')->unique()->count();
+            $cuotasDistintas = $planRows->pluck('num_cuota')->unique()->count();
             $this->newLine();
-            $this->line("── {$rc->CODIGO}/{$rc->ID_SOLICITUD} ── ced=$cedula  monto=" . ($rc->MONTOAPR ?: $rc->MONTO_GIRADO) . "  cuota={$rc->CUOTA}  plazo={$rc->PLAZO}  tasa={$rc->tasa}  estado={$rc->estado}");
+            $this->line("── {$rc->codigo}/{$rc->id_solicitud} ── ced=$cedula  monto=" . ($rc->montoapr ?: $rc->monto_girado) . "  cuota={$rc->cuota}  plazo={$rc->plazo}  tasa={$rc->tasa}  estado={$rc->estado}");
             $this->line("   plan_lineas=" . count($planRows) . "  cuotas_distintas=$cuotasDistintas  transac=" . count($transacRows) . "  pagos_reales=" . count($pagosReales));
             return ['success' => true, 'dry_run' => true];
         }
 
         // Resolver tasa, deductora del crédito, fecha formalización, institución
-        $fechaForm = $this->fechaValida($rc->FECHA_REGISTRO)
-            ?: $this->fechaValida($rc->FECHAFORF)
-            ?: $this->fechaValida($rc->FECHASOL)
+        $fechaForm = $this->fechaValida($rc->fecha_registro)
+            ?: $this->fechaValida($rc->fechaforf)
+            ?: $this->fechaValida($rc->fechasol)
             ?: now()->format('Y-m-d');
 
         $tasa = $this->resolverOCrearTasa((float) $rc->tasa, $fechaForm);
 
-        $sufijoCredito = self::COD_DEDUCTORA_MAP[(int) $rc->COD_DEDUCTORA] ?? null;
+        $sufijoCredito = self::COD_DEDUCTORA_MAP[(int) $rc->cod_deductora] ?? null;
         $deductoraId = $sufijoCredito ? ($this->deductoraIdPorSufijo[$sufijoCredito] ?? null) : null;
 
         // institucion_labora del socio si la persona no la tiene
@@ -268,7 +295,7 @@ class MigrarCreditosLegacy extends Command
         $asientoSpecs = [];
         $creditId = null;
         $reference = null;
-        $monto = (float) ($rc->MONTOAPR ?: $rc->MONTO_GIRADO);
+        $monto = (float) ($rc->montoapr ?: $rc->monto_girado);
 
         DB::transaction(function () use (
             $rc, $persona, $cedula, $fechaForm, $tasa, $deductoraId, $sufijoCredito,
@@ -288,17 +315,17 @@ class MigrarCreditosLegacy extends Command
 
             $credit = Credit::create([
                 'reference'        => $reference,
-                'title'            => "Migrado {$rc->CODIGO}/{$rc->ID_SOLICITUD} - {$persona->name}",
+                'title'            => "Migrado {$rc->codigo}/{$rc->id_solicitud} - {$persona->name}",
                 'status'           => $statusStudio,
                 'lead_id'          => $persona->id,
                 'opportunity_id'   => $opp?->id,
                 'opened_at'        => $fechaForm,
-                'description'      => trim('Migrado legacy ' . (string) $rc->OBSERVACION),
-                'category'         => $rc->CODIGO,
+                'description'      => trim('Migrado legacy ' . (string) $rc->observacion),
+                'category'         => $rc->codigo,
                 'numero_operacion' => $nuOp,
                 'monto_credito'    => $monto,
-                'cuota'            => (float) $rc->CUOTA,
-                'plazo'            => (int) $rc->PLAZO,
+                'cuota'            => (float) $rc->cuota,
+                'plazo'            => (int) $rc->plazo,
                 'tasa_id'          => $tasa->id,
                 'tasa_anual'       => (float) $rc->tasa,
                 'deductora_id'     => $deductoraId,
@@ -310,10 +337,10 @@ class MigrarCreditosLegacy extends Command
             // 3) Plan de pagos — COPIA 1:1 DEL SQL (1 fila por sub-línea ID_SEQ)
             PlanDePago::withoutEvents(function () use ($planRows, $transacByIdSeq, $credit, &$stats) {
                 foreach ($planRows as $p) {
-                    $idSeq = $this->formatIdSeq($p->ID_SEQ);
+                    $idSeq = $this->formatIdSeq($p->id_seq);
                     $t = $transacByIdSeq->get($idSeq);
 
-                    $estado = match (trim((string) $p->ESTADO)) {
+                    $estado = match (trim((string) $p->estado)) {
                         'C'     => 'Pagada',
                         'P'     => 'Pendiente',
                         'A'     => 'Vencida',
@@ -325,37 +352,37 @@ class MigrarCreditosLegacy extends Command
                     $row->forceFill([
                         'credit_id'         => $credit->id,
                         'linea'             => $idSeq,
-                        'numero_cuota'      => (int) $p->NUM_CUOTA,
-                        'proceso'           => $p->FECHA_PROCESO ? (string) $p->FECHA_PROCESO : null,
-                        'fecha_inicio'      => $this->fechaValida($p->FECHA_INICIO),
-                        'fecha_corte'       => $this->fechaValida($p->FECHA_CORTE),
-                        'fecha_pago'        => $t ? $this->fechaValida($t->MOV_FECHA) : $this->fechaValida($p->FECHA_PAGO),
-                        'tasa_actual'       => (float) ($p->TASA ?? 0),
-                        'plazo_actual'      => (int) ($p->PLAZO ?? 0),
-                        'cuota'             => (float) ($p->CUOTA ?? 0),
-                        'cargos'            => (float) ($p->CARGOS ?? 0),
-                        'poliza'            => (float) ($p->POLIZA ?? 0),
-                        'interes_corriente' => (float) ($p->INTCOR ?? 0),
-                        'interes_moratorio' => (float) ($p->INTMOR ?? 0),
-                        'amortizacion'      => (float) ($p->PRINCIPAL ?? 0),
-                        'saldo_anterior'    => (float) ($p->SALDO_ANTERIOR ?? 0),
-                        'saldo_nuevo'       => (float) ($p->SALDO_ACTUAL ?? 0),
-                        'dias'              => (int) ($p->DIAS_CALCULO ?? 0),
+                        'numero_cuota'      => (int) $p->num_cuota,
+                        'proceso'           => $p->fecha_proceso ? (string) $p->fecha_proceso : null,
+                        'fecha_inicio'      => $this->fechaValida($p->fecha_inicio),
+                        'fecha_corte'       => $this->fechaValida($p->fecha_corte),
+                        'fecha_pago'        => $t ? $this->fechaValida($t->mov_fecha) : $this->fechaValida($p->fecha_pago),
+                        'tasa_actual'       => (float) ($p->tasa ?? 0),
+                        'plazo_actual'      => (int) ($p->plazo ?? 0),
+                        'cuota'             => (float) ($p->cuota ?? 0),
+                        'cargos'            => (float) ($p->cargos ?? 0),
+                        'poliza'            => (float) ($p->poliza ?? 0),
+                        'interes_corriente' => (float) ($p->intcor ?? 0),
+                        'interes_moratorio' => (float) ($p->intmor ?? 0),
+                        'amortizacion'      => (float) ($p->principal ?? 0),
+                        'saldo_anterior'    => (float) ($p->saldo_ANTERIOR ?? 0),
+                        'saldo_nuevo'       => (float) ($p->saldo_ACTUAL ?? 0),
+                        'dias'              => (int) ($p->dias_calculo ?? 0),
                         'estado'            => $estado,
-                        'dias_mora'         => (int) ($p->MORA_DIAS ?? 0),
+                        'dias_mora'         => (int) ($p->mora_dias ?? 0),
                         // ── MOVIMIENTO (lado derecho del UI legacy) ──
-                        'fecha_movimiento'             => $t ? $this->fechaValida($t->MOV_FECHA) : null,
-                        'movimiento_total'             => $t ? (float) $t->MOV_MONTO : 0,
-                        'movimiento_cargos'            => $t ? (float) $t->MOV_CARGOS : 0,
-                        'movimiento_poliza'            => $t ? (float) $t->MOV_POLIZA : 0,
-                        'movimiento_interes_corriente' => $t ? (float) $t->MOV_INTCOR : 0,
-                        'movimiento_interes_moratorio' => $t ? (float) $t->MOV_INTMOR : 0,
-                        'movimiento_principal'         => $t ? (float) $t->MOV_PRINCIPAL : 0,
-                        'movimiento_amortizacion'      => $t ? (float) $t->MOV_PRINCIPAL : 0,
-                        'movimiento_caja_usuario'      => $t ? ($t->MOV_USUARIO ?: 'Migración Legacy') : null,
-                        'tipo_documento'               => $p->TIPO_DOCUMENTO ? trim((string) $p->TIPO_DOCUMENTO) : null,
-                        'numero_documento'             => $t ? $t->NUM_COMPROBANTE : $p->NUM_COMPROBANTE,
-                        'concepto'                     => $p->COD_CONCEPTO ? trim((string) $p->COD_CONCEPTO) : null,
+                        'fecha_movimiento'             => $t ? $this->fechaValida($t->mov_fecha) : null,
+                        'movimiento_total'             => $t ? (float) $t->mov_monto : 0,
+                        'movimiento_cargos'            => $t ? (float) $t->mov_cargos : 0,
+                        'movimiento_poliza'            => $t ? (float) $t->mov_poliza : 0,
+                        'movimiento_interes_corriente' => $t ? (float) $t->mov_intcor : 0,
+                        'movimiento_interes_moratorio' => $t ? (float) $t->mov_intmor : 0,
+                        'movimiento_principal'         => $t ? (float) $t->mov_principal : 0,
+                        'movimiento_amortizacion'      => $t ? (float) $t->mov_principal : 0,
+                        'movimiento_caja_usuario'      => $t ? ($t->mov_usuario ?: 'Migración Legacy') : null,
+                        'tipo_documento'               => $p->tipo_documento ? trim((string) $p->tipo_documento) : null,
+                        'numero_documento'             => $t ? $t->num_comprobante : $p->num_comprobante,
+                        'concepto'                     => $p->cod_concepto ? trim((string) $p->cod_concepto) : null,
                     ]);
                     $row->save();
                     $stats['plan_lineas']++;
@@ -364,7 +391,7 @@ class MigrarCreditosLegacy extends Command
 
             // 4) FORMALIZACION — asiento histórico en fecha de desembolso
             $sufijoFormalizacion = $pagosReales->isNotEmpty()
-                ? $this->resolverSufijoDePago($pagosReales->first()->NUM_COMPROBANTE, $sufijoCredito)
+                ? $this->resolverSufijoDePago($pagosReales->first()->num_comprobante, $sufijoCredito)
                 : $sufijoCredito;
             $deductoraFormalizacion = $sufijoFormalizacion ? ($this->deductoraIdPorSufijo[$sufijoFormalizacion] ?? null) : null;
 
@@ -396,13 +423,13 @@ class MigrarCreditosLegacy extends Command
             // 5) CreditPayment + spec asiento por cada pago real (MOV_MONTO>0)
             $saldoActual = $monto;
             foreach ($pagosReales as $t) {
-                $idSeq = $this->formatIdSeq($t->ID_SEQ);
-                $sufijoPago = $this->resolverSufijoDePago($t->NUM_COMPROBANTE, $sufijoCredito);
+                $idSeq = $this->formatIdSeq($t->id_seq);
+                $sufijoPago = $this->resolverSufijoDePago($t->num_comprobante, $sufijoCredito);
                 $pagoDeductoraId = $sufijoPago ? ($this->deductoraIdPorSufijo[$sufijoPago] ?? null) : null;
-                $fechaPago = $this->fechaHibrida($t->NUM_COMPROBANTE, $t->MOV_FECHA, $fechaForm);
+                $fechaPago = $this->fechaHibrida($t->num_comprobante, $t->mov_fecha, $fechaForm);
 
-                $montoPago = (float) $t->MOV_MONTO;
-                $capital   = (float) $t->MOV_PRINCIPAL;
+                $montoPago = (float) $t->mov_monto;
+                $capital   = (float) $t->mov_principal;
                 $saldoAnt  = $saldoActual;
                 $saldoActual = max(0.0, round($saldoActual - $capital, 2));
 
@@ -411,13 +438,13 @@ class MigrarCreditosLegacy extends Command
                 $payment = CreditPayment::create([
                     'credit_id'         => $credit->id,
                     'linea'             => $idSeq,
-                    'numero_cuota'      => (int) $t->NUM_CUOTA,
+                    'numero_cuota'      => (int) $t->num_cuota,
                     'fecha_pago'        => $fechaPago,
-                    'cuota'             => (float) $rc->CUOTA,
+                    'cuota'             => (float) $rc->cuota,
                     'monto'             => $montoPago,
-                    'poliza'            => (float) $t->MOV_POLIZA,
-                    'interes_corriente' => (float) $t->MOV_INTCOR,
-                    'interes_moratorio' => (float) $t->MOV_INTMOR,
+                    'poliza'            => (float) $t->mov_poliza,
+                    'interes_corriente' => (float) $t->mov_intcor,
+                    'interes_moratorio' => (float) $t->mov_intmor,
                     'amortizacion'      => $capital,
                     'saldo_anterior'    => $saldoAnt,
                     'nuevo_saldo'       => $saldoActual,
@@ -426,14 +453,14 @@ class MigrarCreditosLegacy extends Command
                     'movimiento_total'  => $montoPago,
                     'movimiento_amortizacion' => $capital,
                     'tasa_actual'       => (float) $rc->tasa,
-                    'plazo_actual'      => (int) $rc->PLAZO,
+                    'plazo_actual'      => (int) $rc->plazo,
                     'source'            => $pagoDeductoraId ? 'Planilla' : 'Ventanilla',
                     'referencia'        => $referencia,
                     'cedula'            => $persona->cedula,
                 ]);
                 $stats['pagos']++;
 
-                $cargos = (float) $t->MOV_CARGOS;
+                $cargos = (float) $t->mov_cargos;
                 $asientoSpecs[] = [
                     'type'      => $pagoDeductoraId ? 'PAGO_PLANILLA' : 'PAGO_VENTANILLA',
                     'amount'    => $montoPago,
@@ -449,9 +476,9 @@ class MigrarCreditosLegacy extends Command
                         'entry_date'        => $fechaPago,
                         'amount_breakdown'  => [
                             'total'                    => $montoPago,
-                            'interes_corriente'        => (float) $t->MOV_INTCOR,
-                            'interes_moratorio'        => (float) $t->MOV_INTMOR,
-                            'poliza'                   => (float) $t->MOV_POLIZA,
+                            'interes_corriente'        => (float) $t->mov_intcor,
+                            'interes_moratorio'        => (float) $t->mov_intmor,
+                            'poliza'                   => (float) $t->mov_poliza,
                             'capital'                  => $capital,
                             'sobrante'                 => 0,
                             'cargos_adicionales_total' => $cargos,
@@ -462,9 +489,9 @@ class MigrarCreditosLegacy extends Command
             }
 
             // 6) Saldo + última fecha en Credit (faithful al legacy)
-            $credit->saldo = (float) $rc->SALDO;  // valor exacto del SQL
+            $credit->saldo = (float) $rc->saldo;  // valor exacto del SQL
             if ($pagosReales->isNotEmpty()) {
-                $credit->fecha_ultimo_pago = $this->fechaValida($pagosReales->last()->MOV_FECHA);
+                $credit->fecha_ultimo_pago = $this->fechaValida($pagosReales->last()->mov_fecha);
             }
             $credit->save();
         });
@@ -579,11 +606,11 @@ class MigrarCreditosLegacy extends Command
      */
     private function buildReferenciaPago(object $rc, object $t, ?string $sufijo): string
     {
-        $seqDigits = str_replace('.', '', $this->formatIdSeq($t->ID_SEQ));
+        $seqDigits = str_replace('.', '', $this->formatIdSeq($t->id_seq));
         if ($sufijo) {
-            return "LEG-{$rc->CODIGO}-{$rc->ID_SOLICITUD}-{$seqDigits}-PLA{$seqDigits}.{$sufijo}.CRD";
+            return "LEG-{$rc->codigo}-{$rc->id_solicitud}-{$seqDigits}-PLA{$seqDigits}.{$sufijo}.CRD";
         }
-        return "LEG-{$rc->CODIGO}-{$rc->ID_SOLICITUD}-{$seqDigits}";
+        return "LEG-{$rc->codigo}-{$rc->id_solicitud}-{$seqDigits}";
     }
 
     // ============================================================
@@ -609,10 +636,12 @@ class MigrarCreditosLegacy extends Command
             ->leftJoin('instituciones as i', 'i.COD_INSTITUCION', '=', 's.COD_INSTITUCION')
             ->selectRaw("TRIM(s.CEDULA) AS ced, s.NOMBRE, s.NOMBREV2, s.APELLIDO1, s.APELLIDO2, s.FECHA_NAC, s.SEXO, s.AF_EMAIL, s.EMAIL_02, s.DIRECCION, i.DESC_CORTA AS inst")
             ->whereRaw('TRIM(s.CEDULA) IN (' . implode(',', array_fill(0, count($faltantes), '?')) . ')', $faltantes)
-            ->get()->keyBy('ced');
+            ->get()
+            ->map(fn ($r) => $this->normRow($r))
+            ->keyBy('ced');
 
         $emailsCandidatos = array_filter($socios->map(
-            fn ($s) => filter_var(strtolower(trim((string) ($s->AF_EMAIL ?: $s->EMAIL_02))), FILTER_VALIDATE_EMAIL) ?: null
+            fn ($s) => filter_var(strtolower(trim((string) ($s->af_email ?: $s->email_02))), FILTER_VALIDATE_EMAIL) ?: null
         )->all());
         $emailsTomados = $emailsCandidatos
             ? array_flip(Person::query()->withoutGlobalScopes()->whereIn('email', array_unique($emailsCandidatos))->pluck('email')->all())
@@ -658,25 +687,25 @@ class MigrarCreditosLegacy extends Command
         $payload = [
             'cedula'    => preg_replace('/[^0-9]/', '', (string) $s->ced),
             'is_active' => true,
-            'name'      => $this->limpiar($s->NOMBREV2) ?: $this->derivarNombres($s),
-            'apellido1' => $this->limpiar($s->APELLIDO1),
-            'apellido2' => $this->limpiar($s->APELLIDO2),
+            'name'      => $this->limpiar($s->nombrev2) ?: $this->derivarNombres($s),
+            'apellido1' => $this->limpiar($s->apellido1),
+            'apellido2' => $this->limpiar($s->apellido2),
         ];
 
-        $fnac = $this->fechaValida($s->FECHA_NAC);
+        $fnac = $this->fechaValida($s->fecha_nac);
         if ($fnac) $payload['fecha_nacimiento'] = $fnac;
 
-        $genero = strtoupper(trim((string) $s->SEXO));
+        $genero = strtoupper(trim((string) $s->sexo));
         if ($genero === 'M') $payload['genero'] = 'Masculino';
         elseif ($genero === 'F') $payload['genero'] = 'Femenino';
 
-        $dir = $this->limpiar($s->DIRECCION);
+        $dir = $this->limpiar($s->direccion);
         if ($dir) $payload['direccion1'] = $dir;
 
         $inst = $this->limpiar($s->inst);
         if ($inst) $payload['institucion_labora'] = $inst;
 
-        $email = filter_var(strtolower(trim((string) ($s->AF_EMAIL ?: $s->EMAIL_02))), FILTER_VALIDATE_EMAIL) ?: null;
+        $email = filter_var(strtolower(trim((string) ($s->af_email ?: $s->email_02))), FILTER_VALIDATE_EMAIL) ?: null;
         if ($email && !isset($emailsTomados[$email]) && !isset($emailsLote[$email])) {
             $emailsLote[$email] = true;
             $payload['email'] = $email;
@@ -692,8 +721,8 @@ class MigrarCreditosLegacy extends Command
 
     private function derivarNombres(object $s): ?string
     {
-        $full = trim((string) $s->NOMBRE);
-        $ap = trim(($s->APELLIDO1 ?? '') . ' ' . ($s->APELLIDO2 ?? ''));
+        $full = trim((string) $s->nombre);
+        $ap = trim(($s->apellido1 ?? '') . ' ' . ($s->apellido2 ?? ''));
         if ($ap !== '' && stripos($full, $ap) === 0) {
             return $this->limpiar(substr($full, strlen($ap)));
         }
