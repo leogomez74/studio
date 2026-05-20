@@ -49,7 +49,7 @@ const ScrollableTableContainer = React.forwardRef<
     <div
       ref={containerRef}
       className={cn(
-        "overflow-x-auto cursor-grab scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent hover:scrollbar-thumb-muted-foreground/40",
+        "overflow-x-auto overflow-y-auto cursor-grab scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent hover:scrollbar-thumb-muted-foreground/40",
         className
       )}
       onMouseDown={handleMouseDown}

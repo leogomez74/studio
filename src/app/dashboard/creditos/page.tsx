@@ -279,20 +279,6 @@ const CREDIT_STATUS_TAB_CONFIG = [
   { value: "legal", label: "Cobro Judicial" },
 ] as const;
 
-const TAB_STATUS_FILTERS: Record<string, string[]> = {
-  "por firmar": ["por firmar"],
-  "formalizado": ["formalizado"],
-  "mora": ["mora", "en mora"],
-  "cerrado": ["cerrado", "cancelado"],
-  "legal": ["legal", "en cobro judicial"],
-};
-
-const TRACKED_STATUS_SET = new Set(
-  Object.values(TAB_STATUS_FILTERS)
-    .flat()
-    .map((status) => status.toLowerCase())
-);
-
 const normalizeStatus = (status?: string | null): string => (status ?? "").trim().toLowerCase();
 
 const formatAmount = (amount?: number | null): string => {
@@ -305,11 +291,7 @@ const formatAmount = (amount?: number | null): string => {
 };
 
 const calculateCuotasAtrasadas = (credit: CreditItem): number => {
-  if (!credit.plan_de_pagos || !Array.isArray(credit.plan_de_pagos)) {
-    return 0;
-  }
-
-  return credit.plan_de_pagos.filter(cuota => cuota.estado === 'Mora').length;
+  return credit.cuotas_atrasadas ?? 0;
 };
 
 const getStatusBadgeStyle = (status?: string | null): { variant: "default" | "secondary" | "destructive" | "outline"; className?: string } => {
@@ -369,7 +351,10 @@ export default function CreditsPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverLastPage, setServerLastPage] = useState(1);
+  const [isLoadingCredits, setIsLoadingCredits] = useState(false);
 
   // Selección de créditos sin deductora
   const [selectedCreditIds, setSelectedCreditIds] = useState<Set<number>>(new Set());
@@ -474,18 +459,31 @@ export default function CreditsPage() {
   }, []);
 
   const fetchCredits = useCallback(async () => {
+    setIsLoadingCredits(true);
     try {
-      const response = await api.get('/api/credits?all=true');
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        per_page: String(itemsPerPage),
+      });
+      if (tabValue !== 'all') params.set('tab', tabValue);
+      if (filters.deductora) params.set('deductora', filters.deductora);
+      if (filters.leadName) params.set('lead_name', filters.leadName);
+      if (filters.numeroOperacion) params.set('search', filters.numeroOperacion);
+      if (filters.monto) params.set('monto', filters.monto);
 
-      // Handle both paginated response { data: [...] } and direct array response
-      const apiData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-      setCredits(apiData);
+      const response = await api.get(`/api/credits?${params}`);
+      const { data, total, last_page } = response.data;
+      setCredits(data || []);
+      setServerTotal(total || 0);
+      setServerLastPage(last_page || 1);
     } catch (error) {
       console.error("Error fetching credits:", error);
       toastError("Error", "No se pudieron cargar los créditos. Intente nuevamente.");
       setCredits([]);
+    } finally {
+      setIsLoadingCredits(false);
     }
-  }, [toast]);
+  }, [currentPage, itemsPerPage, tabValue, filters, toast]);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -541,14 +539,19 @@ export default function CreditsPage() {
     }
   }, []);
 
+  // Carga inicial de datos estáticos (una vez)
   useEffect(() => {
-    fetchCredits();
     fetchClients();
     fetchOpportunities();
     fetchUsers();
     fetchDeductoras();
     fetchProducts();
-  }, [fetchCredits, fetchClients, fetchOpportunities, fetchUsers, fetchDeductoras, fetchProducts]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recarga créditos cuando cambian filtros, tab o página
+  useEffect(() => {
+    fetchCredits();
+  }, [fetchCredits]);
 
   // Populate client objects on credits based on lead_id
   useEffect(() => {
@@ -567,57 +570,6 @@ export default function CreditsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [tabValue, filters]);
-
-  const getCreditsForTab = useCallback(
-    (value: string): CreditItem[] => {
-      let filtered = credits;
-
-      // 1. Tab Filter
-      if (value === "otros") {
-        filtered = credits.filter((item) => {
-          const normalized = normalizeStatus(item.status);
-          return normalized.length > 0 && !TRACKED_STATUS_SET.has(normalized);
-        });
-      } else if (value !== "all") {
-        const statuses = TAB_STATUS_FILTERS[value];
-        if (statuses) {
-          filtered = credits.filter((item) => statuses.includes(normalizeStatus(item.status)));
-        }
-      }
-
-      // 2. Advanced Filters
-      if (filters.monto) {
-        filtered = filtered.filter(c => c.monto_credito?.toString().includes(filters.monto));
-      }
-      if (filters.numeroOperacion) {
-        filtered = filtered.filter(c =>
-          (c.numero_operacion?.toLowerCase().includes(filters.numeroOperacion.toLowerCase())) ||
-          (c.reference?.toLowerCase().includes(filters.numeroOperacion.toLowerCase()))
-        );
-      }
-      if (filters.leadName) {
-        const q = filters.leadName.toLowerCase();
-        filtered = filtered.filter(c => {
-          const leadFull = [c.lead?.name, c.lead?.apellido1, c.lead?.apellido2].filter(Boolean).join(' ').toLowerCase();
-          const clientFull = [c.client?.name, c.client?.apellido1, c.client?.apellido2].filter(Boolean).join(' ').toLowerCase();
-          return leadFull.includes(q) || clientFull.includes(q);
-        });
-      }
-      if (filters.documentoId) {
-        filtered = filtered.filter(c => c.documento_id?.toLowerCase().includes(filters.documentoId.toLowerCase()));
-      }
-      if (filters.deductora) {
-        if (filters.deductora === "sin") {
-          filtered = filtered.filter(c => !c.deductora_id);
-        } else {
-          filtered = filtered.filter(c => c.deductora_id === Number(filters.deductora));
-        }
-      }
-
-      return filtered;
-    },
-    [credits, filters]
-  );
 
   // Agrupar créditos por cliente (lead_id)
   const groupCreditsByClient = useCallback((credits: CreditItem[]): Map<number, CreditItem[]> => {
@@ -656,34 +608,24 @@ export default function CreditsPage() {
     });
   }, []);
 
-  // Get paginated credits for the current tab (agrupados por cliente)
+  // Agrupa los créditos de la página actual (ya filtrados/paginados por el server)
   const getPaginatedCredits = useCallback(
-    (value: string) => {
-      const filtered = getCreditsForTab(value);
-      const grouped = groupCreditsByClient(filtered);
-
-      // Convertir Map a Array para paginar por grupos
+    (_value: string) => {
+      const grouped = groupCreditsByClient(credits);
       const groupsArray = Array.from(grouped.entries());
-      const totalGroups = groupsArray.length;
-      const totalItems = filtered.length; // Total de créditos individuales
-      const totalPages = Math.ceil(totalGroups / itemsPerPage);
-
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const endIndex = startIndex + itemsPerPage;
-      const paginatedGroups = groupsArray.slice(startIndex, endIndex);
 
       return {
-        groups: new Map(paginatedGroups),  // Map de grupos para página actual
-        totalItems,                         // Total de créditos (para info)
-        totalGroups,                        // Total de clientes
-        totalPages,
+        groups: grouped,
+        totalItems: serverTotal,
+        totalGroups: groupsArray.length,
+        totalPages: serverLastPage,
         currentPage,
-        startIndex: startIndex + 1,
-        endIndex: Math.min(endIndex, totalGroups),
-        allFilteredCredits: filtered,
+        startIndex: serverTotal > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0,
+        endIndex: Math.min(currentPage * itemsPerPage, serverTotal),
+        allFilteredCredits: credits,
       };
     },
-    [getCreditsForTab, currentPage, itemsPerPage, groupCreditsByClient]
+    [credits, serverTotal, serverLastPage, currentPage, itemsPerPage, groupCreditsByClient]
   );
 
   const handleFormalizar = async () => {
@@ -1109,10 +1051,10 @@ export default function CreditsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10">10</SelectItem>
                 <SelectItem value="25">25</SelectItem>
                 <SelectItem value="50">50</SelectItem>
                 <SelectItem value="100">100</SelectItem>
+                <SelectItem value="200">200</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1247,23 +1189,18 @@ export default function CreditsPage() {
                             const nombreCompleto = getFullName();
 
                             // --- LÓGICA CALCULADA EN FRONTEND ---
-                            const pagosOrdenados = credit.plan_de_pagos?.length
-                              ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
-                              : [];
+                            // 1. Primera Deducción: viene del servidor via accessor $appends
+                            const fechaInicio = credit.primera_deduccion ?? null;
 
-
-                            // 1. Primera Deducción: Tomar siempre la primera cuota del plan_de_pagos
-                            const fechaInicio = pagosOrdenados.length > 0 ? pagosOrdenados[0].fecha_corte : null;
-
-                            // 2. Vencimiento: De cabecera o la última cuota
+                            // 2. Vencimiento
                             const fechaFin = credit.fecha_culminacion_credito;
 
-                            // 3. Tasa: Solo usar tasa dinámica si está en estado editable
+                            // 3. Tasa
                             const estadosEditablesTabla = ['Aprobado', 'Por firmar'];
                             const esEditableTabla = credit.status && estadosEditablesTabla.includes(credit.status);
                             const tasa = esEditableTabla
-                              ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null))
-                              : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenados.length > 0 ? pagosOrdenados[0].tasa_actual : null));
+                              ? (credit.tasa?.tasa ?? credit.tasa_anual)
+                              : (credit.tasa_anual ?? credit.tasa?.tasa);
 
                             // 4. Fallbacks para Línea y Proceso
                             const linea = credit.linea || credit.category || "-";
@@ -1456,21 +1393,15 @@ export default function CreditsPage() {
                                   };
                                   const nombreCompletoSecondary = getFullNameSecondary();
 
-                                  const pagosOrdenadosSecondary = credit.plan_de_pagos?.length
-                                    ? [...credit.plan_de_pagos].filter((e) => e.cuota > 0).sort((a, b) => a.numero_cuota - b.numero_cuota)
-                                    : [];
-
-                                  const fechaInicioSecondary = pagosOrdenadosSecondary.length > 0
-                                    ? pagosOrdenadosSecondary[0].fecha_corte
-                                    : null;
+                                  const fechaInicioSecondary = credit.primera_deduccion ?? null;
 
                                   const fechaFinSecondary = credit.fecha_culminacion_credito;
 
                                   const estadosEditablesTablaSecondary = ['Aprobado', 'Por firmar'];
                                   const esEditableTablaSecondary = credit.status && estadosEditablesTablaSecondary.includes(credit.status);
                                   const tasaSecondary = esEditableTablaSecondary
-                                    ? (credit.tasa?.tasa ?? credit.tasa_anual ?? (pagosOrdenadosSecondary.length > 0 ? pagosOrdenadosSecondary[0].tasa_actual : null))
-                                    : (credit.tasa_anual ?? credit.tasa?.tasa ?? (pagosOrdenadosSecondary.length > 0 ? pagosOrdenadosSecondary[0].tasa_actual : null));
+                                    ? (credit.tasa?.tasa ?? credit.tasa_anual)
+                                    : (credit.tasa_anual ?? credit.tasa?.tasa);
 
                                   const lineaSecondary = credit.linea || credit.category || "-";
                                   const procesoSecondary = credit.proceso || credit.status || "-";
@@ -1639,9 +1570,9 @@ export default function CreditsPage() {
                     {paginationData.totalPages > 0 && (
                       <div className="flex items-center justify-between px-6 py-4 border-t">
                         <div className="text-sm text-muted-foreground">
-                          Mostrando {paginationData.startIndex} a {paginationData.endIndex} de{" "}
-                          <strong>{paginationData.totalGroups}</strong> clientes
-                          {" "}({paginationData.totalItems} créditos totales)
+                          Página {currentPage} de {paginationData.totalPages}{" "}
+                          — <strong>{paginationData.totalItems}</strong> créditos en total
+                          {isLoadingCredits && <span className="ml-2 text-muted-foreground/60">(cargando...)</span>}
                         </div>
                         <div className="flex items-center gap-2">
                           <Button

@@ -2171,7 +2171,7 @@ function CreditDetailClient({ id }: { id: string }) {
                 <CardContent>
                   <ScrollableTableContainer className="max-h-[70vh]">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-10 bg-background">
                       <TableRow className="bg-muted/50">
                         <TableHead className="whitespace-nowrap text-xs">No. Cuota</TableHead>
                         <TableHead className="whitespace-nowrap text-xs">Proceso</TableHead>

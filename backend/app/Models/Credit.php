@@ -104,11 +104,18 @@ class Credit extends Model
      */
     public function getPrimeraDeduccionAttribute(): ?string
     {
-        $plan = $this->planDePagos()
-            ->where('numero_cuota', '>', 0)
-            ->whereNotNull('fecha_corte')
-            ->orderBy('numero_cuota', 'asc')
-            ->first();
+        if ($this->relationLoaded('planDePagos')) {
+            $plan = $this->planDePagos
+                ->filter(fn($p) => $p->numero_cuota > 0 && $p->fecha_corte !== null)
+                ->sortBy('numero_cuota')
+                ->first();
+        } else {
+            $plan = $this->planDePagos()
+                ->where('numero_cuota', '>', 0)
+                ->whereNotNull('fecha_corte')
+                ->orderBy('numero_cuota', 'asc')
+                ->first();
+        }
 
         return $plan ? optional($plan->fecha_corte)->toDateString() : null;
     }
@@ -121,10 +128,17 @@ class Credit extends Model
      */
     public function getFechaUltimoPagoAttribute(): ?string
     {
-        $plan = $this->planDePagos()
-            ->whereNotNull('fecha_pago')
-            ->orderBy('fecha_pago', 'desc')
-            ->first();
+        if ($this->relationLoaded('planDePagos')) {
+            $plan = $this->planDePagos
+                ->filter(fn($p) => $p->fecha_pago !== null)
+                ->sortByDesc('fecha_pago')
+                ->first();
+        } else {
+            $plan = $this->planDePagos()
+                ->whereNotNull('fecha_pago')
+                ->orderBy('fecha_pago', 'desc')
+                ->first();
+        }
 
         return $plan ? optional($plan->fecha_pago)->toDateString() : null;
     }

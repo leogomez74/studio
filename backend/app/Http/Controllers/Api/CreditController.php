@@ -32,34 +32,78 @@ class CreditController extends Controller
     use DisparaAutoTareas;
     use LogsActivity;
     /**
-     * Listar créditos con filtros (optimizado con paginación)
+     * Listar créditos con filtros y paginación server-side
      */
     public function index(Request $request)
     {
-        // Eager load solo relaciones necesarias con campos específicos
         $query = Credit::with([
             'lead:id,cedula,name,apellido1,apellido2,email,phone,person_type_id,deductora_id',
             'opportunity:id,status,opportunity_type,vertical,amount',
-            'planDePagos:id,credit_id,numero_cuota,cuota,saldo_anterior,interes_corriente,int_corriente_vencido,amortizacion,saldo_nuevo,fecha_pago,fecha_corte,estado,dias_mora,fecha_movimiento,movimiento_total,movimiento_poliza,movimiento_interes_corriente,movimiento_int_corriente_vencido,movimiento_interes_moratorio,movimiento_principal,movimiento_amortizacion,movimiento_caja_usuario',
+            'planDePagos:id,credit_id,numero_cuota,fecha_corte,fecha_pago',
             'assignedTo:id,name',
             'expedienteJudicial:id,credit_id,estado,sub_estado',
+            'tasa:id,nombre,tasa,tasa_maxima',
         ]);
 
+        // Filtro por lead específico (vista de detalle)
         if ($request->has('lead_id')) {
             $query->where('lead_id', $request->lead_id);
+            if ($request->get('all') === 'true') {
+                return response()->json($query->latest()->get());
+            }
         }
 
         if ($request->filled('reference')) {
             $query->where('reference', $request->reference);
         }
 
-        // Paginación: 50 por página (ajustable con ?per_page=X)
-        $perPage = min($request->get('per_page', 50), 100); // Máximo 100
-
-        // Si se solicita 'all', retornar sin paginar (para exportaciones)
-        if ($request->get('all') === 'true') {
-            return response()->json($query->latest()->get());
+        // Filtro por tab/estado
+        if ($request->filled('tab') && $request->tab !== 'all') {
+            $tabStatuses = [
+                'por firmar' => ['Por firmar'],
+                'formalizado' => ['Formalizado'],
+                'mora' => ['En Mora', 'Mora'],
+                'cerrado' => ['Cerrado', 'Cancelado'],
+                'legal' => ['Legal', 'En cobro judicial'],
+            ];
+            $statuses = $tabStatuses[$request->tab] ?? null;
+            if ($statuses) {
+                $query->whereIn('status', $statuses);
+            }
         }
+
+        // Filtro por deductora
+        if ($request->filled('deductora')) {
+            if ($request->deductora === 'sin') {
+                $query->whereNull('deductora_id');
+            } else {
+                $query->where('deductora_id', $request->deductora);
+            }
+        }
+
+        // Búsqueda por nombre de cliente
+        if ($request->filled('lead_name')) {
+            $name = $request->lead_name;
+            $query->whereHas('lead', function ($q) use ($name) {
+                $q->where(DB::raw("CONCAT(COALESCE(name,''), ' ', COALESCE(apellido1,''), ' ', COALESCE(apellido2,''))"), 'like', "%{$name}%");
+            });
+        }
+
+        // Búsqueda por número de operación o referencia
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('numero_operacion', 'like', "%{$search}%")
+                  ->orWhere('reference', 'like', "%{$search}%");
+            });
+        }
+
+        // Filtro por monto
+        if ($request->filled('monto')) {
+            $query->where('monto_credito', 'like', "%{$request->monto}%");
+        }
+
+        $perPage = min($request->get('per_page', 50), 200);
 
         return response()->json($query->latest()->paginate($perPage));
     }
