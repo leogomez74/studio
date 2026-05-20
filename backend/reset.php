@@ -39,9 +39,9 @@ if (!$autoConfirm) {
     echo "  6. Eliminar todos los analizados\n";
     echo "  7. Eliminar todos los saldos pendientes (sobrantes)\n";
     echo "  8. Eliminar historial de planillas\n";
-    echo "  9. Eliminar todas las personas (leads y clientes)\n";
-    echo " 10. Eliminar registros contables (accounting_entry_logs)\n";
-    echo " 11. Eliminar todas las tareas (tasks)\n\n";
+    // echo "  9. Eliminar todas las personas (leads y clientes)\n";
+    echo "  9. Eliminar registros contables (accounting_entry_logs)\n";
+    echo " 10. Eliminar todas las tareas (tasks)\n\n";
 
     // Mostrar conteos actuales
     $counts = [
@@ -53,7 +53,7 @@ if (!$autoConfirm) {
         'analisis'        => DB::table('analisis')->count(),
         'saldos_pendientes' => DB::table('saldos_pendientes')->count(),
         'planilla_uploads' => DB::table('planilla_uploads')->count(),
-        'persons'          => DB::table('persons')->count(),
+        // 'persons'          => DB::table('persons')->count(),
         'accounting_entry_logs'  => DB::table('accounting_entry_logs')->count(),
         'tasks'                  => DB::table('tasks')->count(),
     ];
@@ -88,7 +88,7 @@ try {
         'analisis',
         'saldos_pendientes',
         'planilla_uploads',
-        'persons',
+        // 'persons',  // NO borrar — se conservan leads y clientes
         'accounting_entry_logs',
         'tasks',
     ];
@@ -122,7 +122,7 @@ echo "  - propuestas:       " . DB::table('propuestas')->count() . "\n";
 echo "  - analisis:         " . DB::table('analisis')->count() . "\n";
 echo "  - saldos_pendientes:" . DB::table('saldos_pendientes')->count() . "\n";
 echo "  - planilla_uploads: " . DB::table('planilla_uploads')->count() . "\n";
-echo "  - persons:          " . DB::table('persons')->count() . "\n";
+// echo "  - persons:          " . DB::table('persons')->count() . "\n";
 echo "  - accounting_entry_logs:  " . DB::table('accounting_entry_logs')->count() . "\n";
 echo "  - tasks:                 " . DB::table('tasks')->count() . "\n";
 echo "\n";
