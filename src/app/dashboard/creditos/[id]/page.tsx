@@ -2218,9 +2218,16 @@ function CreditDetailClient({ id }: { id: string }) {
                           ...credit.plan_de_pagos.map((p: any) => ({ type: 'cuota' as const, data: p })),
                           ...abonosCapital.map((p: any) => ({ type: 'abono' as const, data: p })),
                         ].sort((a, b) => {
-                          // cuota #0 (Vigente/Desembolso) siempre primero
-                          if (a.type === 'cuota' && a.data.numero_cuota === 0) return -1;
-                          if (b.type === 'cuota' && b.data.numero_cuota === 0) return 1;
+                          // Solo la FORMALIZACIÓN real (numero_cuota=0 + tipo_documento FRM/Formalización
+                          // o vacío) va siempre primero. Otras filas con numero_cuota=0 (notas de débito,
+                          // ajustes, anulaciones) se ordenan por fecha como cuotas normales.
+                          const isDesembolso = (r: PlanRow) => {
+                            if (r.type !== 'cuota' || r.data.numero_cuota !== 0) return false;
+                            const td = (r.data.tipo_documento || '').trim();
+                            return td === '' || td === 'FRM' || td === 'Formalización';
+                          };
+                          if (isDesembolso(a)) return -1;
+                          if (isDesembolso(b)) return 1;
                           const da = a.type === 'cuota' ? a.data.fecha_corte : a.data.fecha_pago;
                           const db = b.type === 'cuota' ? b.data.fecha_corte : b.data.fecha_pago;
                           if (!da) return 1;
@@ -2258,10 +2265,16 @@ function CreditDetailClient({ id }: { id: string }) {
                             );
                           }
                           const payment = row.data;
-                          const isVigente = payment.numero_cuota === 0;
+                          // "D" (Desembolso) SOLO para la línea de formalización real.
+                          // Créditos legacy migrados pueden tener varias filas con numero_cuota=0
+                          // (notas de débito ND, ajustes AJ, anulaciones), que se distinguen por
+                          // tipo_documento. Solo FRM/Formalización (o sin tipo_documento, caso PDF/manual) → "D".
+                          const td = (payment.tipo_documento || '').trim();
+                          const isVigente = payment.numero_cuota === 0 && (td === '' || td === 'FRM' || td === 'Formalización');
+                          const isAjusteCero = payment.numero_cuota === 0 && !isVigente;
                           return (
                           <TableRow key={payment.id} className={`hover:bg-muted/50 ${isVigente ? 'bg-gray-50/60 italic text-muted-foreground' : ''}`}>
-                            <TableCell className="text-xs text-center">{isVigente ? 'D' : payment.numero_cuota}</TableCell>
+                            <TableCell className="text-xs text-center">{isVigente ? 'D' : (isAjusteCero ? (td || '-') : payment.numero_cuota)}</TableCell>
                             <TableCell className="text-xs">{payment.proceso || "-"}</TableCell>
                             <TableCell className="text-xs">{formatDate(payment.fecha_inicio ? new Date(payment.fecha_inicio).toISOString() : null)}</TableCell>
                             <TableCell className="text-xs">{formatDate(payment.fecha_corte)}</TableCell>
