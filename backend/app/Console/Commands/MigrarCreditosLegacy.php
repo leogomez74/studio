@@ -256,24 +256,73 @@ class MigrarCreditosLegacy extends Command
     }
 
     /**
-     * Calcula días de mora e interés moratorio para una fila del plan según:
-     *  - Regla 1 (prioridad): si y_max <= 0 (x = N) → 0
-     *  - Regla 2: gracia de 2 meses calendario desde fecha_pago
-     *  - Estados Pagada/Anulada: siempre 0
-     *  - Estados Vencida/Pendiente: aplicar grace + cálculo
+     * Detecta si un crédito legacy es BULLET (solo intereses + capital al final)
+     * o AMORTIZABLE (cuota nivelada con amortización progresiva).
      *
-     * Fórmula:
-     *   mora = saldo_anterior × (y_max / 100) × (dias_mora / 360)
+     * Heurística sobre las filas del plan legacy (excluyendo desembolso y póliza):
+     *  - Si >=80% de cuotas intermedias tienen PRINCIPAL=0 AND la última cuota
+     *    tiene PRINCIPAL ≈ capital → BULLET
+     *  - Si todas tienen PRINCIPAL>0 → AMORTIZABLE
+     *
+     * Solo es usado para logging/diagnóstico — el cálculo de mora usa
+     * directamente `$p->cuota` de cada fila (que ya contiene el valor correcto
+     * para bullet intermedia = interés, bullet final = capital+interés,
+     * amortizable = cuota nivelada).
+     */
+    private function detectarTipoCredito($planRows, float $capital): string
+    {
+        $cuotas = $planRows->filter(fn ($p) => (int) $p->num_cuota > 0)->values();
+        if ($cuotas->isEmpty()) return 'amortizable';
+
+        $intermedias = $cuotas->slice(0, -1);
+        $ultima = $cuotas->last();
+        if ($intermedias->isEmpty()) return 'amortizable';
+
+        $sinAmort = $intermedias->filter(fn ($p) => (float) $p->principal == 0.0)->count();
+        $umbral = (int) ceil($intermedias->count() * 0.8);
+        $ultimaConCapital = abs((float) $ultima->principal - $capital) < 1.0;
+
+        return ($sinAmort >= $umbral && $ultimaConCapital) ? 'bullet' : 'amortizable';
+    }
+
+    /**
+     * Calcula días de mora e interés moratorio para una fila del plan según
+     * la Ley 9859 de Usura (CR). Aplica SOLO en script de migración legacy.
+     *
+     * Reglas:
+     *  - Regla 1 (PRIORITARIA): si y_max ≤ 0 (caso x ≥ N) → mora = 0.
+     *  - Regla 2: gracia de 2 meses calendario desde fecha_pago (Carbon
+     *    addMonths(2)). Antes del fin de gracia → mora = 0.
+     *  - Estados Pagada/Anulada → mora = 0 siempre.
+     *  - Sub-líneas (linea no termina en .00) → mora = 0 (solo madre acumula).
+     *
+     * Fórmula (Ley 9859, art. 36 ter):
+     *   interes_moratorio = monto_vencido_cuota × (y_max / 100) × (dias_mora / 360)
+     *
+     * Donde monto_vencido_cuota = `plan_row.cuota` del legacy, que ya contiene:
+     *   - Bullet intermedia: el interés mensual (ej. 11.969)
+     *   - Bullet final: capital + último interés (ej. 610.419)
+     *   - Amortizable: cuota nivelada completa (amort + interés)
      *
      * @return array{0:int, 1:float} [dias_mora, interes_moratorio]
      */
-    private function calcularMora(?string $fechaPagoLegacy, string $estadoStudio, float $saldoVencido, float $yMax, Carbon $ref): array
-    {
-        // Estados sin mora (pagadas o anuladas)
+    private function calcularMora(
+        ?string $fechaPagoLegacy,
+        string $estadoStudio,
+        float $montoVencidoCuota,
+        float $yMax,
+        Carbon $ref,
+        string $linea = '1.00'
+    ): array {
+        // Estados sin mora
         if (in_array($estadoStudio, ['Pagada', 'Anulada'], true)) {
             return [0, 0.0];
         }
-        // Regla 1: x = N (o x > N) → y = 0
+        // Sub-líneas (X.01, X.02, …) no acumulan mora — solo la madre X.00
+        if (!$this->esLineaMadre($linea)) {
+            return [0, 0.0];
+        }
+        // Regla 1 (prioritaria): x = N → y = 0
         if ($yMax <= 0) {
             return [0, 0.0];
         }
@@ -285,7 +334,7 @@ class MigrarCreditosLegacy extends Command
         $fechaPago = Carbon::parse($fp);
         $finGracia = $fechaPago->copy()->addMonths(self::MORA_GRACIA_MESES);
 
-        // Aún dentro del período de gracia
+        // Aún en gracia
         if ($ref->lessThanOrEqualTo($finGracia)) {
             return [0, 0.0];
         }
@@ -293,8 +342,16 @@ class MigrarCreditosLegacy extends Command
         $diasMora = (int) $finGracia->diffInDays($ref);
         if ($diasMora <= 0) return [0, 0.0];
 
-        $intMor = round($saldoVencido * ($yMax / 100) * ($diasMora / 360), 2);
+        // Fórmula Ley 9859: monto_vencido × tasa_moratoria × días / 360
+        $intMor = round($montoVencidoCuota * ($yMax / 100) * ($diasMora / 360), 2);
         return [$diasMora, $intMor];
+    }
+
+    /** ¿La línea ID_SEQ termina en .00 (cuota madre)? Ej: '1.00' true, '1.01' false. */
+    private function esLineaMadre(string $linea): bool
+    {
+        $f = (float) $linea;
+        return abs($f - floor($f)) < 0.001;
     }
 
     /**
@@ -408,14 +465,24 @@ class MigrarCreditosLegacy extends Command
         $reference = null;
         $monto = (float) ($rc->montoapr ?: $rc->monto_girado);
 
-        // ── Cálculo de mora: determinar si aplica la nueva regla a este crédito ──
+        // ── Cálculo de mora (Ley 9859 — Ley de Usura CR) ──
         // Si SÍ aplica: calcular yMax una vez (= N - x). Si y_max <= 0 (x=N), todo el plan tendrá mora=0.
         // Si NO aplica (pre-Ley, tasa 0%, cancelado, anulado): se preservan los valores legacy.
         $aplicaMoraNueva = $this->aplicaNuevaMora($rc, $fechaForm);
         $yMaxCredito = 0.0;
+        $tipoCredito = 'amortizable'; // default
         if ($aplicaMoraNueva) {
             $N = $this->usuraMaxParaCredito($fechaForm, $monto);
             $yMaxCredito = max(0.0, $N - (float) $rc->tasa);
+            $tipoCredito = $this->detectarTipoCredito($planRows, $monto);
+
+            // Guarda explícita: x + y_max ≤ N (siempre cumple por construcción,
+            // pero protege ante futura tasa moratoria pactada custom)
+            $tasaTotal = (float) $rc->tasa + $yMaxCredito;
+            if ($tasaTotal > $N + 0.001) {
+                Log::warning("MigrarCreditosLegacy [{$rc->codigo}/{$rc->id_solicitud}]: x+y_max ({$tasaTotal}) excede N ({$N}). Se acota.");
+                $yMaxCredito = max(0.0, $N - (float) $rc->tasa);
+            }
         }
 
         DB::transaction(function () use (
@@ -478,15 +545,22 @@ class MigrarCreditosLegacy extends Command
                     default => 'Pendiente',
                 };
 
-                // Mora: si el crédito aplica nueva regla, recalcular; si no, preservar legacy
+                // Mora: si el crédito aplica nueva regla, recalcular según Ley 9859;
+                // si no, preservar legacy.
                 $saldoAnterior = (float) ($p->saldo_anterior ?? 0);
                 if ($aplicaMoraNueva) {
+                    // Base de mora = $p->cuota (monto vencido de la fila legacy).
+                    // Para bullet intermedia: interés mensual.
+                    // Para bullet final: capital + último interés.
+                    // Para amortizable: cuota nivelada (amort + interés).
+                    $montoVencido = (float) ($p->cuota ?? 0);
                     [$diasMoraFinal, $intMorFinal] = $this->calcularMora(
                         $p->fecha_pago,
                         $estado,
-                        $saldoAnterior,
+                        $montoVencido,
                         $yMaxCredito,
-                        $now
+                        $now,
+                        $idSeq
                     );
                 } else {
                     $diasMoraFinal = (int) ($p->mora_dias ?? 0);
