@@ -44,6 +44,7 @@ class MigrarCreditosLegacy extends Command
 
     protected $signature = 'migrar:creditos-legacy
         {--estado=A,C : Estados de reg_creditos a migrar (coma-separados)}
+        {--solo-activos : Atajo: migrar SOLO créditos activos (sobreescribe --estado a A)}
         {--codigo= : Filtrar por producto (CODIGO), ej. MCEL}
         {--id-solicitud= : Filtrar por ID_SOLICITUD exacto (pruebas)}
         {--cedula= : Filtrar por cédula}
@@ -79,7 +80,10 @@ class MigrarCreditosLegacy extends Command
     public function handle(): int
     {
         $dryRun  = (bool) $this->option('dry-run');
-        $estados = array_filter(array_map('trim', explode(',', (string) $this->option('estado'))));
+        // --solo-activos es atajo: sobreescribe --estado a 'A'
+        $estados = $this->option('solo-activos')
+            ? ['A']
+            : array_filter(array_map('trim', explode(',', (string) $this->option('estado'))));
 
         try {
             DB::connection('legacy')->getPdo();

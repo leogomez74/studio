@@ -2220,7 +2220,7 @@ function CreditDetailClient({ id }: { id: string }) {
                         ].sort((a, b) => {
                           // Solo la FORMALIZACIÓN real (numero_cuota=0 + tipo_documento FRM/Formalización
                           // o vacío) va siempre primero. Otras filas con numero_cuota=0 (notas de débito,
-                          // ajustes, anulaciones) se ordenan por fecha como cuotas normales.
+                          // ajustes, anulaciones) se ordenan por linea/fecha como cuotas normales.
                           const isDesembolso = (r: PlanRow) => {
                             if (r.type !== 'cuota' || r.data.numero_cuota !== 0) return false;
                             const td = (r.data.tipo_documento || '').trim();
@@ -2228,6 +2228,14 @@ function CreditDetailClient({ id }: { id: string }) {
                           };
                           if (isDesembolso(a)) return -1;
                           if (isDesembolso(b)) return 1;
+                          // Sort primario por `linea` (parseFloat) cuando ambos tienen linea con sub-líneas
+                          // distintas: agrupa sub-líneas X.00, X.01, X.02 de la misma cuota legacy.
+                          // Para créditos PDF/manuales (linea siempre '1'), todos empatan y cae a fecha_corte.
+                          const la = a.type === 'cuota' ? parseFloat(String(a.data.linea ?? '1')) : NaN;
+                          const lb = b.type === 'cuota' ? parseFloat(String(b.data.linea ?? '1')) : NaN;
+                          if (!isNaN(la) && !isNaN(lb) && la !== lb) {
+                            return la - lb;
+                          }
                           const da = a.type === 'cuota' ? a.data.fecha_corte : a.data.fecha_pago;
                           const db = b.type === 'cuota' ? b.data.fecha_corte : b.data.fecha_pago;
                           if (!da) return 1;
